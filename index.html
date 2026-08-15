@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec barre de progression centrée en bas et panneau d'infos au-dessus." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec panneau d'infos bulle à gauche compact et gestion dynamique des empiètements de l'arbre." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -228,7 +228,7 @@
       padding: 14px;
       backdrop-filter: blur(20px);
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, max-height 0.3s ease;
       z-index: 20;
     }
     .tree-panel.collapsed {
@@ -236,6 +236,11 @@
       opacity: 0;
       pointer-events: none;
     }
+    /* Mode réduit de l'arbre si l'infobulle est active et que l'arbre est ouvert */
+    .tree-panel.clamped {
+      max-height: calc(100vh - 280px);
+    }
+
     .tree-title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
     .tree-search {
       width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-family: var(--font-mono); font-size: 10px; outline: none; margin-bottom: 8px;
@@ -290,48 +295,29 @@
     .context-menu-item:hover { background: rgba(255, 183, 0, 0.15); color: #ffb700; }
     .context-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
-    /* Barre de progression horizontale en bas au centre */
-    .timeline-rail-wrap {
-      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: auto; width: 420px; max-width: calc(100vw - 48px);
-    }
-    .rail-indicator { position: relative; width: 100%; height: 3px; background: rgba(255, 255, 255, 0.07); border-radius: 4px; }
-    .rail-progress-bar { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: #ffb700; border-radius: 4px; box-shadow: 0 0 8px #ffb700; transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
-    .rail-marker { position: absolute; top: 50%; left: 0%; transform: translate(-50%, -50%); width: 10px; height: 10px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 10px #ffb700; transition: left 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
-    .rail-dots { position: absolute; inset: 0; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
-    .rail-dot {
-      width: 11px; height: 11px; border-radius: 50%; background: #151a21; border: 2px solid rgba(255, 255, 255, 0.2); transform: translateY(-4px); cursor: pointer; position: relative; transition: all 0.25s ease;
-    }
-    .rail-dot:hover { transform: translateY(-4px) scale(1.3); border-color: #ffb700; }
-    .rail-dot.active { background: #ffb700; border-color: #ffffff; box-shadow: 0 0 12px #ffb700; }
-    .rail-dot-label {
-      position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-dim); white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s ease; background: rgba(10, 13, 18, 0.9); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border);
-    }
-    .rail-dot:hover .rail-dot-label, .rail-dot.active .rail-dot-label { opacity: 1; color: #ffb700; }
-    .rail-caption { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim); }
-
-    /* Stage Card (Panneau bulle info positionné juste AU-DESSUS de la barre de progression) */
+    /* Stage Card (Panneau bulle info compact en bas à gauche) */
     .stage-card {
-      position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); width: 440px; max-width: calc(100vw - 48px); z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s ease, opacity 0.3s ease;
+      position: absolute; left: 24px; bottom: 24px; width: 300px; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s ease, opacity 0.3s ease;
     }
-    .stage-card.hidden { transform: translateX(-50%) translateY(20px); opacity: 0; pointer-events: none; }
-    .stage-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .stage-tag { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; display: inline-flex; align-items: center; gap: 6px; }
-    .stage-tag::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #ffb700; }
-    .stage-index { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
-    .stage-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); margin-bottom: 4px; }
-    .stage-note { font-family: var(--font-mono); font-size: 12px; color: var(--teal); margin-bottom: 8px; }
-    .stage-caption { font-size: 12px; color: var(--text-muted); line-height: 1.55; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 6px; }
-    .stage-nav { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.04); }
+    .stage-card.hidden { transform: translateY(20px); opacity: 0; pointer-events: none; }
+    .stage-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .stage-tag { font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; display: inline-flex; align-items: center; gap: 5px; }
+    .stage-tag::before { content: ''; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: #ffb700; }
+    .stage-index { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+    .stage-title { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); margin-bottom: 2px; }
+    .stage-note { font-family: var(--font-mono); font-size: 11px; color: var(--teal); margin-bottom: 6px; }
+    .stage-caption { font-size: 11px; color: var(--text-muted); line-height: 1.45; border-top: 1px solid var(--border); padding-top: 6px; margin-top: 4px; }
+    .stage-nav { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); }
     .btn-nav {
-      font-family: var(--font-mono); font-size: 11px; padding: 6px 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); color: var(--text); cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 4px;
+      font-family: var(--font-mono); font-size: 10px; padding: 5px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); color: var(--text); cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 4px;
     }
     .btn-nav:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--border-focus); }
     .btn-nav.primary { background: rgba(255, 183, 0, 0.15); border-color: rgba(255, 183, 0, 0.4); color: #ffb700; }
     .btn-nav.primary:hover { background: #ffb700; color: #0b0d11; }
-    .card-close-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; transition: color 0.2s; }
+    .card-close-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px; transition: color 0.2s; }
     .card-close-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 
-    #btn-show-card { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); z-index: 9; display: none; }
+    #btn-show-card { position: absolute; left: 24px; bottom: 24px; z-index: 9; display: none; }
     #btn-show-card.visible { display: inline-flex; }
 
     /* ViewCube CAO */
@@ -533,32 +519,22 @@
     </div>
   </header>
 
-  <!-- Barre de progression horizontale en bas au centre -->
-  <div class="timeline-rail-wrap">
-    <div class="rail-indicator" id="rail-track">
-      <div class="rail-progress-bar" id="rail-fill"></div>
-      <div class="rail-marker" id="rail-marker"></div>
-      <div class="rail-dots" id="rail-dots"></div>
-    </div>
-    <div class="rail-caption">Étapes de Montage</div>
-  </div>
-
-  <!-- Stage Card (Panneau bulle info positionné juste AU-DESSUS de la barre de progression) -->
+  <!-- Stage Card (Panneau bulle info compact en bas à gauche) -->
   <div class="stage-card" id="stage-card">
     <div class="stage-card-header">
       <span class="stage-tag" id="stage-tag">Vue d'ensemble</span>
-      <div style="display:flex; align-items:center; gap:8px;">
+      <div style="display:flex; align-items:center; gap:6px;">
         <span class="stage-index" id="stage-index">1 / 6</span>
         <button class="card-close-btn" id="btn-close-card" title="Masquer l'encart">&times;</button>
       </div>
     </div>
     <div class="stage-title" id="stage-title">OpenDrone</div>
     <div class="stage-note" id="stage-note">Châssis complet FPV assemblé</div>
-    <div class="stage-caption" id="stage-caption">Vue d'ensemble du drone open-source. Utilisez la souris pour pivoter en haute définition. Clic droit sur une pièce pour les options et export STL.</div>
+    <div class="stage-caption" id="stage-caption">Vue d'ensemble du drone open-source. Clic droit pour options et export STL.</div>
     <div class="stage-nav">
       <button class="btn-nav" id="btn-prev">&larr; Précédent</button>
       <button class="btn-nav" id="btn-next">Suivant &rarr;</button>
-      <button class="btn-nav primary" id="btn-autoplay">Lecture Auto</button>
+      <button class="btn-nav primary" id="btn-autoplay">Lecture</button>
     </div>
   </div>
 
@@ -1037,12 +1013,12 @@
     }
 
     const BEATS = [
-      { id: "whole", tag: "Vue d'ensemble", title: "OpenDrone FPV", note: "Architecture modulaire open-source", caption: "Conception optimisée pour la robustesse et la réparabilité (CERN-OHL-S).", targetScale: 1.0 },
-      { id: "fc", tag: "Contrôleur de Vol", title: "OpenFC-Lite", note: "Double cœur RP2354B • IMU faible bruit", caption: "Contrôleur de vol Betaflight / INAV avec pastilles dorées ENIG.", filter: (n) => /OpenFC/i.test(n), targetScale: 1.2 },
-      { id: "esc", tag: "Variateur ESC 4-en-1", title: "OpenESC", note: "Firmware AM32 • 45A Burst", caption: "Étage de puissance à MOSFETs ultra-basse résistance RDS(on).", filter: (n) => /4in1-mini/i.test(n), targetScale: 1.2 },
-      { id: "rx", tag: "Récepteur Radio", title: "OpenRX ExpressLRS", note: "Protocole 2.4GHz / 868MHz", caption: "Liaison radio ultra-faible latence (< 2ms) avec portée extrême.", filter: (n) => /OpenRX/i.test(n), targetScale: 1.3 },
-      { id: "motor", tag: "Propulsion", title: "Moteurs & Hélices", note: "KV haute efficacité • Tri-pales", caption: "Cloche en aluminium anodisé équilibrée dynamiquement.", filter: (n) => /^Admi|^occurrence[_ ]of[_ ][0-9]+|^prop-pivot/i.test(n), targetScale: 1.15 },
-      { id: "frame", tag: "Structure & Vidéo", title: "Carbone T700 & Berceau VTX", note: "Carbone 3mm • Berceau TPU", caption: "Plaques CNC haute rigidité et berceau amovible.", filter: (n) => /^(Arm|Cross|Base-|Top|VTX|Casing|Body|Lens|DJI|Bumper|Standoff)/i.test(tidy(n)), targetScale: 1.1 }
+      { id: "whole", tag: "Vue d'ensemble", title: "OpenDrone FPV", note: "Architecture modulaire open-source", caption: "Conception optimisée pour la robustesse et la réparabilité.", targetScale: 1.0 },
+      { id: "fc", tag: "Contrôleur de Vol", title: "OpenFC-Lite", note: "Double cœur RP2354B", caption: "Contrôleur de vol Betaflight / INAV avec pastilles ENIG.", filter: (n) => /OpenFC/i.test(n), targetScale: 1.2 },
+      { id: "esc", tag: "ESC 4-en-1", title: "OpenESC", note: "Firmware AM32 • 45A", caption: "Étage de puissance à MOSFETs ultra-basse résistance.", filter: (n) => /4in1-mini/i.test(n), targetScale: 1.2 },
+      { id: "rx", tag: "Récepteur Radio", title: "OpenRX ExpressLRS", note: "Protocole 2.4GHz", caption: "Liaison radio ultra-faible latence (< 2ms).", filter: (n) => /OpenRX/i.test(n), targetScale: 1.3 },
+      { id: "motor", tag: "Propulsion", title: "Moteurs & Hélices", note: "KV haute efficacité", caption: "Cloche aluminium anodisé équilibrée.", filter: (n) => /^Admi|^occurrence[_ ]of[_ ][0-9]+|^prop-pivot/i.test(n), targetScale: 1.15 },
+      { id: "frame", tag: "Structure & Vidéo", title: "Carbone T700", note: "Carbone 3mm", caption: "Plaques CNC haute rigidité.", filter: (n) => /^(Arm|Cross|Base-|Top|VTX|Casing|Body|Lens|DJI|Bumper|Standoff)/i.test(tidy(n)), targetScale: 1.1 }
     ];
 
     let currentBeatIndex = 0;
@@ -1088,7 +1064,6 @@
       applyCategoryColor('alu', activeStandoffHex);
 
       resetCamera();
-      buildRailUI();
       updateBeatUI();
 
       setTimeout(() => {
@@ -1111,22 +1086,36 @@
       });
     }
 
-    // Gestion de l'arbre d'assemblage
+    // Gestion de l'arbre d'assemblage et anti-empiètement avec l'infobulle
     const treeListContainer = document.getElementById('tree-list-container');
     const treePanel = document.getElementById('tree-panel');
     const btnToggleTree = document.getElementById('btn-toggle-tree');
     const btnCloseTree = document.getElementById('btn-close-tree');
     const treeSearchInput = document.getElementById('tree-search-input');
+    const stageCard = document.getElementById('stage-card');
+
+    function updateTreeClamping() {
+      const isCardVisible = !stageCard.classList.contains('hidden');
+      const isTreeOpen = !treePanel.classList.contains('collapsed');
+      if (isCardVisible && isTreeOpen) {
+        treePanel.classList.add('clamped');
+      } else {
+        treePanel.classList.remove('clamped');
+      }
+    }
 
     btnToggleTree.addEventListener('click', (e) => {
       e.stopPropagation();
       treePanel.classList.toggle('collapsed');
       btnToggleTree.classList.toggle('active', !treePanel.classList.contains('collapsed'));
+      updateTreeClamping();
     });
+
     btnCloseTree.addEventListener('click', (e) => {
       e.stopPropagation();
       treePanel.classList.add('collapsed');
       btnToggleTree.classList.remove('active');
+      updateTreeClamping();
     });
 
     window.addEventListener('click', (e) => {
@@ -1134,6 +1123,7 @@
       if (wrapper && !wrapper.contains(e.target)) {
         treePanel.classList.add('collapsed');
         btnToggleTree.classList.remove('active');
+        updateTreeClamping();
       }
     });
 
@@ -1189,7 +1179,7 @@
           if (stageTag) stageTag.textContent = "Arbre CAO";
           if (stageTitle) stageTitle.textContent = cleanName;
           if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
-          if (stageCaption) stageCaption.textContent = `Composant sélectionné depuis l'arbre d'assemblage. Prêt pour export STL ou manipulation.`;
+          if (stageCaption) stageCaption.textContent = `Composant sélectionné depuis l'arbre d'assemblage.`;
         });
 
         treeListContainer.appendChild(li);
@@ -1211,22 +1201,6 @@
       controls.update();
     }
 
-    const railDotsHost = document.getElementById('rail-dots');
-    const railFill = document.getElementById('rail-fill');
-    const railMarker = document.getElementById('rail-marker');
-
-    function buildRailUI() {
-      if (!railDotsHost) return;
-      railDotsHost.innerHTML = '';
-      BEATS.forEach((b, i) => {
-        const dot = document.createElement('div');
-        dot.className = `rail-dot ${i === 0 ? 'active' : ''}`;
-        dot.innerHTML = `<span class="rail-dot-label">${b.title}</span>`;
-        dot.addEventListener('click', () => setBeat(i));
-        railDotsHost.appendChild(dot);
-      });
-    }
-
     function updateBeatUI() {
       const b = BEATS[currentBeatIndex];
       const stageTag = document.getElementById('stage-tag');
@@ -1240,16 +1214,6 @@
       if (stageTitle) stageTitle.textContent = b.title;
       if (stageNote) stageNote.textContent = b.note;
       if (stageCaption) stageCaption.textContent = b.caption;
-
-      const frac = currentBeatIndex / (BEATS.length - 1);
-      if (railFill) railFill.style.width = `${frac * 100}%`;
-      if (railMarker) railMarker.style.left = `${frac * 100}%`;
-
-      const dots = document.querySelectorAll('.rail-dot');
-      dots.forEach((d, i) => {
-        d.classList.toggle('active', i === currentBeatIndex);
-        d.classList.toggle('visited', i < currentBeatIndex);
-      });
 
       if (currentBeatIndex === 0) {
         allMeshes.forEach(m => {
@@ -1287,7 +1251,7 @@
     const btnAutoplay = document.getElementById('btn-autoplay');
     btnAutoplay.addEventListener('click', () => {
       isPlaying = !isPlaying;
-      btnAutoplay.textContent = isPlaying ? 'Pause' : 'Lecture Auto';
+      btnAutoplay.textContent = isPlaying ? 'Pause' : 'Lecture';
       btnAutoplay.classList.toggle('primary', isPlaying);
     });
 
@@ -1373,12 +1337,19 @@
     document.getElementById('ctx-showall').addEventListener('click', () => { showAllNodes(); contextMenu.style.display = 'none'; });
     document.getElementById('ctx-export-stl').addEventListener('click', () => { exportSelectedSTL(); contextMenu.style.display = 'none'; });
 
-    const stageCard = document.getElementById('stage-card');
     const btnCloseCard = document.getElementById('btn-close-card');
     const btnShowCard = document.getElementById('btn-show-card');
 
-    btnCloseCard.addEventListener('click', () => { stageCard.classList.add('hidden'); btnShowCard.classList.add('visible'); });
-    btnShowCard.addEventListener('click', () => { stageCard.classList.remove('hidden'); btnShowCard.classList.remove('visible'); });
+    btnCloseCard.addEventListener('click', () => {
+      stageCard.classList.add('hidden');
+      btnShowCard.classList.add('visible');
+      updateTreeClamping();
+    });
+    btnShowCard.addEventListener('click', () => {
+      stageCard.classList.remove('hidden');
+      btnShowCard.classList.remove('visible');
+      updateTreeClamping();
+    });
 
     const THEMES = {
       cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518' },
@@ -1588,7 +1559,7 @@
       if (stageTag) stageTag.textContent = "Sélection Pièce";
       if (stageTitle) stageTitle.textContent = name;
       if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
-      if (stageCaption) stageCaption.textContent = `Composant actif du modèle ${currentModelKey.toUpperCase()}. Prêt pour export STL ou inspection individuelle.`;
+      if (stageCaption) stageCaption.textContent = `Composant actif du modèle ${currentModelKey.toUpperCase()}.`;
 
       document.querySelectorAll('.tree-item').forEach(el => {
         el.classList.toggle('selected', el.textContent.includes(name));
