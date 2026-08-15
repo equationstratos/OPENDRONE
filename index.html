@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec logo officiel, menu de personnalisation, hélices FPV transparentes et export STL au clic droit." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec arbre d'assemblage, viewcube CAO, et export STL." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -111,12 +111,8 @@
       display: inline-flex;
       align-items: baseline;
     }
-    .brand-logo-text .part-open {
-      color: #ffffff;
-    }
-    .brand-logo-text .part-drone {
-      color: #ffb700;
-    }
+    .brand-logo-text .part-open { color: #ffffff; }
+    .brand-logo-text .part-drone { color: #ffb700; }
 
     .model-selector {
       background: rgba(0, 0, 0, 0.4);
@@ -131,9 +127,7 @@
       outline: none;
       transition: all 0.2s ease;
     }
-    .model-selector:hover {
-      border-color: var(--border-focus);
-    }
+    .model-selector:hover { border-color: var(--border-focus); }
 
     .top-controls {
       display: flex;
@@ -158,12 +152,7 @@
       font-weight: 500;
       transition: all 0.2s ease;
     }
-
-    .toggle-wrap:hover {
-      border-color: var(--border-focus);
-      color: var(--text);
-    }
-
+    .toggle-wrap:hover { border-color: var(--border-focus); color: var(--text); }
     .toggle-wrap input[type=checkbox] {
       appearance: none;
       width: 14px;
@@ -175,12 +164,7 @@
       position: relative;
       outline: none;
     }
-
-    .toggle-wrap input[type=checkbox]:checked {
-      background: #ffb700;
-      border-color: #ffb700;
-    }
-
+    .toggle-wrap input[type=checkbox]:checked { background: #ffb700; border-color: #ffb700; }
     .toggle-wrap input[type=checkbox]:checked::after {
       content: '✓';
       position: absolute;
@@ -211,14 +195,12 @@
       align-items: center;
       gap: 6px;
     }
-
     .btn-pill:hover {
       color: var(--text);
       border-color: var(--border-focus);
       background: rgba(255, 255, 255, 0.08);
       transform: translateY(-1px);
     }
-
     .btn-pill.active {
       background: #ffb700;
       color: #0b0d11;
@@ -226,12 +208,8 @@
       box-shadow: 0 0 16px var(--gold-glow);
     }
 
-    /* Dropdown Menu Header pour Personnalisation */
-    .dropdown-container {
-      position: relative;
-      display: inline-block;
-    }
-
+    /* Dropdown Personnalisation */
+    .dropdown-container { position: relative; display: inline-block; }
     .dropdown-content {
       position: absolute;
       right: 0;
@@ -246,555 +224,139 @@
       display: none;
       z-index: 50;
     }
-
-    .dropdown-container.open .dropdown-content {
-      display: block;
-    }
-
-    .menu-group {
-      margin-bottom: 10px;
-    }
-    .menu-group:last-child {
-      margin-bottom: 0;
-    }
-
-    .menu-group-header {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-    }
-
-    .palette-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 5px;
-      margin-bottom: 4px;
-    }
-
+    .dropdown-container.open .dropdown-content { display: block; }
+    .menu-group { margin-bottom: 10px; }
+    .menu-group:last-child { margin-bottom: 0; }
+    .menu-group-header { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
+    .palette-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 4px; }
     .swatch {
-      width: 100%;
-      height: 22px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      cursor: pointer;
-      transition: transform 0.15s ease, border-color 0.15s ease;
+      width: 100%; height: 22px; border-radius: 4px; border: 1px solid var(--border); cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease;
     }
-
-    .swatch:hover {
-      transform: scale(1.1);
-      border-color: #ffb700;
-    }
-
-    .swatch.active {
-      border-color: #ffffff;
-      box-shadow: 0 0 6px #ffb700;
-    }
-
-    .theme-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 6px;
-    }
-
+    .swatch:hover { transform: scale(1.1); border-color: #ffb700; }
+    .swatch.active { border-color: #ffffff; box-shadow: 0 0 6px #ffb700; }
+    .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
     .btn-theme {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: 6px 8px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.2s ease;
+      font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; text-align: center; transition: all 0.2s ease;
     }
+    .btn-theme:hover { border-color: var(--border-focus); color: var(--text); background: rgba(255, 255, 255, 0.08); }
 
-    .btn-theme:hover {
-      border-color: var(--border-focus);
-      color: var(--text);
-      background: rgba(255, 255, 255, 0.08);
-    }
-
-    /* Context Menu Clic Droit */
+    /* Menu Contextuel Clic Droit */
     #context-menu {
-      position: absolute;
-      display: none;
-      z-index: 1000;
-      background: rgba(18, 23, 30, 0.95);
-      border: 1px solid var(--border-focus);
-      border-radius: 10px;
-      padding: 6px;
-      backdrop-filter: blur(16px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
-      min-width: 170px;
+      position: absolute; display: none; z-index: 1000; background: rgba(18, 23, 30, 0.95); border: 1px solid var(--border-focus); border-radius: 10px; padding: 6px; backdrop-filter: blur(16px); box-shadow: 0 10px 30px rgba(0,0,0,0.7); min-width: 170px;
     }
     .context-menu-item {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      padding: 8px 12px;
-      color: var(--text);
-      cursor: pointer;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: background 0.15s;
+      font-family: var(--font-mono); font-size: 11px; padding: 8px 12px; color: var(--text); cursor: pointer; border-radius: 6px; display: flex; align-items: center; gap: 8px; transition: background 0.15s;
     }
-    .context-menu-item:hover {
-      background: rgba(255, 183, 0, 0.15);
-      color: #ffb700;
-    }
-    .context-menu-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 4px 0;
-    }
+    .context-menu-item:hover { background: rgba(255, 183, 0, 0.15); color: #ffb700; }
+    .context-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
-    /* Left Timeline Rail */
+    /* Timeline Rail (Gauche) */
     .timeline-rail-wrap {
-      position: absolute;
-      left: 24px;
-      top: 50%;
-      transform: translateY(-50%);
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      pointer-events: auto;
+      position: absolute; left: 24px; top: 50%; transform: translateY(-50%); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: auto;
     }
-
-    .rail-indicator {
-      position: relative;
-      width: 3px;
-      height: 240px;
-      background: rgba(255, 255, 255, 0.07);
-      border-radius: 4px;
-    }
-
-    .rail-progress-bar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 0%;
-      background: #ffb700;
-      border-radius: 4px;
-      box-shadow: 0 0 8px #ffb700;
-      transition: height 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .rail-marker {
-      position: absolute;
-      left: 50%;
-      top: 0%;
-      transform: translate(-50%, -50%);
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #ffffff;
-      box-shadow: 0 0 10px #ffb700;
-      transition: top 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .rail-dots {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
+    .rail-indicator { position: relative; width: 3px; height: 240px; background: rgba(255, 255, 255, 0.07); border-radius: 4px; }
+    .rail-progress-bar { position: absolute; top: 0; left: 0; width: 100%; height: 0%; background: #ffb700; border-radius: 4px; box-shadow: 0 0 8px #ffb700; transition: height 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+    .rail-marker { position: absolute; left: 50%; top: 0%; transform: translate(-50%, -50%); width: 10px; height: 10px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 10px #ffb700; transition: top 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+    .rail-dots { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; }
     .rail-dot {
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
-      background: #151a21;
-      border: 2px solid rgba(255, 255, 255, 0.2);
-      transform: translateX(-4px);
-      cursor: pointer;
-      position: relative;
-      transition: all 0.25s ease;
+      width: 11px; height: 11px; border-radius: 50%; background: #151a21; border: 2px solid rgba(255, 255, 255, 0.2); transform: translateX(-4px); cursor: pointer; position: relative; transition: all 0.25s ease;
     }
-
-    .rail-dot:hover {
-      transform: translateX(-4px) scale(1.3);
-      border-color: #ffb700;
-    }
-
-    .rail-dot.active {
-      background: #ffb700;
-      border-color: #ffffff;
-      box-shadow: 0 0 12px #ffb700;
-    }
-
+    .rail-dot:hover { transform: translateX(-4px) scale(1.3); border-color: #ffb700; }
+    .rail-dot.active { background: #ffb700; border-color: #ffffff; box-shadow: 0 0 12px #ffb700; }
     .rail-dot-label {
-      position: absolute;
-      left: 20px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 500;
-      color: var(--text-dim);
-      white-space: nowrap;
-      opacity: 0;
-      pointer-events: none;
-      transition: all 0.2s ease;
-      background: rgba(10, 13, 18, 0.9);
-      padding: 3px 8px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
+      position: absolute; left: 20px; top: 50%; transform: translateY(-50%); font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-dim); white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s ease; background: rgba(10, 13, 18, 0.9); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border);
     }
+    .rail-dot:hover .rail-dot-label, .rail-dot.active .rail-dot-label { opacity: 1; color: #ffb700; transform: translateY(-50%) translateX(4px); }
+    .rail-caption { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim); margin-top: 4px; }
 
-    .rail-dot:hover .rail-dot-label,
-    .rail-dot.active .rail-dot-label {
-      opacity: 1;
-      color: #ffb700;
-      transform: translateY(-50%) translateX(4px);
-    }
-
-    .rail-caption {
-      font-family: var(--font-mono);
-      font-size: 9px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      margin-top: 4px;
-    }
-
-    /* Stage Card */
+    /* Stage Card (Bas Gauche) */
     .stage-card {
-      position: absolute;
-      left: 68px;
-      bottom: 24px;
-      max-width: 440px;
-      z-index: 10;
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px 22px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-      pointer-events: auto;
+      position: absolute; left: 68px; bottom: 24px; max-width: 400px; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s ease, opacity 0.3s ease;
     }
-
-    .stage-card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-
-    .stage-tag {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: #ffb700;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .stage-tag::before {
-      content: '';
-      display: inline-block;
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: #ffb700;
-    }
-
-    .stage-index {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-dim);
-    }
-
-    .stage-title {
-      font-size: 19px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-
-    .stage-note {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: var(--teal);
-      margin-bottom: 8px;
-    }
-
-    .stage-caption {
-      font-size: 12px;
-      color: var(--text-muted);
-      line-height: 1.55;
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
-      margin-top: 6px;
-    }
-
-    .stage-nav {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 12px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255, 255, 255, 0.04);
-    }
-
+    .stage-card.hidden { transform: translateY(30px); opacity: 0; pointer-events: none; }
+    .stage-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .stage-tag { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; display: inline-flex; align-items: center; gap: 6px; }
+    .stage-tag::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #ffb700; }
+    .stage-index { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+    .stage-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); margin-bottom: 4px; }
+    .stage-note { font-family: var(--font-mono); font-size: 12px; color: var(--teal); margin-bottom: 8px; }
+    .stage-caption { font-size: 12px; color: var(--text-muted); line-height: 1.55; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 6px; }
+    .stage-nav { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.04); }
     .btn-nav {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      padding: 6px 12px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border);
-      color: var(--text);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
+      font-family: var(--font-mono); font-size: 11px; padding: 6px 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); color: var(--text); cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 4px;
     }
+    .btn-nav:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--border-focus); }
+    .btn-nav.primary { background: rgba(255, 183, 0, 0.15); border-color: rgba(255, 183, 0, 0.4); color: #ffb700; }
+    .btn-nav.primary:hover { background: #ffb700; color: #0b0d11; }
+    .card-close-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; transition: color 0.2s; }
+    .card-close-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 
-    .btn-nav:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: var(--border-focus);
+    #btn-show-card { position: absolute; left: 68px; bottom: 24px; z-index: 9; display: none; }
+    #btn-show-card.visible { display: inline-flex; }
+
+    /* ViewCube CAO (Haut Droite) */
+    #viewcube-container {
+      position: absolute; top: 74px; right: 385px; width: 90px; height: 90px; z-index: 10; pointer-events: auto; cursor: pointer; transition: opacity 0.3s;
     }
+    #viewcube-container canvas { width: 100%; height: 100%; border-radius: 8px; background: transparent; }
 
-    .btn-nav.primary {
-      background: rgba(255, 183, 0, 0.15);
-      border-color: rgba(255, 183, 0, 0.4);
-      color: #ffb700;
+    /* Arbre d'assemblage / Panneau Arbre (Gauche ou Droite selon choix, ici panneau escamotable "Arbre") */
+    .tree-panel {
+      position: absolute; top: 74px; left: 24px; width: 300px; max-height: calc(100vh - 110px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
-
-    .btn-nav.primary:hover {
-      background: #ffb700;
-      color: #0b0d11;
+    .tree-panel.collapsed { transform: translateX(calc(-100% - 40px)); opacity: 0; pointer-events: none; }
+    .tree-title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .tree-search {
+      width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-family: var(--font-mono); font-size: 10px; outline: none; margin-bottom: 8px;
     }
+    .tree-search:focus { border-color: var(--border-focus); }
+    .tree-list { list-style: none; font-family: var(--font-mono); font-size: 11px; }
+    .tree-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; border-radius: 4px; cursor: pointer; transition: background 0.15s; margin-bottom: 2px; }
+    .tree-item:hover { background: rgba(255,255,255,0.05); color: #ffb700; }
+    .tree-item.selected { background: rgba(255,183,0,0.15); color: #ffb700; }
+    .tree-item-label { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .tree-item input[type=checkbox] { accent-color: #ffb700; cursor: pointer; }
 
-    /* Right Control Panel */
+    /* Right Control Panel (Studio) */
     .control-panel {
-      position: absolute;
-      top: 74px;
-      right: 24px;
-      width: 340px;
-      max-height: calc(100vh - 110px);
-      overflow-y: auto;
-      z-index: 10;
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px 18px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-      pointer-events: auto;
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      position: absolute; top: 74px; right: 24px; width: 340px; max-height: calc(100vh - 110px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
+    .control-panel.collapsed { transform: translateX(calc(100% + 40px)); pointer-events: none; opacity: 0; }
 
-    .control-panel.collapsed {
-      transform: translateX(calc(100% + 40px));
-      pointer-events: none;
-      opacity: 0;
-    }
-
-    .panel-section {
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 12px;
-      margin-bottom: 12px;
-    }
-
-    .panel-section:last-child {
-      border-bottom: none;
-      margin-bottom: 0;
-      padding-bottom: 0;
-    }
-
-    .panel-title {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: #ffb700;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .slider-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-
-    .slider-row label {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-muted);
-      flex: 0 0 100px;
-    }
-
-    .slider-row input[type=range] {
-      flex: 1;
-      height: 4px;
-      border-radius: 2px;
-      background: rgba(255, 255, 255, 0.12);
-      outline: none;
-      accent-color: #ffb700;
-      cursor: pointer;
-    }
-
-    .slider-row .val {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text);
-      flex: 0 0 36px;
-      text-align: right;
-    }
-
-    .presets-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 6px;
-      margin-top: 6px;
-    }
-
+    .panel-section { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px; }
+    .panel-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .panel-title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+    .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .slider-row label { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); flex: 0 0 100px; }
+    .slider-row input[type=range] { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); outline: none; accent-color: #ffb700; cursor: pointer; }
+    .slider-row .val { font-family: var(--font-mono); font-size: 11px; color: var(--text); flex: 0 0 36px; text-align: right; }
+    .presets-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 6px; }
     .btn-preset {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: 7px 8px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.2s ease;
+      font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 7px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; text-align: center; transition: all 0.2s ease;
     }
-
-    .btn-preset:hover {
-      border-color: var(--border-focus);
-      color: var(--text);
-      background: rgba(255, 255, 255, 0.08);
-    }
-
-    .btn-preset.active {
-      background: rgba(255, 183, 0, 0.2);
-      border-color: #ffb700;
-      color: #ffb700;
-    }
-
-    .inspector-card {
-      background: rgba(14, 18, 24, 0.95);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-muted);
-      line-height: 1.5;
-    }
-
-    .inspector-card b {
-      color: var(--text);
-      font-size: 12px;
-      display: block;
-      margin-bottom: 2px;
-    }
+    .btn-preset:hover { border-color: var(--border-focus); color: var(--text); background: rgba(255, 255, 255, 0.08); }
+    .btn-preset.active { background: rgba(255, 183, 0, 0.2); border-color: #ffb700; color: #ffb700; }
+    .inspector-card { background: rgba(14, 18, 24, 0.95); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+    .inspector-card b { color: var(--text); font-size: 12px; display: block; margin-bottom: 2px; }
 
     #loading-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 100;
-      background: #090a0d;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.6s;
+      position: absolute; inset: 0; z-index: 100; background: #090a0d; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.6s;
     }
+    #loading-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .loader-logo { display: flex; align-items: center; gap: 16px; }
+    .loader-text-logo { font-family: var(--font-sans); font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+    .loader-bar-wrap { width: 280px; height: 3px; background: rgba(255, 255, 255, 0.08); border-radius: 4px; overflow: hidden; position: relative; }
+    .loader-bar-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: linear-gradient(90deg, var(--teal), #ffb700); border-radius: 4px; box-shadow: 0 0 12px #ffb700; transition: width 0.2s ease-out; }
+    .loader-status { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; }
 
-    #loading-overlay.hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
+    .bottom-hud { position: absolute; bottom: 24px; right: 24px; z-index: 10; display: flex; align-items: center; gap: 8px; pointer-events: auto; }
+    .control-panel::-webkit-scrollbar, .tree-panel::-webkit-scrollbar { width: 5px; }
+    .control-panel::-webkit-scrollbar-track, .tree-panel::-webkit-scrollbar-track { background: transparent; }
+    .control-panel::-webkit-scrollbar-thumb, .tree-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
 
-    .loader-logo {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .loader-text-logo {
-      font-family: var(--font-sans);
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-
-    .loader-bar-wrap {
-      width: 280px;
-      height: 3px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 4px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .loader-bar-fill {
-      position: absolute;
-      left: 0;
-      top: 0;
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, var(--teal), #ffb700);
-      border-radius: 4px;
-      box-shadow: 0 0 12px #ffb700;
-      transition: width 0.2s ease-out;
-    }
-
-    .loader-status {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-dim);
-      letter-spacing: 0.06em;
-    }
-
-    .bottom-hud {
-      position: absolute;
-      bottom: 24px;
-      right: 24px;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      pointer-events: auto;
-    }
-
-    .control-panel::-webkit-scrollbar { width: 5px; }
-    .control-panel::-webkit-scrollbar-track { background: transparent; }
-    .control-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
-
-    @media (max-width: 768px) {
-      header { padding: 12px 16px; }
-      .stage-card { left: 16px; right: 16px; bottom: 16px; max-width: none; padding: 16px; }
-      .timeline-rail-wrap { left: 10px; }
-      .control-panel { top: auto; bottom: 80px; right: 16px; left: 16px; width: auto; max-height: 50vh; }
-      .bottom-hud { bottom: 16px; right: 16px; }
+    @media (max-width: 1200px) {
+      #viewcube-container { right: 24px; top: 130px; }
+      .tree-panel { left: 16px; width: 260px; }
     }
   </style>
 
@@ -809,7 +371,7 @@
 </head>
 <body>
 
-  <!-- Loading Screen avec le Logo OpenDrone officiel -->
+  <!-- Loading Screen -->
   <div id="loading-overlay">
     <div class="loader-logo">
       <div class="loader-text-logo"><span class="part-open">Open</span><span class="part-drone">Drone</span></div>
@@ -822,6 +384,9 @@
 
   <div class="viewport-glow"></div>
   <div id="canvas-container"></div>
+
+  <!-- ViewCube CAO en haut à droite -->
+  <div id="viewcube-container" title="Cube de vue CAO"></div>
 
   <!-- Menu Contextuel Clic Droit -->
   <div id="context-menu">
@@ -847,6 +412,11 @@
   <!-- Header -->
   <header>
     <div class="brand-group">
+      <button class="btn-pill" id="btn-toggle-tree" title="Afficher / Masquer l'arbre d'assemblage">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+        <span>Arbre</span>
+      </button>
+
       <div class="brand-badge">
         <div class="brand-logo-text"><span class="part-open">Open</span><span class="part-drone">Drone</span></div>
         <select id="model-selector" class="model-selector" title="Choisir le modèle de drone">
@@ -926,6 +496,18 @@
     </div>
   </header>
 
+  <!-- Panneau Arbre d'assemblage (Tree View) -->
+  <div class="tree-panel" id="tree-panel">
+    <div class="tree-title">
+      <span>Arbre d'Assemblage</span>
+      <button class="card-close-btn" id="btn-close-tree">&times;</button>
+    </div>
+    <input type="text" class="tree-search" id="tree-search-input" placeholder="Filtrer les pièces..." />
+    <ul class="tree-list" id="tree-list-container">
+      <!-- Rempli dynamiquement -->
+    </ul>
+  </div>
+
   <!-- Left Timeline Rail -->
   <div class="timeline-rail-wrap">
     <div class="rail-indicator" id="rail-track">
@@ -936,11 +518,14 @@
     <div class="rail-caption">Étapes</div>
   </div>
 
-  <!-- Stage Card -->
+  <!-- Stage Card (Info bulle bas gauche) -->
   <div class="stage-card" id="stage-card">
     <div class="stage-card-header">
       <span class="stage-tag" id="stage-tag">Vue d'ensemble</span>
-      <span class="stage-index" id="stage-index">1 / 6</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="stage-index" id="stage-index">1 / 6</span>
+        <button class="card-close-btn" id="btn-close-card" title="Masquer l'encart">&times;</button>
+      </div>
     </div>
     <div class="stage-title" id="stage-title">OpenDrone</div>
     <div class="stage-note" id="stage-note">Châssis complet FPV assemblé</div>
@@ -952,7 +537,12 @@
     </div>
   </div>
 
-  <!-- Control Panel -->
+  <button class="btn-pill" id="btn-show-card">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <span>Afficher Infos</span>
+  </button>
+
+  <!-- Right Control Panel -->
   <div class="control-panel collapsed" id="control-panel">
     <div class="panel-section">
       <div class="panel-title">Inspection & Visibilité</div>
@@ -1090,12 +680,8 @@
     });
 
     window.addEventListener('click', (e) => {
-      if (!dropdownContainer.contains(e.target)) {
-        dropdownContainer.classList.remove('open');
-      }
-      if (!contextMenu.contains(e.target)) {
-        contextMenu.style.display = 'none';
-      }
+      if (!dropdownContainer.contains(e.target)) dropdownContainer.classList.remove('open');
+      if (!contextMenu.contains(e.target)) contextMenu.style.display = 'none';
     });
 
     function buildPalettes() {
@@ -1117,31 +703,14 @@
         });
       };
 
-      createPalette('palette-tpu', activeTpuHex, (hex) => {
-        activeTpuHex = hex;
-        applyCategoryColor('tpu', hex);
-      });
-      createPalette('palette-motor', activeMotorHex, (hex) => {
-        activeMotorHex = hex;
-        applyCategoryColor('motor', hex);
-      });
-      createPalette('palette-prop', activePropHex, (hex) => {
-        activePropHex = hex;
-        applyCategoryColor('prop', hex);
-      });
-      createPalette('palette-standoff', activeStandoffHex, (hex) => {
-        activeStandoffHex = hex;
-        applyCategoryColor('alu', hex);
-      });
+      createPalette('palette-tpu', activeTpuHex, (hex) => { activeTpuHex = hex; applyCategoryColor('tpu', hex); });
+      createPalette('palette-motor', activeMotorHex, (hex) => { activeMotorHex = hex; applyCategoryColor('motor', hex); });
+      createPalette('palette-prop', activePropHex, (hex) => { activePropHex = hex; applyCategoryColor('prop', hex); });
+      createPalette('palette-standoff', activeStandoffHex, (hex) => { activeStandoffHex = hex; applyCategoryColor('alu', hex); });
     }
 
     const s2l = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-
-    const tidy = (n) => (n || '')
-      .replace(/_\d+$/, '')
-      .replace(/_/g, ' ')
-      .replace(/^occurrence of /i, '')
-      .trim();
+    const tidy = (n) => (n || '').replace(/_\d+$/, '').replace(/_/g, ' ').replace(/^occurrence of /i, '').trim();
 
     const MATERIAL_PROFILES = [
       { id: 'carbon', label: 'Carbone T700', match: '^(Arm|Cross|Base-Top|Base-Bot|Top)$', tint: '#000000', metalness: 0, roughness: 0.19, env: 0.37, sat: 2.04, transparent: false, opacity: 1.0 },
@@ -1188,9 +757,7 @@
       mat.envMapIntensity = p.env;
       mat.transparent = p.transparent;
       mat.opacity = p.opacity;
-      if (p.transparent) {
-        mat.depthWrite = false;
-      }
+      if (p.transparent) mat.depthWrite = false;
       if (p.tint) mat.color.set(p.tint);
       if (customHex) mat.color.set(customHex);
       else {
@@ -1264,11 +831,7 @@
     function aim(light, azDeg, elDeg, radius = 1) {
       const az = THREE.MathUtils.degToRad(azDeg);
       const el = THREE.MathUtils.degToRad(elDeg);
-      light.position.set(
-        radius * Math.cos(el) * Math.cos(az),
-        radius * Math.sin(el),
-        radius * Math.cos(el) * Math.sin(az)
-      );
+      light.position.set(radius * Math.cos(el) * Math.cos(az), radius * Math.sin(el), radius * Math.cos(el) * Math.sin(az));
       light.target.position.set(0, 0, 0);
     }
 
@@ -1296,7 +859,7 @@
     let allMeshes = [];
     let allAssembleNodes = [];
 
-    let stateMode = 'assemble'; // 'assemble', 'flatlay', 'stepbystep'
+    let stateMode = 'assemble'; 
     let flatLayPositions = new Map();
     let stepIndex = 0;
     let soloNode = null;
@@ -1377,9 +940,7 @@
                 loaderBar.style.width = `${Math.min(100, (current / totalBytes) * 100)}%`;
               }
             },
-            () => {
-              loader.load(CHUNKS_DEF['od3'][0].file, resolve, undefined, reject);
-            }
+            () => { loader.load(CHUNKS_DEF['od3'][0].file, resolve, undefined, reject); }
           );
         });
 
@@ -1483,7 +1044,7 @@
       scene.updateMatrixWorld(true);
       allAssembleNodes = [];
       occRoot.traverse((node) => {
-        if (node.parent === occRoot && node.name !== 'prop-pivot') {
+        if (node.parent === occRoot) {
           node.userData.origPos = node.position.clone();
           node.userData.origQuat = node.quaternion.clone();
           node.userData.origScale = node.scale.clone();
@@ -1494,6 +1055,7 @@
 
       computeFlatLayPositions();
       buildPalettes();
+      buildAssemblyTree();
 
       applyCategoryColor('tpu', activeTpuHex);
       applyCategoryColor('motor', activeMotorHex);
@@ -1523,6 +1085,85 @@
         flatLayPositions.set(node.uuid, flatPos);
       });
     }
+
+    // Génération de l'arbre d'assemblage interactif (Tree View)
+    const treeListContainer = document.getElementById('tree-list-container');
+    const treePanel = document.getElementById('tree-panel');
+    const btnToggleTree = document.getElementById('btn-toggle-tree');
+    const btnCloseTree = document.getElementById('btn-close-tree');
+    const treeSearchInput = document.getElementById('tree-search-input');
+
+    btnToggleTree.addEventListener('click', () => {
+      treePanel.classList.toggle('collapsed');
+      btnToggleTree.classList.toggle('active', !treePanel.classList.contains('collapsed'));
+    });
+    btnCloseTree.addEventListener('click', () => {
+      treePanel.classList.add('collapsed');
+      btnToggleTree.classList.remove('active');
+    });
+
+    function buildAssemblyTree(filterText = '') {
+      if (!treeListContainer) return;
+      treeListContainer.innerHTML = '';
+
+      allAssembleNodes.forEach((node, index) => {
+        let rawName = node.name || `Composant ${index + 1}`;
+        let cleanName = tidy(rawName);
+        if (filterText && !cleanName.toLowerCase().includes(filterText.toLowerCase())) return;
+
+        const li = document.createElement('li');
+        li.className = `tree-item ${selectedNode === node ? 'selected' : ''}`;
+
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'tree-item-label';
+
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = !node.userData.userHidden;
+        chk.title = "Afficher / Masquer";
+        chk.addEventListener('click', (e) => e.stopPropagation());
+        chk.addEventListener('change', (e) => {
+          node.userData.userHidden = !e.target.checked;
+          node.visible = !node.userData.userHidden;
+          node.traverse(sub => { sub.visible = node.visible; });
+        });
+
+        const span = document.createElement('span');
+        span.textContent = cleanName;
+
+        labelDiv.appendChild(chk);
+        labelDiv.appendChild(span);
+        li.appendChild(labelDiv);
+
+        li.addEventListener('click', () => {
+          selectedNode = node;
+          pickBox.box.setFromObject(node);
+          pickBox.visible = true;
+          document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+          li.classList.add('selected');
+          
+          const clsKey = classOf(node.name);
+          const clsProfile = PROFILES_MAP.get(clsKey);
+          const clsLabel = clsProfile ? clsProfile.label : clsKey;
+          
+          const stageTag = document.getElementById('stage-tag');
+          const stageTitle = document.getElementById('stage-title');
+          const stageNote = document.getElementById('stage-note');
+          const stageCaption = document.getElementById('stage-caption');
+
+          if (stageTag) stageTag.textContent = "Arbre CAO";
+          if (stageTitle) stageTitle.textContent = cleanName;
+          if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
+          if (stageCaption) stageCaption.textContent = `Composant sélectionné depuis l'arbre d'assemblage. Prêt pour export STL ou manipulation.`;
+        });
+
+        treeListContainer.appendChild(li);
+      });
+    }
+
+    treeSearchInput.addEventListener('input', (e) => {
+      buildAssemblyTree(e.target.value);
+    });
 
     function resetCamera() {
       const focus = new THREE.Vector3(0, 0, 0);
@@ -1586,8 +1227,7 @@
         const filterFn = b.filter;
         allMeshes.forEach(m => {
           if (!m.material) return;
-          let isMatch = false;
-          let p = m;
+          let isMatch = false, p = m;
           while (p && p !== droneRoot) {
             if (filterFn && filterFn(p.name)) { isMatch = true; break; }
             p = p.parent;
@@ -1606,13 +1246,8 @@
       updateBeatUI();
     }
 
-    document.getElementById('btn-prev').addEventListener('click', () => {
-      setBeat((currentBeatIndex - 1 + BEATS.length) % BEATS.length);
-    });
-
-    document.getElementById('btn-next').addEventListener('click', () => {
-      setBeat((currentBeatIndex + 1) % BEATS.length);
-    });
+    document.getElementById('btn-prev').addEventListener('click', () => setBeat((currentBeatIndex - 1 + BEATS.length) % BEATS.length));
+    document.getElementById('btn-next').addEventListener('click', () => setBeat((currentBeatIndex + 1) % BEATS.length));
 
     const btnAutoplay = document.getElementById('btn-autoplay');
     btnAutoplay.addEventListener('click', () => {
@@ -1621,13 +1256,8 @@
       btnAutoplay.classList.toggle('primary', isPlaying);
     });
 
-    document.getElementById('chk-auto-rotate').addEventListener('change', (e) => {
-      isAutoRotate = e.target.checked;
-    });
-
-    document.getElementById('chk-grid').addEventListener('change', (e) => {
-      gridHelper.visible = e.target.checked;
-    });
+    document.getElementById('chk-auto-rotate').addEventListener('change', (e) => { isAutoRotate = e.target.checked; });
+    document.getElementById('chk-grid').addEventListener('change', (e) => { gridHelper.visible = e.target.checked; });
 
     const controlPanel = document.getElementById('control-panel');
     const btnTogglePanel = document.getElementById('btn-toggle-panel');
@@ -1636,48 +1266,32 @@
       btnTogglePanel.classList.toggle('active', !controlPanel.classList.contains('collapsed'));
     });
 
-    modelSelector.addEventListener('change', (e) => {
-      loadAssembly(e.target.value);
-    });
+    modelSelector.addEventListener('change', (e) => { loadAssembly(e.target.value); });
 
     const btnAssemble = document.getElementById('btn-assemble');
     const btnFlatLay = document.getElementById('btn-flatlay');
     const btnStepByStep = document.getElementById('btn-stepbymir');
 
-    btnAssemble.addEventListener('click', () => {
-      stateMode = 'assemble';
-      btnAssemble.classList.add('active');
-      btnFlatLay.classList.remove('active');
-      btnStepByStep.classList.remove('active');
-    });
-
-    btnFlatLay.addEventListener('click', () => {
-      stateMode = 'flatlay';
-      btnFlatLay.classList.add('active');
-      btnAssemble.classList.remove('active');
-      btnStepByStep.classList.remove('active');
-    });
-
+    btnAssemble.addEventListener('click', () => { stateMode = 'assemble'; btnAssemble.classList.add('active'); btnFlatLay.classList.remove('active'); btnStepByStep.classList.remove('active'); });
+    btnFlatLay.addEventListener('click', () => { stateMode = 'flatlay'; btnFlatLay.classList.add('active'); btnAssemble.classList.remove('active'); btnStepByStep.classList.remove('active'); });
     btnStepByStep.addEventListener('click', () => {
       stateMode = 'stepbystep';
       stepIndex = (stepIndex + 1) % (allAssembleNodes.length + 1);
-      btnStepByStep.classList.add('active');
-      btnAssemble.classList.remove('active');
-      btnFlatLay.classList.remove('active');
+      btnStepByStep.classList.add('active'); btnAssemble.classList.remove('active'); btnFlatLay.classList.remove('active');
     });
 
     function isolateNode(node) {
       if (!node) return;
       soloNode = node;
-      allAssembleNodes.forEach(n => {
-        n.visible = (n === soloNode);
-      });
+      allAssembleNodes.forEach(n => { n.visible = (n === soloNode); });
+      propPivots.forEach(p => { p.visible = (p === soloNode); });
     }
 
     function hideNode(node) {
       if (!node) return;
       node.userData.userHidden = true;
       node.visible = false;
+      buildAssemblyTree(treeSearchInput.value);
     }
 
     function showAllNodes() {
@@ -1687,16 +1301,16 @@
         node.visible = true;
         node.traverse(sub => { sub.visible = true; });
       });
-      if (occRoot) {
-        occRoot.traverse(sub => { sub.visible = true; });
-      }
+      propPivots.forEach(p => {
+        p.visible = true;
+        p.traverse(sub => { sub.visible = true; });
+      });
+      if (occRoot) occRoot.traverse(sub => { sub.visible = true; });
+      buildAssemblyTree(treeSearchInput.value);
     }
 
     function exportSelectedSTL() {
-      if (!selectedNode) {
-        alert("Veuillez d'abord sélectionner une pièce (clic sur un composant).");
-        return;
-      }
+      if (!selectedNode) { alert("Veuillez d'abord sélectionner une pièce."); return; }
       const exporter = new STLExporter();
       const result = exporter.parse(selectedNode, { binary: true });
       const blob = new Blob([result], { type: 'application/octet-stream' });
@@ -1717,6 +1331,13 @@
     document.getElementById('ctx-showall').addEventListener('click', () => { showAllNodes(); contextMenu.style.display = 'none'; });
     document.getElementById('ctx-export-stl').addEventListener('click', () => { exportSelectedSTL(); contextMenu.style.display = 'none'; });
 
+    const stageCard = document.getElementById('stage-card');
+    const btnCloseCard = document.getElementById('btn-close-card');
+    const btnShowCard = document.getElementById('btn-show-card');
+
+    btnCloseCard.addEventListener('click', () => { stageCard.classList.add('hidden'); btnShowCard.classList.add('visible'); });
+    btnShowCard.addEventListener('click', () => { stageCard.classList.remove('hidden'); btnShowCard.classList.remove('visible'); });
+
     const THEMES = {
       cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518' },
       sunset: { tpu: '#ff6b00', motor: '#ff4081', prop: '#ff6b00', standoff: '#f5c518' },
@@ -1728,11 +1349,7 @@
       btn.addEventListener('click', () => {
         const theme = THEMES[btn.dataset.theme];
         if (!theme) return;
-        activeTpuHex = theme.tpu;
-        activeMotorHex = theme.motor;
-        activePropHex = theme.prop;
-        activeStandoffHex = theme.standoff;
-
+        activeTpuHex = theme.tpu; activeMotorHex = theme.motor; activePropHex = theme.prop; activeStandoffHex = theme.standoff;
         applyCategoryColor('tpu', activeTpuHex);
         applyCategoryColor('motor', activeMotorHex);
         applyCategoryColor('prop', activePropHex);
@@ -1750,26 +1367,17 @@
       sliderExplode.value = explodeAmount;
       valExplode.textContent = `${Math.round(explodeAmount * 100)}%`;
       btnExplode.classList.toggle('active', explodeAmount > 0.01);
-      if (explodeAmount > 0) {
-        stateMode = 'assemble';
-        btnAssemble.classList.add('active');
-        btnFlatLay.classList.remove('active');
-        btnStepByStep.classList.remove('active');
-      }
+      if (explodeAmount > 0) { stateMode = 'assemble'; btnAssemble.classList.add('active'); btnFlatLay.classList.remove('active'); btnStepByStep.classList.remove('active'); }
     }
 
     sliderExplode.addEventListener('input', (e) => setExplode(e.target.value));
-    btnExplode.addEventListener('click', () => {
-      setExplode(explodeAmount > 0.05 ? 0 : 0.7);
-    });
+    btnExplode.addEventListener('click', () => setExplode(explodeAmount > 0.05 ? 0 : 0.7));
 
     const btnWireframe = document.getElementById('btn-wireframe');
     btnWireframe.addEventListener('click', () => {
       isWireframe = !isWireframe;
       btnWireframe.classList.toggle('active', isWireframe);
-      allMeshes.forEach(m => {
-        if (m.material) m.material.wireframe = isWireframe;
-      });
+      allMeshes.forEach(m => { if (m.material) m.material.wireframe = isWireframe; });
     });
 
     const bindSlider = (id, fn) => {
@@ -1791,37 +1399,60 @@
     document.getElementById('btn-reset-cam').addEventListener('click', resetCamera);
 
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen().catch(() => {});
-      }
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+      else document.exitFullscreen().catch(() => {});
     });
 
-    const PRESETS = {
-      studio: { exp: 1.0, env: 0.3, keyI: 2.6, fillI: 0.55, rimI: 2.2, bncI: 0.3 },
-      dramatic: { exp: 1.1, env: 0.15, keyI: 3.8, fillI: 0.2, rimI: 3.2, bncI: 0.1 },
-      soft: { exp: 0.95, env: 0.7, keyI: 1.8, fillI: 1.1, rimI: 1.2, bncI: 0.5 },
-      technical: { exp: 1.0, env: 1.0, keyI: 1.4, fillI: 1.3, rimI: 0.9, bncI: 0.7 }
-    };
+    // --- VIEW CUBE CAO (Haut Droite) ---
+    const vcContainer = document.getElementById('viewcube-container');
+    const vcScene = new THREE.Scene();
+    const vcCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
+    vcCamera.position.set(0, 0, 2.8);
 
-    document.querySelectorAll('.btn-preset').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const p = PRESETS[btn.dataset.preset];
-        if (!p) return;
-        renderer.toneMappingExposure = p.exp;
-        scene.environmentIntensity = p.env;
-        keyLight.intensity = p.keyI;
-        fillLight.intensity = p.fillI;
-        rimLight.intensity = p.rimI;
-        bounceLight.intensity = p.bncI;
-        document.getElementById('slider-exp').value = p.exp;
-        document.getElementById('val-exp').textContent = p.exp.toFixed(2);
-        document.getElementById('slider-env').value = p.env;
-        document.getElementById('val-env').textContent = p.env.toFixed(2);
-      });
+    const vcRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    vcRenderer.setSize(90, 90);
+    vcContainer.appendChild(vcRenderer.domElement);
+
+    const cubeGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+    const cubeMat = [
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Right
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Left
+      new THREE.MeshBasicMaterial({ color: 0x303b4d }), // Top
+      new THREE.MeshBasicMaterial({ color: 0x181e26 }), // Bottom
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Front
+      new THREE.MeshBasicMaterial({ color: 0x222a35 })  // Back
+    ];
+    const vcCube = new THREE.Mesh(cubeGeo, cubeMat);
+    vcScene.add(vcCube);
+
+    const vcEdges = new THREE.LineSegments(new THREE.EdgesGeometry(cubeGeo), new THREE.LineBasicMaterial({ color: 0xffb700 }));
+    vcCube.add(vcEdges);
+
+    const vcRaycaster = new THREE.Raycaster();
+    const vcMouse = new THREE.Vector2();
+
+    vcContainer.addEventListener('click', (e) => {
+      const rect = vcContainer.getBoundingClientRect();
+      vcMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      vcMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      vcRaycaster.setFromCamera(vcMouse, vcCamera);
+      const hits = vcRaycaster.intersectObject(vcCube);
+      if (hits.length > 0) {
+        const faceIndex = Math.floor(hits[0].faceIndex / 2);
+        const dist = camera.position.distanceTo(controls.target);
+        const targetPos = controls.target.clone();
+        
+        // Orientations standards CAO selon la face cliquée
+        switch (faceIndex) {
+          case 4: camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist); break; // Face
+          case 5: camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist); break; // Arrière
+          case 0: camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z); break; // Droite
+          case 1: camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z); break; // Gauche
+          case 2: camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.001); break; // Dessus
+          case 3: camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.001); break; // Dessous
+        }
+        controls.update();
+      }
     });
 
     const raycaster = new THREE.Raycaster();
@@ -1865,6 +1496,21 @@
 
       if (partInfoSpan) partInfoSpan.innerHTML = `<b>${name}</b> (${clsLabel})`;
 
+      const stageTag = document.getElementById('stage-tag');
+      const stageTitle = document.getElementById('stage-title');
+      const stageNote = document.getElementById('stage-note');
+      const stageCaption = document.getElementById('stage-caption');
+
+      if (stageTag) stageTag.textContent = "Sélection Pièce";
+      if (stageTitle) stageTitle.textContent = name;
+      if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
+      if (stageCaption) stageCaption.textContent = `Composant actif du modèle ${currentModelKey.toUpperCase()}. Prêt pour export STL ou inspection individuelle.`;
+
+      // Mettre à jour l'élément sélectionné dans l'arbre
+      document.querySelectorAll('.tree-item').forEach(el => {
+        el.classList.toggle('selected', el.textContent.includes(name));
+      });
+
       if (isRightClick) {
         contextMenu.style.left = `${e.clientX}px`;
         contextMenu.style.top = `${e.clientY}px`;
@@ -1873,10 +1519,7 @@
     }
 
     renderer.domElement.addEventListener('pointerdown', (e) => {
-      if (e.button === 0) {
-        contextMenu.style.display = 'none';
-        handleSelection(e, false);
-      }
+      if (e.button === 0) { contextMenu.style.display = 'none'; handleSelection(e, false); }
     });
 
     renderer.domElement.addEventListener('contextmenu', (e) => {
@@ -1893,9 +1536,7 @@
 
       if (propPivots.length > 0 && propRPM > 0.01) {
         for (const p of propPivots) {
-          if (p.userData.spin) {
-            p.userData.spin.rotation.z += dt * propRPM * 10 * p.userData.dir;
-          }
+          if (p.userData.spin) p.userData.spin.rotation.z += dt * propRPM * 10 * p.userData.dir;
         }
       }
 
@@ -1908,24 +1549,18 @@
 
       if (isPlaying) {
         autoplayTimer += dt;
-        if (autoplayTimer >= 4.5) {
-          autoplayTimer = 0;
-          setBeat((currentBeatIndex + 1) % BEATS.length);
-        }
+        if (autoplayTimer >= 4.5) { autoplayTimer = 0; setBeat((currentBeatIndex + 1) % BEATS.length); }
       }
 
       if (allAssembleNodes.length > 0) {
         allAssembleNodes.forEach((child, idx) => {
           if (!child.userData.origPos) return;
-
           let targetPos = child.userData.origPos.clone();
           let targetVis = true;
 
-          if (child.userData.userHidden) {
-            targetVis = false;
-          } else if (soloNode && soloNode !== child) {
-            targetVis = false;
-          } else {
+          if (child.userData.userHidden) targetVis = false;
+          else if (soloNode && soloNode !== child) targetVis = false;
+          else {
             if (stateMode === 'flatlay') {
               const flatP = flatLayPositions.get(child.uuid);
               if (flatP) targetPos.copy(flatP);
@@ -1943,6 +1578,10 @@
           child.visible = targetVis;
         });
       }
+
+      // Synchronisation de la rotation du ViewCube avec la caméra principale
+      vcCube.quaternion.copy(camera.quaternion).invert();
+      vcRenderer.render(vcScene, vcCamera);
 
       controls.update();
       renderer.render(scene, camera);
