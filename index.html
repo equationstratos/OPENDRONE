@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec arbre d'assemblage, viewcube CAO, et export STL." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec arbre d'assemblage pliable, viewcube CAO interactif, et export STL." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -294,13 +294,13 @@
     #btn-show-card { position: absolute; left: 68px; bottom: 24px; z-index: 9; display: none; }
     #btn-show-card.visible { display: inline-flex; }
 
-    /* ViewCube CAO (Haut Droite) */
+    /* ViewCube CAO plus gros, plus à droite (collé près du panneau Studio ou du bord droit) */
     #viewcube-container {
-      position: absolute; top: 74px; right: 385px; width: 90px; height: 90px; z-index: 10; pointer-events: auto; cursor: pointer; transition: opacity 0.3s;
+      position: absolute; top: 74px; right: 24px; width: 115px; height: 115px; z-index: 10; pointer-events: auto; cursor: pointer; transition: opacity 0.3s;
     }
-    #viewcube-container canvas { width: 100%; height: 100%; border-radius: 8px; background: transparent; }
+    #viewcube-container canvas { width: 100%; height: 100%; border-radius: 10px; background: transparent; }
 
-    /* Arbre d'assemblage / Panneau Arbre (Gauche ou Droite selon choix, ici panneau escamotable "Arbre") */
+    /* Panneau Arbre d'assemblage dépliant / masquable */
     .tree-panel {
       position: absolute; top: 74px; left: 24px; width: 300px; max-height: calc(100vh - 110px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
@@ -317,9 +317,9 @@
     .tree-item-label { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .tree-item input[type=checkbox] { accent-color: #ffb700; cursor: pointer; }
 
-    /* Right Control Panel (Studio) */
+    /* Right Control Panel (Studio) - Légèrement décalé vers la gauche pour laisser la place au ViewCube plus large */
     .control-panel {
-      position: absolute; top: 74px; right: 24px; width: 340px; max-height: calc(100vh - 110px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      position: absolute; top: 200px; right: 24px; width: 340px; max-height: calc(100vh - 220px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
     .control-panel.collapsed { transform: translateX(calc(100% + 40px)); pointer-events: none; opacity: 0; }
 
@@ -385,8 +385,8 @@
   <div class="viewport-glow"></div>
   <div id="canvas-container"></div>
 
-  <!-- ViewCube CAO en haut à droite -->
-  <div id="viewcube-container" title="Cube de vue CAO"></div>
+  <!-- ViewCube CAO plus gros, plus à droite -->
+  <div id="viewcube-container" title="Cube de vue CAO interactif"></div>
 
   <!-- Menu Contextuel Clic Droit -->
   <div id="context-menu">
@@ -496,8 +496,8 @@
     </div>
   </header>
 
-  <!-- Panneau Arbre d'assemblage (Tree View) -->
-  <div class="tree-panel" id="tree-panel">
+  <!-- Panneau Arbre d'assemblage (Tree View) repliable par défaut (collapsed) -->
+  <div class="tree-panel collapsed" id="tree-panel">
     <div class="tree-title">
       <span>Arbre d'Assemblage</span>
       <button class="card-close-btn" id="btn-close-tree">&times;</button>
@@ -1086,7 +1086,7 @@
       });
     }
 
-    // Génération de l'arbre d'assemblage interactif (Tree View)
+    // Gestion de l'arbre d'assemblage repliable
     const treeListContainer = document.getElementById('tree-list-container');
     const treePanel = document.getElementById('tree-panel');
     const btnToggleTree = document.getElementById('btn-toggle-tree');
@@ -1403,14 +1403,14 @@
       else document.exitFullscreen().catch(() => {});
     });
 
-    // --- VIEW CUBE CAO (Haut Droite) ---
+    // --- VIEW CUBE CAO (Plus grand, plus à droite, pilotant l'orbite caméra) ---
     const vcContainer = document.getElementById('viewcube-container');
     const vcScene = new THREE.Scene();
     const vcCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
     vcCamera.position.set(0, 0, 2.8);
 
     const vcRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    vcRenderer.setSize(90, 90);
+    vcRenderer.setSize(115, 115);
     vcContainer.appendChild(vcRenderer.domElement);
 
     const cubeGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
@@ -1442,7 +1442,6 @@
         const dist = camera.position.distanceTo(controls.target);
         const targetPos = controls.target.clone();
         
-        // Orientations standards CAO selon la face cliquée
         switch (faceIndex) {
           case 4: camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist); break; // Face
           case 5: camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist); break; // Arrière
@@ -1453,6 +1452,46 @@
         }
         controls.update();
       }
+    });
+
+    // Permettre aussi de déplacer l'orbite en cliquant-glissant sur le ViewCube
+    let isDraggingViewCube = false;
+    let prevMousePos = { x: 0, y: 0 };
+
+    vcContainer.addEventListener('pointerdown', (e) => {
+      isDraggingViewCube = true;
+      prevMousePos = { x: e.clientX, y: e.clientY };
+      vcContainer.setPointerCapture(e.pointerId);
+    });
+
+    vcContainer.addEventListener('pointermove', (e) => {
+      if (!isDraggingViewCube) return;
+      const dx = e.clientX - prevMousePos.x;
+      const dy = e.clientY - prevMousePos.y;
+      prevMousePos = { x: e.clientX, y: e.clientY };
+
+      // Rotation de la caméra principale autour de la cible (simule OrbitControls)
+      const offset = camera.position.clone().sub(controls.target);
+      let radius = offset.length();
+      let theta = Math.atan2(offset.x, offset.z);
+      let phi = Math.acos(Math.max(-1, Math.min(1, offset.y / radius)));
+
+      theta -= dx * 0.01;
+      phi -= dy * 0.01;
+      phi = Math.max(0.01, Math.min(Math.PI - 0.01, phi));
+
+      offset.x = radius * Math.sin(phi) * Math.sin(theta);
+      offset.y = radius * Math.cos(phi);
+      offset.z = radius * Math.sin(phi) * Math.cos(theta);
+
+      camera.position.copy(controls.target).add(offset);
+      camera.lookAt(controls.target);
+      controls.update();
+    });
+
+    vcContainer.addEventListener('pointerup', (e) => {
+      isDraggingViewCube = false;
+      vcContainer.releasePointerCapture(e.pointerId);
     });
 
     const raycaster = new THREE.Raycaster();
@@ -1506,7 +1545,6 @@
       if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
       if (stageCaption) stageCaption.textContent = `Composant actif du modèle ${currentModelKey.toUpperCase()}. Prêt pour export STL ou inspection individuelle.`;
 
-      // Mettre à jour l'élément sélectionné dans l'arbre
       document.querySelectorAll('.tree-item').forEach(el => {
         el.classList.toggle('selected', el.textContent.includes(name));
       });
@@ -1579,7 +1617,6 @@
         });
       }
 
-      // Synchronisation de la rotation du ViewCube avec la caméra principale
       vcCube.quaternion.copy(camera.quaternion).invert();
       vcRenderer.render(vcScene, vcCamera);
 
