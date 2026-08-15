@@ -103,11 +103,11 @@
         controls.dampingFactor = 0.05;
         controls.maxPolarAngle = Math.PI / 2 + 0.05;
 
-        // Éclairage studio orienté pour faire ressortir le carbone et le doré des moteurs
+        // Éclairage studio
         const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
         scene.add(ambientLight);
 
-        const dirLight = new TextTrackCue ? null : new THREE.DirectionalLight(0xffffff, 3.0);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 3.0);
         dirLight.position.set(40, 90, 50);
         dirLight.castShadow = true;
         scene.add(dirLight);
@@ -126,18 +126,15 @@
             loadingElement.style.display = 'block';
             loadingElement.innerText = "Chargement des pièces et composants...";
 
-            // Nettoyage du groupe précédent
             while(droneGroup.children.length > 0){ 
                 droneGroup.remove(droneGroup.children[0]); 
             }
 
-            // Liste des fichiers GLB à charger simultanément pour l'assemblage complet
-            // Adaptez les noms selon l'arborescence exacte de vos fichiers dans models/
             const partsToLoad = [
-                `models/frame${sizeType}.glb`,       // Châssis principal carbone
-                `models/motors${sizeType}.glb`,     // Moteurs (ex: cloches dorées)
-                `models/stack.glb`,                 // Électronique (FC/ESC Stack)
-                `models/vtx.glb`                    // Unité transmission / Caméra / TPU
+                `models/frame${sizeType}.glb`,
+                `models/motors${sizeType}.glb`,
+                `models/stack.glb`,
+                `models/vtx.glb`
             ];
 
             let loadedCount = 0;
@@ -149,13 +146,11 @@
                     (gltf) => {
                         const part = gltf.scene;
                         
-                        // Optimisation des matériaux pour un rendu réaliste (effet carbone/métal)
                         part.traverse((child) => {
                             if (child.isMesh) {
                                 child.castShadow = true;
                                 child.receiveShadow = true;
                                 if (child.material) {
-                                    // Ajustements visuels automatiques pour booster l'aspect brillant du carbone
                                     child.material.roughness = 0.3;
                                     child.material.metalness = 0.8;
                                 }
@@ -165,11 +160,10 @@
                         masterGroup.add(part);
                         loadedCount++;
 
-                        // Une fois tous les fichiers chargés, on intègre et centre le tout
                         if (loadedCount === partsToLoad.length) {
                             const box = new THREE.Box3().setFromObject(masterGroup);
                             const center = box.getCenter(new THREE.Vector3());
-                            masterGroup.position.sub(center); // Centrage global
+                            masterGroup.position.sub(center);
 
                             droneGroup.add(masterGroup);
                             loadingElement.style.display = 'none';
@@ -177,10 +171,13 @@
                     },
                     undefined,
                     (error) => {
-                        console.warn(`Attention : Impossible de charger ${path} (composant optionnel ou chemin différent).`, error);
+                        console.warn(`Fichier ignoré ou introuvable : ${path}`);
                         loadedCount++;
-                        // Permet de valider l'affichage même si un sous-fichier mineur manque
                         if (loadedCount === partsToLoad.length) {
+                            const box = new THREE.Box3().setFromObject(masterGroup);
+                            const center = box.getCenter(new THREE.Vector3());
+                            masterGroup.position.sub(center);
+                            droneGroup.add(masterGroup);
                             loadingElement.style.display = 'none';
                         }
                     }
@@ -188,7 +185,6 @@
             });
         };
 
-        // Chargement initial du modèle 3"
         loadCompleteDrone('3');
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
