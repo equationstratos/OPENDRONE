@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité des drones OpenDrone avec rendu PBR, transparence hélices FPV avancée, thèmes et logo officiel." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec logo officiel, menu de personnalisation, hélices FPV transparentes et export STL au clic droit." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16,10 +16,9 @@
       --bg-panel: rgba(18, 23, 30, 0.95);
       --border: rgba(255, 255, 255, 0.08);
       --border-focus: rgba(216, 161, 58, 0.5);
-      --gold: #d8a13a;
-      --gold-glow: rgba(216, 161, 58, 0.25);
+      --gold: #ffb700;
+      --gold-glow: rgba(255, 183, 0, 0.25);
       --teal: #00b2a9;
-      --teal-glow: rgba(0, 178, 169, 0.2);
       --text: #f0f2f5;
       --text-muted: #8b95a5;
       --text-dim: #546070;
@@ -69,8 +68,7 @@
       inset: 0;
       pointer-events: none;
       z-index: 2;
-      background: radial-gradient(circle at 50% 50%, rgba(216, 161, 58, 0.03) 0%, transparent 60%),
-                  radial-gradient(circle at 50% 80%, rgba(0, 178, 169, 0.02) 0%, transparent 50%),
+      background: radial-gradient(circle at 50% 50%, rgba(255, 183, 0, 0.03) 0%, transparent 60%),
                   radial-gradient(ellipse at center, transparent 40%, rgba(5, 6, 8, 0.75) 100%);
     }
 
@@ -97,32 +95,34 @@
     .brand-badge {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 6px 14px 6px 10px;
+      gap: 12px;
+      padding: 6px 14px 6px 12px;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
       backdrop-filter: blur(12px);
     }
 
-    .brand-logo-svg {
-      width: 22px;
-      height: 22px;
+    .brand-logo-text {
+      font-family: var(--font-sans);
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-transform: none;
+      display: inline-flex;
+      align-items: baseline;
     }
-
-    .brand-title {
-      font-family: var(--font-mono);
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--text);
+    .brand-logo-text .part-open {
+      color: #ffffff;
+    }
+    .brand-logo-text .part-drone {
+      color: #ffb700;
     }
 
     .model-selector {
       background: rgba(0, 0, 0, 0.4);
       border: 1px solid var(--border);
-      color: var(--gold);
+      color: #ffb700;
       font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 600;
@@ -178,8 +178,8 @@
     }
 
     .toggle-wrap input[type=checkbox]:checked {
-      background: var(--gold);
-      border-color: var(--gold);
+      background: #ffb700;
+      border-color: #ffb700;
     }
 
     .toggle-wrap input[type=checkbox]:checked::after {
@@ -221,9 +221,9 @@
     }
 
     .btn-pill.active {
-      background: var(--gold);
+      background: #ffb700;
       color: #0b0d11;
-      border-color: var(--gold);
+      border-color: #ffb700;
       box-shadow: 0 0 16px var(--gold-glow);
     }
 
@@ -284,12 +284,12 @@
 
     .swatch:hover {
       transform: scale(1.1);
-      border-color: var(--gold);
+      border-color: #ffb700;
     }
 
     .swatch.active {
       border-color: #ffffff;
-      box-shadow: 0 0 6px var(--gold);
+      box-shadow: 0 0 6px #ffb700;
     }
 
     .theme-grid {
@@ -317,6 +317,41 @@
       border-color: var(--border-focus);
       color: var(--text);
       background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Context Menu Clic Droit */
+    #context-menu {
+      position: absolute;
+      display: none;
+      z-index: 1000;
+      background: rgba(18, 23, 30, 0.95);
+      border: 1px solid var(--border-focus);
+      border-radius: 10px;
+      padding: 6px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+      min-width: 170px;
+    }
+    .context-menu-item {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 8px 12px;
+      color: var(--text);
+      cursor: pointer;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s;
+    }
+    .context-menu-item:hover {
+      background: rgba(255, 183, 0, 0.15);
+      color: #ffb700;
+    }
+    .context-menu-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
     }
 
     /* Left Timeline Rail */
@@ -347,9 +382,9 @@
       left: 0;
       width: 100%;
       height: 0%;
-      background: var(--gold);
+      background: #ffb700;
       border-radius: 4px;
-      box-shadow: 0 0 8px var(--gold);
+      box-shadow: 0 0 8px #ffb700;
       transition: height 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -362,7 +397,7 @@
       height: 10px;
       border-radius: 50%;
       background: #ffffff;
-      box-shadow: 0 0 10px var(--gold);
+      box-shadow: 0 0 10px #ffb700;
       transition: top 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -388,13 +423,13 @@
 
     .rail-dot:hover {
       transform: translateX(-4px) scale(1.3);
-      border-color: var(--gold);
+      border-color: #ffb700;
     }
 
     .rail-dot.active {
-      background: var(--gold);
+      background: #ffb700;
       border-color: #ffffff;
-      box-shadow: 0 0 12px var(--gold);
+      box-shadow: 0 0 12px #ffb700;
     }
 
     .rail-dot-label {
@@ -419,7 +454,7 @@
     .rail-dot:hover .rail-dot-label,
     .rail-dot.active .rail-dot-label {
       opacity: 1;
-      color: var(--gold);
+      color: #ffb700;
       transform: translateY(-50%) translateX(4px);
     }
 
@@ -461,7 +496,7 @@
       font-weight: 600;
       letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: var(--gold);
+      color: #ffb700;
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -473,7 +508,7 @@
       width: 5px;
       height: 5px;
       border-radius: 50%;
-      background: var(--gold);
+      background: #ffb700;
     }
 
     .stage-index {
@@ -536,13 +571,13 @@
     }
 
     .btn-nav.primary {
-      background: rgba(216, 161, 58, 0.15);
-      border-color: rgba(216, 161, 58, 0.4);
-      color: var(--gold);
+      background: rgba(255, 183, 0, 0.15);
+      border-color: rgba(255, 183, 0, 0.4);
+      color: #ffb700;
     }
 
     .btn-nav.primary:hover {
-      background: var(--gold);
+      background: #ffb700;
       color: #0b0d11;
     }
 
@@ -589,7 +624,7 @@
       font-weight: 700;
       letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: var(--gold);
+      color: #ffb700;
       margin-bottom: 10px;
       display: flex;
       align-items: center;
@@ -616,7 +651,7 @@
       border-radius: 2px;
       background: rgba(255, 255, 255, 0.12);
       outline: none;
-      accent-color: var(--gold);
+      accent-color: #ffb700;
       cursor: pointer;
     }
 
@@ -657,9 +692,9 @@
     }
 
     .btn-preset.active {
-      background: rgba(216, 161, 58, 0.2);
-      border-color: var(--gold);
-      color: var(--gold);
+      background: rgba(255, 183, 0, 0.2);
+      border-color: #ffb700;
+      color: #ffb700;
     }
 
     .inspector-card {
@@ -702,22 +737,14 @@
     .loader-logo {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
     }
 
-    .loader-icon-svg {
-      width: 44px;
-      height: 44px;
-      filter: drop-shadow(0 0 12px var(--teal));
-    }
-
-    .loader-text {
-      font-family: var(--font-mono);
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: #ffffff;
+    .loader-text-logo {
+      font-family: var(--font-sans);
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
     }
 
     .loader-bar-wrap {
@@ -735,9 +762,9 @@
       top: 0;
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, var(--teal), var(--gold));
+      background: linear-gradient(90deg, var(--teal), #ffb700);
       border-radius: 4px;
-      box-shadow: 0 0 12px var(--gold);
+      box-shadow: 0 0 12px #ffb700;
       transition: width 0.2s ease-out;
     }
 
@@ -783,16 +810,10 @@
 </head>
 <body>
 
-  <!-- Loading Screen avec le Logo Vectoriel Officiel OpenDrone -->
+  <!-- Loading Screen avec le Logo OpenDrone officiel -->
   <div id="loading-overlay">
     <div class="loader-logo">
-      <svg class="loader-icon-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#00b2a9" stroke-width="8" stroke-linejoin="round"/>
-        <polyline points="50,5 50,50 95,72.5" fill="none" stroke="#d8a13a" stroke-width="6" stroke-linejoin="round"/>
-        <polyline points="50,50 5,72.5" fill="none" stroke="#00b2a9" stroke-width="6" stroke-linejoin="round"/>
-        <circle cx="50" cy="50" r="8" fill="#f0f2f5"/>
-      </svg>
-      <div class="loader-text" id="loader-title">OpenDrone</div>
+      <div class="loader-text-logo"><span class="part-open">Open</span><span class="part-drone">Drone</span></div>
     </div>
     <div class="loader-bar-wrap">
       <div class="loader-bar-fill" id="loader-bar"></div>
@@ -803,17 +824,32 @@
   <div class="viewport-glow"></div>
   <div id="canvas-container"></div>
 
+  <!-- Menu Contextuel Clic Droit -->
+  <div id="context-menu">
+    <div class="context-menu-item" id="ctx-solo">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Isoler (Solo)
+    </div>
+    <div class="context-menu-item" id="ctx-hide">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      Masquer la pièce
+    </div>
+    <div class="context-menu-item" id="ctx-showall">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      Tout afficher
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" id="ctx-export-stl">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <b>Exporter en STL</b>
+    </div>
+  </div>
+
   <!-- Header -->
   <header>
     <div class="brand-group">
       <div class="brand-badge">
-        <svg class="brand-logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#00b2a9" stroke-width="8" stroke-linejoin="round"/>
-          <polyline points="50,5 50,50 95,72.5" fill="none" stroke="#d8a13a" stroke-width="6" stroke-linejoin="round"/>
-          <polyline points="50,50 5,72.5" fill="none" stroke="#00b2a9" stroke-width="6" stroke-linejoin="round"/>
-          <circle cx="50" cy="50" r="8" fill="#f0f2f5"/>
-        </svg>
-        <span class="brand-title">OpenDrone</span>
+        <div class="brand-logo-text"><span class="part-open">Open</span><span class="part-drone">Drone</span></div>
         <select id="model-selector" class="model-selector" title="Choisir le modèle de drone">
           <option value="od3" selected>Modèle 3"</option>
           <option value="od5">Modèle 5"</option>
@@ -844,7 +880,7 @@
         <span>Wireframe</span>
       </button>
 
-      <!-- Menu Personnalisation bien placé après Wireframe et avant Studio -->
+      <!-- Menu Personnalisation -->
       <div class="dropdown-container" id="customization-dropdown">
         <button class="btn-pill" id="btn-customization-toggle">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -909,7 +945,7 @@
     </div>
     <div class="stage-title" id="stage-title">OpenDrone</div>
     <div class="stage-note" id="stage-note">Châssis complet FPV assemblé</div>
-    <div class="stage-caption" id="stage-caption">Vue d'ensemble du drone open-source. Utilisez la souris pour pivoter en haute définition.</div>
+    <div class="stage-caption" id="stage-caption">Vue d'ensemble du drone open-source. Utilisez la souris pour pivoter en haute définition. Clic droit sur une pièce pour les options.</div>
     <div class="stage-nav">
       <button class="btn-nav" id="btn-prev">&larr; Précédent</button>
       <button class="btn-nav" id="btn-next">Suivant &rarr;</button>
@@ -922,7 +958,7 @@
     <div class="panel-section">
       <div class="panel-title">Inspection & Visibilité</div>
       <div class="inspector-card" id="selected-part-info" style="margin-bottom: 8px;">
-        <b>Pièce active :</b> <span>Aucune (cliquez sur une pièce)</span>
+        <b>Pièce active :</b> <span>Aucune (clic droit ou gauche)</span>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 6px;">
         <button class="btn-pill" id="btn-solo" style="justify-content:center; font-size:10px; padding:6px 4px;">Isoler (Solo)</button>
@@ -1013,6 +1049,7 @@
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { STLExporter } from 'three/addons/exporters/STLExporter.js';
     import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
     import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
@@ -1041,20 +1078,25 @@
     let activeTpuHex = '#ff6b00';
     let activeMotorHex = '#ff6b00';
     let activePropHex = '#f0f2f5';
-    let activeStandoffHex = '#d8a13a';
+    let activeStandoffHex = '#ffb700';
     let selectedNode = null;
 
     const dropdownContainer = document.getElementById('customization-dropdown');
     const btnCustomizationToggle = document.getElementById('btn-customization-toggle');
+    const contextMenu = document.getElementById('context-menu');
 
     btnCustomizationToggle.addEventListener('click', (e) => {
       e.stopPropagation();
       dropdownContainer.classList.toggle('open');
+      contextMenu.style.display = 'none';
     });
 
     window.addEventListener('click', (e) => {
       if (!dropdownContainer.contains(e.target)) {
         dropdownContainer.classList.remove('open');
+      }
+      if (!contextMenu.contains(e.target)) {
+        contextMenu.style.display = 'none';
       }
     });
 
@@ -1111,7 +1153,7 @@
       { id: 'tpu', label: 'Impression TPU', match: '^(Bumper|Airtag|Antenna|VTX|Boot|Mount)', tint: null, metalness: 0.79, roughness: 1.0, env: 0.0, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'rubber', label: 'Grommet Caoutchouc', match: '^softmount', tint: null, metalness: 1.0, roughness: 1.0, env: 0.05, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'antenna', label: 'Antenne Linéaire', match: '^DJI', tint: null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1.0, transparent: false, opacity: 1.0 },
-      { id: 'prop', label: 'Hélice Tri-pales FPV', match: '^[0-9]+$', tint: null, metalness: 0.05, roughness: 0.1, env: 0.9, sat: 1.0, transparent: true, opacity: 0.45 },
+      { id: 'prop', label: 'Hélice Tri-pales FPV', match: '^[0-9]+$', tint: null, metalness: 0.05, roughness: 0.1, env: 0.9, sat: 1.0, transparent: true, opacity: 0.40 },
       { id: 'camera', label: 'Caméra FPV HD', match: '^(Body|Lens)', tint: null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 1.0, roughness: 0.36, env: 0.9, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'mask', label: 'Vernis PCB (Soldermask)', match: null, tint: '#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1.0, transparent: false, opacity: 1.0 },
@@ -1192,7 +1234,7 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x090a0d);
 
-    const gridHelper = new THREE.GridHelper(1.2, 24, 0xd8a13a, 0x18202c);
+    const gridHelper = new THREE.GridHelper(1.2, 24, 0xffb700, 0x18202c);
     gridHelper.position.y = -0.001;
     scene.add(gridHelper);
 
@@ -1620,21 +1662,21 @@
       btnFlatLay.classList.remove('active');
     });
 
-    document.getElementById('btn-solo').addEventListener('click', () => {
-      if (!selectedNode) return;
-      soloNode = selectedNode;
-      allAssembleNodes.forEach(node => {
-        node.visible = (node === soloNode);
+    function isolateNode(node) {
+      if (!node) return;
+      soloNode = node;
+      allAssembleNodes.forEach(n => {
+        n.visible = (n === soloNode);
       });
-    });
+    }
 
-    document.getElementById('btn-hide').addEventListener('click', () => {
-      if (!selectedNode) return;
-      selectedNode.userData.userHidden = true;
-      selectedNode.visible = false;
-    });
+    function hideNode(node) {
+      if (!node) return;
+      node.userData.userHidden = true;
+      node.visible = false;
+    }
 
-    document.getElementById('btn-show-all').addEventListener('click', () => {
+    function showAllNodes() {
       soloNode = null;
       allAssembleNodes.forEach(node => {
         node.userData.userHidden = false;
@@ -1644,13 +1686,38 @@
       if (occRoot) {
         occRoot.traverse(sub => { sub.visible = true; });
       }
-    });
+    }
+
+    function exportSelectedSTL() {
+      if (!selectedNode) {
+        alert("Veuillez d'abord sélectionner une pièce (clic sur un composant).");
+        return;
+      }
+      const exporter = new STLExporter();
+      const result = exporter.parse(selectedNode, { binary: true });
+      const blob = new Blob([result], { type: 'application/octet-stream' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const partName = tidy(selectedNode.name || 'piece-opendrone');
+      link.download = `${partName.replace(/\s+/g, '_')}.stl`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    document.getElementById('btn-solo').addEventListener('click', () => isolateNode(selectedNode));
+    document.getElementById('btn-hide').addEventListener('click', () => hideNode(selectedNode));
+    document.getElementById('btn-show-all').addEventListener('click', showAllNodes);
+
+    document.getElementById('ctx-solo').addEventListener('click', () => { isolateNode(selectedNode); contextMenu.style.display = 'none'; });
+    document.getElementById('ctx-hide').addEventListener('click', () => { hideNode(selectedNode); contextMenu.style.display = 'none'; });
+    document.getElementById('ctx-showall').addEventListener('click', () => { showAllNodes(); contextMenu.style.display = 'none'; });
+    document.getElementById('ctx-export-stl').addEventListener('click', () => { exportSelectedSTL(); contextMenu.style.display = 'none'; });
 
     const THEMES = {
       cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518' },
       sunset: { tpu: '#ff6b00', motor: '#ff4081', prop: '#ff6b00', standoff: '#f5c518' },
       stealth: { tpu: '#111111', motor: '#7c8590', prop: '#f0f2f5', standoff: '#111111' },
-      gold: { tpu: '#9c27b0', motor: '#d8a13a', prop: '#f0f2f5', standoff: '#d8a13a' }
+      gold: { tpu: '#9c27b0', motor: '#ffb700', prop: '#f0f2f5', standoff: '#ffb700' }
     };
 
     document.querySelectorAll('.btn-theme').forEach(btn => {
@@ -1756,12 +1823,12 @@
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     const partInfoSpan = document.querySelector('#selected-part-info span');
-    const pickBox = new THREE.Box3Helper(new THREE.Box3(), 0xd8a13a);
+    const pickBox = new THREE.Box3Helper(new THREE.Box3(), 0xffb700);
     pickBox.visible = false;
     scene.add(pickBox);
 
-    renderer.domElement.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || !droneRoot) return;
+    function handleSelection(e, isRightClick = false) {
+      if (!droneRoot) return;
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1772,7 +1839,8 @@
       if (!hit) {
         pickBox.visible = false;
         selectedNode = null;
-        partInfoSpan.textContent = "Aucune (cliquez sur une pièce)";
+        partInfoSpan.textContent = "Aucune (clic droit ou gauche)";
+        if (isRightClick) contextMenu.style.display = 'none';
         return;
       }
 
@@ -1792,6 +1860,24 @@
       const clsLabel = clsProfile ? clsProfile.label : clsKey;
 
       partInfoSpan.innerHTML = `<b>${name}</b> (${clsLabel})`;
+
+      if (isRightClick) {
+        contextMenu.style.left = `${e.clientX}px`;
+        contextMenu.style.top = `${e.clientY}px`;
+        contextMenu.style.display = 'block';
+      }
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button === 0) {
+        contextMenu.style.display = 'none';
+        handleSelection(e, false);
+      }
+    });
+
+    renderer.domElement.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      handleSelection(e, true);
     });
 
     const clock = new THREE.Clock();
