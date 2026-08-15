@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité des drones OpenDrone avec rendu PBR, personnalisation TPU, moteurs, hélices, isolation et inspection." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité des drones OpenDrone avec rendu PBR, transparence hélices FPV, thèmes prédéfinis et grille de sol." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -468,7 +468,7 @@
       position: absolute;
       top: 74px;
       right: 24px;
-      width: 350px;
+      width: 360px;
       max-height: calc(100vh - 110px);
       overflow-y: auto;
       z-index: 10;
@@ -513,16 +513,30 @@
       justify-content: space-between;
     }
 
-    /* Color picker tabs / grouped layout */
-    .color-category-title {
+    /* Sub-menus / Collapsible sections */
+    .menu-group {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .menu-group-header {
       font-family: var(--font-mono);
-      font-size: 10px;
+      font-size: 11px;
+      font-weight: 600;
       color: var(--text);
-      margin-top: 8px;
-      margin-bottom: 4px;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .menu-group-content {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     .palette-grid {
@@ -552,8 +566,32 @@
       box-shadow: 0 0 6px var(--gold);
     }
 
-    .swatch span {
-      display: none; /* Nettoyage visuel pour garder compact */
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .btn-theme {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 7px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .btn-theme:hover {
+      border-color: var(--border-focus);
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
     }
 
     .slider-row {
@@ -639,9 +677,6 @@
       display: block;
       margin-bottom: 2px;
     }
-
-    .inspector-card .gold-val { color: var(--gold); font-weight: 600; }
-    .inspector-card .teal-val { color: var(--teal); }
 
     #loading-overlay {
       position: absolute;
@@ -849,22 +884,55 @@
         <button class="btn-pill" id="btn-hide" style="justify-content:center; font-size:10px; padding:6px 4px;">Masquer</button>
         <button class="btn-pill" id="btn-show-all" style="justify-content:center; font-size:10px; padding:6px 4px;">Tout Afficher</button>
       </div>
+      <label class="toggle-wrap" style="width:100%; justify-content:space-between; margin-top: 6px;">
+        <span>Afficher Grille de Sol</span>
+        <input type="checkbox" id="chk-grid" checked>
+      </label>
     </div>
 
+    <!-- Menu Personnalisation Regroupé -->
     <div class="panel-section">
-      <div class="panel-title">Personnalisation des Couleurs</div>
+      <div class="panel-title">Menu Personnalisation</div>
       
-      <div class="color-category-title"><span>TPU (Supports, Antenne, GPS...)</span></div>
-      <div class="palette-grid" id="palette-tpu"></div>
+      <div class="menu-group">
+        <div class="menu-group-header">Thèmes Prédéfinis Assortis</div>
+        <div class="menu-group-content">
+          <div class="theme-grid">
+            <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
+            <button class="btn-theme" data-theme="sunset">Sunset FPV</button>
+            <button class="btn-theme" data-theme="stealth">Ghost Stealth</button>
+            <button class="btn-theme" data-theme="gold">Steampunk Gold</button>
+          </div>
+        </div>
+      </div>
 
-      <div class="color-category-title"><span>Moteurs (Cloches Anodisées)</span></div>
-      <div class="palette-grid" id="palette-motor"></div>
+      <div class="menu-group">
+        <div class="menu-group-header">Palette Pièces TPU</div>
+        <div class="menu-group-content">
+          <div class="palette-grid" id="palette-tpu"></div>
+        </div>
+      </div>
 
-      <div class="color-category-title"><span>Hélices (Tri-pales)</span></div>
-      <div class="palette-grid" id="palette-prop"></div>
+      <div class="menu-group">
+        <div class="menu-group-header">Palette Moteurs Anodisés</div>
+        <div class="menu-group-content">
+          <div class="palette-grid" id="palette-motor"></div>
+        </div>
+      </div>
 
-      <div class="color-category-title"><span>Entretoises (Standoffs CNC)</span></div>
-      <div class="palette-grid" id="palette-standoff"></div>
+      <div class="menu-group">
+        <div class="menu-group-header">Palette Hélices FPV</div>
+        <div class="menu-group-content">
+          <div class="palette-grid" id="palette-prop"></div>
+        </div>
+      </div>
+
+      <div class="menu-group">
+        <div class="menu-group-header">Palette Entretoises (Standoffs)</div>
+        <div class="menu-group-content">
+          <div class="palette-grid" id="palette-standoff"></div>
+        </div>
+      </div>
     </div>
 
     <div class="panel-section">
@@ -979,6 +1047,7 @@
     function buildPalettes() {
       const createPalette = (hostId, activeHex, callback) => {
         const host = document.getElementById(hostId);
+        if (!host) return;
         host.innerHTML = '';
         COLOR_PALETTE.forEach((col) => {
           const swatch = document.createElement('div');
@@ -1021,22 +1090,22 @@
       .trim();
 
     const MATERIAL_PROFILES = [
-      { id: 'carbon', label: 'Carbone T700', match: '^(Arm|Cross|Base-Top|Base-Bot|Top)$', tint: '#000000', metalness: 0, roughness: 0.19, env: 0.37, sat: 2.04 },
-      { id: 'alu', label: 'Aluminium CNC (Standoff)', match: '^(Standoff|20mmx4mm)', tint: null, metalness: 0.85, roughness: 0.15, env: 0.9, sat: 1.0 },
-      { id: 'motor', label: 'Moteur Anodisé', match: '^Admi', tint: null, metalness: 1.0, roughness: 0.32, env: 0.9, sat: 1.0 },
-      { id: 'heatsink', label: 'Dissipateur VTX', match: '^(Top Casing|Bottom Casing)', tint: null, metalness: 1.0, roughness: 0.5, env: 0.0, sat: 1.0 },
-      /* Correctif TPU élargi pour inclure Airtag, Antenna, VTX-Mount, Boot, Bumper, etc. */
-      { id: 'tpu', label: 'Impression TPU', match: '^(Bumper|Airtag|Antenna|VTX|Boot|Mount)', tint: null, metalness: 0.79, roughness: 1.0, env: 0.0, sat: 1.0 },
-      { id: 'rubber', label: 'Grommet Caoutchouc', match: '^softmount', tint: null, metalness: 1.0, roughness: 1.0, env: 0.05, sat: 1.0 },
-      { id: 'antenna', label: 'Antenne Linéaire', match: '^DJI', tint: null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1.0 },
-      { id: 'prop', label: 'Hélice Tri-pales', match: '^[0-9]+$', tint: null, metalness: 0.21, roughness: 0.44, env: 0.35, sat: 1.0 },
-      { id: 'camera', label: 'Caméra FPV HD', match: '^(Body|Lens)', tint: null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1.0 },
-      { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 1.0, roughness: 0.36, env: 0.9, sat: 1.0 },
-      { id: 'mask', label: 'Vernis PCB (Soldermask)', match: null, tint: '#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1.0 },
-      { id: 'silk', label: 'Sérigraphie PCB', match: null, tint: '#dfe3e0', metalness: 0.26, roughness: 0.63, env: 0.45, sat: 1.0 },
-      { id: 'padgold', label: 'Pads Dorés ENIG', match: null, tint: '#d9a441', metalness: 0.58, roughness: 0.25, env: 0.23, sat: 1.0 },
-      { id: 'fr4', label: 'Substrat FR4', match: null, tint: '#a3894f', metalness: 0, roughness: 1.0, env: 0.4, sat: 1.0 },
-      { id: 'smd', label: 'Composants SMD', match: '.', tint: null, metalness: 1.0, roughness: 0.44, env: 0.5, sat: 1.0 }
+      { id: 'carbon', label: 'Carbone T700', match: '^(Arm|Cross|Base-Top|Base-Bot|Top)$', tint: '#000000', metalness: 0, roughness: 0.19, env: 0.37, sat: 2.04, transparent: false, opacity: 1.0 },
+      { id: 'alu', label: 'Aluminium CNC (Standoff)', match: '^(Standoff|20mmx4mm)', tint: null, metalness: 0.85, roughness: 0.15, env: 0.9, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'motor', label: 'Moteur Anodisé', match: '^Admi', tint: null, metalness: 1.0, roughness: 0.32, env: 0.9, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'heatsink', label: 'Dissipateur VTX', match: '^(Top Casing|Bottom Casing)', tint: null, metalness: 1.0, roughness: 0.5, env: 0.0, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'tpu', label: 'Impression TPU', match: '^(Bumper|Airtag|Antenna|VTX|Boot|Mount)', tint: null, metalness: 0.79, roughness: 1.0, env: 0.0, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'rubber', label: 'Grommet Caoutchouc', match: '^softmount', tint: null, metalness: 1.0, roughness: 1.0, env: 0.05, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'antenna', label: 'Antenne Linéaire', match: '^DJI', tint: null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1.0, transparent: false, opacity: 1.0 },
+      // Hélices FPV Translucides (Polycarbonate)
+      { id: 'prop', label: 'Hélice Tri-pales FPV', match: '^[0-9]+$', tint: null, metalness: 0.1, roughness: 0.15, env: 0.8, sat: 1.0, transparent: true, opacity: 0.78 },
+      { id: 'camera', label: 'Caméra FPV HD', match: '^(Body|Lens)', tint: null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 1.0, roughness: 0.36, env: 0.9, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'mask', label: 'Vernis PCB (Soldermask)', match: null, tint: '#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'silk', label: 'Sérigraphie PCB', match: null, tint: '#dfe3e0', metalness: 0.26, roughness: 0.63, env: 0.45, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'padgold', label: 'Pads Dorés ENIG', match: null, tint: '#d9a441', metalness: 0.58, roughness: 0.25, env: 0.23, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'fr4', label: 'Substrat FR4', match: null, tint: '#a3894f', metalness: 0, roughness: 1.0, env: 0.4, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'smd', label: 'Composants SMD', match: '.', tint: null, metalness: 1.0, roughness: 0.44, env: 0.5, sat: 1.0, transparent: false, opacity: 1.0 }
     ];
 
     const PROFILES_MAP = new Map(MATERIAL_PROFILES.map(p => [p.id, p]));
@@ -1064,6 +1133,11 @@
       mat.metalness = p.metalness;
       mat.roughness = p.roughness;
       mat.envMapIntensity = p.env;
+      mat.transparent = p.transparent;
+      mat.opacity = p.opacity;
+      if (p.transparent) {
+        mat.depthWrite = false;
+      }
       if (p.tint) mat.color.set(p.tint);
       if (customHex) mat.color.set(customHex);
       else {
@@ -1104,6 +1178,10 @@
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x090a0d);
+
+    const gridHelper = new THREE.GridHelper(1.2, 24, 0xd8a13a, 0x18202c);
+    gridHelper.position.y = -0.001;
+    scene.add(gridHelper);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
@@ -1365,7 +1443,6 @@
       computeFlatLayPositions();
       buildPalettes();
 
-      // Appliquer les couleurs initiales sur tous les TPU détectés
       applyCategoryColor('tpu', activeTpuHex);
       applyCategoryColor('motor', activeMotorHex);
       applyCategoryColor('prop', activePropHex);
@@ -1489,6 +1566,10 @@
       isAutoRotate = e.target.checked;
     });
 
+    document.getElementById('chk-grid').addEventListener('change', (e) => {
+      gridHelper.visible = e.target.checked;
+    });
+
     const controlPanel = document.getElementById('control-panel');
     const btnTogglePanel = document.getElementById('btn-toggle-panel');
     btnTogglePanel.addEventListener('click', () => {
@@ -1540,11 +1621,39 @@
       selectedNode.visible = false;
     });
 
+    // Correction du bug d'affichage "Tout afficher" (réinitialise aussi les enfants/hélices)
     document.getElementById('btn-show-all').addEventListener('click', () => {
       soloNode = null;
       allAssembleNodes.forEach(node => {
         node.userData.userHidden = false;
         node.visible = true;
+        node.traverse(sub => { sub.visible = true; });
+      });
+      occRoot.traverse(sub => { sub.visible = true; });
+    });
+
+    // Thèmes prédéfinis assortis (Carte blanche)
+    const THEMES = {
+      cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518' },
+      sunset: { tpu: '#ff6b00', motor: '#ff4081', prop: '#ff6b00', standoff: '#f5c518' },
+      stealth: { tpu: '#111111', motor: '#7c8590', prop: '#f0f2f5', standoff: '#111111' },
+      gold: { tpu: '#9c27b0', motor: '#d8a13a', prop: '#f0f2f5', standoff: '#d8a13a' }
+    };
+
+    document.querySelectorAll('.btn-theme').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const theme = THEMES[btn.dataset.theme];
+        if (!theme) return;
+        activeTpuHex = theme.tpu;
+        activeMotorHex = theme.motor;
+        activePropHex = theme.prop;
+        activeStandoffHex = theme.standoff;
+
+        applyCategoryColor('tpu', activeTpuHex);
+        applyCategoryColor('motor', activeMotorHex);
+        applyCategoryColor('prop', activePropHex);
+        applyCategoryColor('alu', activeStandoffHex);
+        buildPalettes();
       });
     });
 
