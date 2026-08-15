@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité des drones OpenDrone avec rendu PBR, transparence hélices FPV, thèmes prédéfinis et grille de sol." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité des drones OpenDrone avec rendu PBR, transparence hélices FPV avancée, thèmes et logo officiel." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -97,26 +97,18 @@
     .brand-badge {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
+      gap: 10px;
+      padding: 6px 14px 6px 10px;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
       backdrop-filter: blur(12px);
     }
 
-    .brand-logo-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--teal);
-      box-shadow: 0 0 10px var(--teal);
-      animation: pulse 2.5s infinite ease-in-out;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 0.8; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.2); }
+    .brand-logo-svg {
+      width: 20px;
+      height: 20px;
+      fill: var(--teal);
     }
 
     .brand-title {
@@ -513,30 +505,57 @@
       justify-content: space-between;
     }
 
-    /* Sub-menus / Collapsible sections */
-    .menu-group {
+    /* Dropdown details style for Customization Menu */
+    details.menu-customization {
       background: rgba(255, 255, 255, 0.02);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      transition: border-color 0.2s;
+    }
+    details.menu-customization[open] {
+      border-color: var(--border-focus);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    details.menu-customization summary {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gold);
+      cursor: pointer;
+      outline: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    details.menu-customization summary::-webkit-details-marker {
+      display: none;
+    }
+    details.menu-customization summary::after {
+      content: '+';
+      font-size: 14px;
+    }
+    details.menu-customization[open] summary::after {
+      content: '-';
+    }
+
+    .customization-body {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .menu-group {
       margin-bottom: 8px;
     }
 
     .menu-group-header {
       font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      cursor: pointer;
-    }
-
-    .menu-group-content {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
     }
 
     .palette-grid {
@@ -703,15 +722,16 @@
       gap: 12px;
     }
 
-    .loader-icon {
-      width: 28px;
-      height: 28px;
-      color: var(--teal);
+    .loader-icon-svg {
+      width: 36px;
+      height: 36px;
+      fill: var(--teal);
+      filter: drop-shadow(0 0 10px var(--teal));
     }
 
     .loader-text {
       font-family: var(--font-mono);
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 700;
       letter-spacing: 0.15em;
       text-transform: uppercase;
@@ -781,15 +801,13 @@
 </head>
 <body>
 
-  <!-- Loading Screen -->
+  <!-- Loading Screen avec Logo OpenDrone -->
   <div id="loading-overlay">
     <div class="loader-logo">
-      <svg class="loader-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m12 2 8 4-8 4-8-4 8-4Z"/>
-        <path d="m20 10-8 4-8-4"/>
-        <path d="m20 16-8 4-8-4"/>
+      <svg class="loader-icon-svg" viewBox="0 0 24 24">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
       </svg>
-      <div class="loader-text" id="loader-title">OpenDrone 3"</div>
+      <div class="loader-text" id="loader-title">OpenDrone</div>
     </div>
     <div class="loader-bar-wrap">
       <div class="loader-bar-fill" id="loader-bar"></div>
@@ -800,11 +818,13 @@
   <div class="viewport-glow"></div>
   <div id="canvas-container"></div>
 
-  <!-- Header -->
+  <!-- Header avec Logo OpenDrone officiel -->
   <header>
     <div class="brand-group">
       <div class="brand-badge">
-        <span class="brand-logo-dot"></span>
+        <svg class="brand-logo-svg" viewBox="0 0 24 24">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
         <span class="brand-title">OpenDrone</span>
         <select id="model-selector" class="model-selector" title="Choisir le modèle de drone">
           <option value="od3" selected>Modèle 3"</option>
@@ -890,49 +910,42 @@
       </label>
     </div>
 
-    <!-- Menu Personnalisation Regroupé -->
+    <!-- Menu Personnalisation Regroupé (Décalé et repliable proprement) -->
     <div class="panel-section">
-      <div class="panel-title">Menu Personnalisation</div>
-      
-      <div class="menu-group">
-        <div class="menu-group-header">Thèmes Prédéfinis Assortis</div>
-        <div class="menu-group-content">
-          <div class="theme-grid">
-            <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
-            <button class="btn-theme" data-theme="sunset">Sunset FPV</button>
-            <button class="btn-theme" data-theme="stealth">Ghost Stealth</button>
-            <button class="btn-theme" data-theme="gold">Steampunk Gold</button>
+      <details class="menu-customization" open>
+        <summary>Menu Personnalisation</summary>
+        <div class="customization-body">
+          <div class="menu-group">
+            <div class="menu-group-header">Thèmes Prédéfinis Assortis</div>
+            <div class="theme-grid">
+              <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
+              <button class="btn-theme" data-theme="sunset">Sunset FPV</button>
+              <button class="btn-theme" data-theme="stealth">Ghost Stealth</button>
+              <button class="btn-theme" data-theme="gold">Steampunk Gold</button>
+            </div>
+          </div>
+
+          <div class="menu-group">
+            <div class="menu-group-header">Palette Pièces TPU</div>
+            <div class="palette-grid" id="palette-tpu"></div>
+          </div>
+
+          <div class="menu-group">
+            <div class="menu-group-header">Palette Moteurs Anodisés</div>
+            <div class="palette-grid" id="palette-motor"></div>
+          </div>
+
+          <div class="menu-group">
+            <div class="menu-group-header">Palette Hélices FPV (Haute Transparence)</div>
+            <div class="palette-grid" id="palette-prop"></div>
+          </div>
+
+          <div class="menu-group">
+            <div class="menu-group-header">Palette Entretoises (Standoffs)</div>
+            <div class="palette-grid" id="palette-standoff"></div>
           </div>
         </div>
-      </div>
-
-      <div class="menu-group">
-        <div class="menu-group-header">Palette Pièces TPU</div>
-        <div class="menu-group-content">
-          <div class="palette-grid" id="palette-tpu"></div>
-        </div>
-      </div>
-
-      <div class="menu-group">
-        <div class="menu-group-header">Palette Moteurs Anodisés</div>
-        <div class="menu-group-content">
-          <div class="palette-grid" id="palette-motor"></div>
-        </div>
-      </div>
-
-      <div class="menu-group">
-        <div class="menu-group-header">Palette Hélices FPV</div>
-        <div class="menu-group-content">
-          <div class="palette-grid" id="palette-prop"></div>
-        </div>
-      </div>
-
-      <div class="menu-group">
-        <div class="menu-group-header">Palette Entretoises (Standoffs)</div>
-        <div class="menu-group-content">
-          <div class="palette-grid" id="palette-standoff"></div>
-        </div>
-      </div>
+      </details>
     </div>
 
     <div class="panel-section">
@@ -1097,8 +1110,8 @@
       { id: 'tpu', label: 'Impression TPU', match: '^(Bumper|Airtag|Antenna|VTX|Boot|Mount)', tint: null, metalness: 0.79, roughness: 1.0, env: 0.0, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'rubber', label: 'Grommet Caoutchouc', match: '^softmount', tint: null, metalness: 1.0, roughness: 1.0, env: 0.05, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'antenna', label: 'Antenne Linéaire', match: '^DJI', tint: null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1.0, transparent: false, opacity: 1.0 },
-      // Hélices FPV Translucides (Polycarbonate)
-      { id: 'prop', label: 'Hélice Tri-pales FPV', match: '^[0-9]+$', tint: null, metalness: 0.1, roughness: 0.15, env: 0.8, sat: 1.0, transparent: true, opacity: 0.78 },
+      // Hélices FPV Ultra-translucides (style polycarbonate FPV givré)
+      { id: 'prop', label: 'Hélice Tri-pales FPV', match: '^[0-9]+$', tint: null, metalness: 0.05, roughness: 0.1, env: 0.9, sat: 1.0, transparent: true, opacity: 0.55 },
       { id: 'camera', label: 'Caméra FPV HD', match: '^(Body|Lens)', tint: null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 1.0, roughness: 0.36, env: 0.9, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'mask', label: 'Vernis PCB (Soldermask)', match: null, tint: '#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1.0, transparent: false, opacity: 1.0 },
@@ -1621,7 +1634,7 @@
       selectedNode.visible = false;
     });
 
-    // Correction du bug d'affichage "Tout afficher" (réinitialise aussi les enfants/hélices)
+    // Correction complète de l'affichage de toutes les pièces et hélices masquées
     document.getElementById('btn-show-all').addEventListener('click', () => {
       soloNode = null;
       allAssembleNodes.forEach(node => {
@@ -1629,10 +1642,12 @@
         node.visible = true;
         node.traverse(sub => { sub.visible = true; });
       });
-      occRoot.traverse(sub => { sub.visible = true; });
+      if (occRoot) {
+        occRoot.traverse(sub => { sub.visible = true; });
+      }
     });
 
-    // Thèmes prédéfinis assortis (Carte blanche)
+    // Thèmes prédéfinis assortis
     const THEMES = {
       cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518' },
       sunset: { tpu: '#ff6b00', motor: '#ff4081', prop: '#ff6b00', standoff: '#f5c518' },
