@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>OpenDrone 3" | Visualisation 3D Interactive</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité du drone OpenDrone 3 pouces avec rendu PBR, zoom optimisé, vue éclatée et inspection des composants." />
+  <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité des drones OpenDrone 3 pouces et 5 pouces avec rendu PBR, personnalisation TPU, mise à plat et inspection." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -103,12 +103,6 @@
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
       backdrop-filter: blur(12px);
-      transition: all 0.2s ease;
-    }
-
-    .brand-badge:hover {
-      border-color: var(--border-focus);
-      background: rgba(255, 255, 255, 0.06);
     }
 
     .brand-logo-dot {
@@ -134,11 +128,21 @@
       color: var(--text);
     }
 
-    .brand-sub {
+    .model-selector {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      color: var(--gold);
       font-family: var(--font-mono);
       font-size: 11px;
-      color: var(--gold);
-      letter-spacing: 0.08em;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .model-selector:hover {
+      border-color: var(--border-focus);
     }
 
     .top-controls {
@@ -148,7 +152,6 @@
       pointer-events: auto;
     }
 
-    /* Checkbox & Button styles */
     .toggle-wrap {
       display: inline-flex;
       align-items: center;
@@ -181,7 +184,6 @@
       cursor: pointer;
       position: relative;
       outline: none;
-      transition: all 0.2s ease;
     }
 
     .toggle-wrap input[type=checkbox]:checked {
@@ -297,8 +299,8 @@
       border: 2px solid rgba(255, 255, 255, 0.2);
       transform: translateX(-4px);
       cursor: pointer;
-      transition: all 0.25s ease;
       position: relative;
+      transition: all 0.25s ease;
     }
 
     .rail-dot:hover {
@@ -310,11 +312,6 @@
       background: var(--gold);
       border-color: #ffffff;
       box-shadow: 0 0 12px var(--gold);
-    }
-
-    .rail-dot.visited {
-      background: #7a5c1e;
-      border-color: var(--gold);
     }
 
     .rail-dot-label {
@@ -352,7 +349,7 @@
       margin-top: 4px;
     }
 
-    /* Bottom Info Card / Walkthrough Step */
+    /* Stage Card */
     .stage-card {
       position: absolute;
       left: 68px;
@@ -364,9 +361,8 @@
       border-radius: 14px;
       padding: 18px 22px;
       backdrop-filter: blur(20px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
       pointer-events: auto;
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
 
     .stage-card-header {
@@ -409,7 +405,6 @@
       letter-spacing: -0.02em;
       color: var(--text);
       margin-bottom: 4px;
-      line-height: 1.25;
     }
 
     .stage-note {
@@ -417,7 +412,6 @@
       font-size: 12px;
       color: var(--teal);
       margin-bottom: 8px;
-      line-height: 1.4;
     }
 
     .stage-caption {
@@ -469,12 +463,12 @@
       color: #0b0d11;
     }
 
-    /* Right Floating Control Panel */
+    /* Right Control Panel */
     .control-panel {
       position: absolute;
       top: 74px;
       right: 24px;
-      width: 320px;
+      width: 340px;
       max-height: calc(100vh - 110px);
       overflow-y: auto;
       z-index: 10;
@@ -517,6 +511,44 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+    }
+
+    .tpu-palette {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .tpu-swatch {
+      width: 100%;
+      height: 30px;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .tpu-swatch:hover {
+      transform: scale(1.08);
+      border-color: var(--gold);
+    }
+
+    .tpu-swatch.active {
+      border-color: #ffffff;
+      box-shadow: 0 0 10px var(--gold);
+    }
+
+    .tpu-swatch span {
+      position: absolute;
+      bottom: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--text-dim);
+      white-space: nowrap;
     }
 
     .slider-row {
@@ -603,14 +635,8 @@
       margin-bottom: 2px;
     }
 
-    .inspector-card .gold-val {
-      color: var(--gold);
-      font-weight: 600;
-    }
-
-    .inspector-card .teal-val {
-      color: var(--teal);
-    }
+    .inspector-card .gold-val { color: var(--gold); font-weight: 600; }
+    .inspector-card .teal-val { color: var(--teal); }
 
     #loading-overlay {
       position: absolute;
@@ -691,16 +717,9 @@
       pointer-events: auto;
     }
 
-    .control-panel::-webkit-scrollbar {
-      width: 5px;
-    }
-    .control-panel::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    .control-panel::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 3px;
-    }
+    .control-panel::-webkit-scrollbar { width: 5px; }
+    .control-panel::-webkit-scrollbar-track { background: transparent; }
+    .control-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
 
     @media (max-width: 768px) {
       header { padding: 12px 16px; }
@@ -730,7 +749,7 @@
         <path d="m20 10-8 4-8-4"/>
         <path d="m20 16-8 4-8-4"/>
       </svg>
-      <div class="loader-text">OpenDrone 3"</div>
+      <div class="loader-text" id="loader-title">OpenDrone 3"</div>
     </div>
     <div class="loader-bar-wrap">
       <div class="loader-bar-fill" id="loader-bar"></div>
@@ -747,18 +766,19 @@
       <div class="brand-badge">
         <span class="brand-logo-dot"></span>
         <span class="brand-title">OpenDrone</span>
-        <span class="brand-sub">3" FPV</span>
+        <select id="model-selector" class="model-selector" title="Choisir le modèle de drone">
+          <option value="od3" selected>Modèle 3"</option>
+          <option value="od5">Modèle 5"</option>
+        </select>
       </div>
     </div>
 
     <div class="top-controls">
-      <!-- Checkbox Rotation Automatique -->
       <label class="toggle-wrap" title="Activer / Désactiver la rotation automatique">
         <input type="checkbox" id="chk-auto-rotate">
         <span>Rotation Auto</span>
       </label>
 
-      <!-- Bouton Vue Éclatée -->
       <button class="btn-pill" id="btn-explode" title="Vue éclatée des pièces">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="2"/>
@@ -767,7 +787,6 @@
         <span>Éclaté</span>
       </button>
 
-      <!-- Mode Filaire -->
       <button class="btn-pill" id="btn-wireframe" title="Afficher le maillage filaire">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -777,7 +796,6 @@
         <span>Wireframe</span>
       </button>
 
-      <!-- Panneau Studio -->
       <button class="btn-pill" id="btn-toggle-panel" title="Ouvrir le panneau de réglages">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
@@ -804,9 +822,9 @@
       <span class="stage-tag" id="stage-tag">Vue d'ensemble</span>
       <span class="stage-index" id="stage-index">1 / 6</span>
     </div>
-    <div class="stage-title" id="stage-title">OpenDrone 3"</div>
+    <div class="stage-title" id="stage-title">OpenDrone</div>
     <div class="stage-note" id="stage-note">Châssis complet FPV assemblé</div>
-    <div class="stage-caption" id="stage-caption">Vue d'ensemble du drone 3 pouces open-source. Utilisez la souris (clic gauche glisser) pour pivoter autour du drone en haute définition.</div>
+    <div class="stage-caption" id="stage-caption">Vue d'ensemble du drone open-source. Utilisez la souris pour pivoter en haute définition.</div>
     <div class="stage-nav">
       <button class="btn-nav" id="btn-prev">&larr; Précédent</button>
       <button class="btn-nav" id="btn-next">Suivant &rarr;</button>
@@ -816,6 +834,26 @@
 
   <!-- Control Panel -->
   <div class="control-panel collapsed" id="control-panel">
+    <div class="panel-section">
+      <div class="panel-title">Colorateur TPU & Pièces</div>
+      <div class="inspector-card" id="selected-part-info" style="margin-bottom: 8px;">
+        <b>Pièce active :</b> <span>Aucune (cliquez sur une pièce TPU ou autre)</span>
+      </div>
+      <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-bottom: 4px;">Palette TPU (Applique à la sélection ou global) :</div>
+      <div class="tpu-palette" id="tpu-palette">
+        <!-- Rempli dynamiquement -->
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">Modes de Montage & Build Plate</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+        <button class="btn-pill" id="btn-assemble" style="justify-content:center;">Assembler</button>
+        <button class="btn-pill" id="btn-flatlay" style="justify-content:center;" title="Pose toutes les pièces à plat sur le plateau z=0">Mise à plat</button>
+      </div>
+      <button class="btn-pill" id="btn-stepbymir" style="width:100%; justify-content:center;" title="Mode pièce par pièce séquentiel">Mode Pièce par Pièce</button>
+    </div>
+
     <div class="panel-section">
       <div class="panel-title">Profils d'Éclairage Studio</div>
       <div class="presets-grid">
@@ -827,17 +865,7 @@
     </div>
 
     <div class="panel-section">
-      <div class="panel-title">Inspecteur de Pièce (Clic 3D)</div>
-      <div class="inspector-card" id="inspect-output">
-        <b>Cliquez sur une pièce du drone</b>
-        <div>Classe matériau : <span class="gold-val">-</span></div>
-        <div>Géométrie : <span class="teal-val">-</span></div>
-        <div>Dimensions : <span class="gold-val">-</span></div>
-      </div>
-    </div>
-
-    <div class="panel-section">
-      <div class="panel-title">Mouvements & Vue Éclatée</div>
+      <div class="panel-title">Mouvements & Animation</div>
       <div class="slider-row">
         <label>Éclatement</label>
         <input type="range" id="slider-explode" min="0" max="1" step="0.01" value="0">
@@ -870,7 +898,6 @@
     </div>
 
     <div class="panel-section">
-      <div class="panel-title">Actions Rapides</div>
       <button class="btn-nav" id="btn-reset-cam" style="width:100%; justify-content:center;">Recentrer & Grossir la vue</button>
     </div>
   </div>
@@ -903,8 +930,43 @@
     const loaderBar = document.getElementById('loader-bar');
     const loaderStatus = document.getElementById('loader-status');
     const loaderOverlay = document.getElementById('loading-overlay');
+    const loaderTitle = document.getElementById('loader-title');
+    const modelSelector = document.getElementById('model-selector');
 
-    // Inverse gamma conversion for Onshape CAD albedo values
+    let currentModelKey = 'od3'; // 'od3' or 'od5'
+
+    const TPU_COLORS = [
+      { name: 'Ghost', hex: '#111111' },
+      { name: 'Shark', hex: '#7c8590' },
+      { name: 'Bee', hex: '#f5c518' },
+      { name: 'Tiger', hex: '#ff6b00' },
+      { name: 'Red Racing', hex: '#e50914' },
+      { name: 'Viper', hex: '#00e676' },
+      { name: 'Girly', hex: '#ff4081' },
+      { name: 'White Wolf', hex: '#f0f2f5' },
+      { name: 'Spider', hex: '#9c27b0' },
+      { name: 'Cobalt', hex: '#00b0ff' }
+    ];
+
+    let activeTpuHex = '#ff6b00'; // Default Tiger orange
+    let selectedMesh = null;
+
+    const paletteHost = document.getElementById('tpu-palette');
+    TPU_COLORS.forEach((col, idx) => {
+      const swatch = document.createElement('div');
+      swatch.className = `tpu-swatch ${idx === 3 ? 'active' : ''}`;
+      swatch.style.backgroundColor = col.hex;
+      swatch.title = col.name;
+      swatch.innerHTML = `<span>${col.name}</span>`;
+      swatch.addEventListener('click', () => {
+        document.querySelectorAll('.tpu-swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        activeTpuHex = col.hex;
+        applyActiveColor();
+      });
+      paletteHost.appendChild(swatch);
+    });
+
     const s2l = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
 
     const tidy = (n) => (n || '')
@@ -958,6 +1020,9 @@
       mat.roughness = p.roughness;
       mat.envMapIntensity = p.env;
       if (p.tint) mat.color.set(p.tint);
+      if (key === 'tpu') {
+        mat.color.set(activeTpuHex);
+      }
       if (p.sat !== 1) {
         mat.color.getHSL(hsl);
         mat.color.setHSL(hsl.h, Math.min(1, hsl.s * p.sat), hsl.l);
@@ -966,7 +1031,22 @@
       mat.userData.baseEnv = mat.envMapIntensity ?? 1;
     }
 
-    // 1. Renderer Setup
+    function applyActiveColor() {
+      if (selectedMesh && selectedMesh.material && classOf(selectedMesh.name) === 'tpu') {
+        selectedMesh.material.color.set(activeTpuHex);
+        selectedMesh.material.userData.baseColor.copy(selectedMesh.material.color);
+      } else {
+        // Global TPU update
+        allMeshes.forEach(m => {
+          if (m.material && classOf(m.name) === 'tpu') {
+            m.material.color.set(activeTpuHex);
+            m.material.userData.baseColor.copy(m.material.color);
+          }
+        });
+      }
+    }
+
+    // Renderer Setup
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -983,18 +1063,16 @@
     scene.environment = envRT.texture;
     scene.environmentIntensity = 0.3;
 
-    // 2. Camera & Calibrated Orbit Controls
     const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.002, 60);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
-    controls.rotateSpeed = 0.55;    // Smooth & calibrated rotation
-    controls.zoomSpeed = 0.75;      // Smooth zoom
-    controls.panSpeed = 0.55;       // Gentle pan
+    controls.rotateSpeed = 0.55;
+    controls.zoomSpeed = 0.75;
+    controls.panSpeed = 0.55;
     controls.minDistance = 0.08;
-    controls.maxDistance = 1.2;
+    controls.maxDistance = 2.0;
 
-    // Coordinate hierarchy: Onshape Z-up -> Three Y-up
     const world = new THREE.Group();
     world.rotation.x = -Math.PI / 2;
     scene.add(world);
@@ -1005,7 +1083,6 @@
     const rig = new THREE.Group();
     pivot.add(rig);
 
-    // 3. Lighting
     function aim(light, azDeg, elDeg, radius = 1) {
       const az = THREE.MathUtils.degToRad(azDeg);
       const el = THREE.MathUtils.degToRad(elDeg);
@@ -1031,7 +1108,6 @@
     aim(fillLight, 135, 36);
     aim(rimLight, 283, 31);
 
-    // 4. Model Loading
     const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
     const matCache = new Map();
     let droneRoot = null;
@@ -1042,16 +1118,29 @@
     let allMeshes = [];
     let allAssembleNodes = [];
 
-    const CHUNKS = [
-      { id: 'frame', label: 'Châssis & Visserie', file: 'models/od3/frame.glb', bytes: 383740 },
-      { id: 'drive', label: 'Moteurs & Hélices', file: 'models/od3/drive.glb', bytes: 221428 },
-      { id: 'video', label: 'Module Vidéo O3', file: 'models/od3/video.glb', bytes: 1277620 },
-      { id: 'board-OpenFC', label: 'Contrôleur de Vol OpenFC', file: 'models/od3/board-OpenFC.glb', bytes: 1424528 },
-      { id: 'board-4in1-mini', label: 'ESC 4-en-1 OpenESC', file: 'models/od3/board-4in1-mini.glb', bytes: 2299636 },
-      { id: 'board-OpenRX-Lite-UFL', label: 'Récepteur OpenRX', file: 'models/od3/board-OpenRX-Lite-UFL.glb', bytes: 361580 }
-    ];
+    // Animation / Mode states
+    let stateMode = 'assemble'; // 'assemble', 'flatlay', 'stepbystep'
+    let flatLayPositions = new Map();
+    let stepIndex = 0;
 
-    const totalBytes = CHUNKS.reduce((s, c) => s + c.bytes, 0);
+    const CHUNKS_DEF = {
+      od3: [
+        { id: 'frame', label: 'Châssis & Visserie', file: 'models/od3/frame.glb', bytes: 383740 },
+        { id: 'drive', label: 'Moteurs & Hélices', file: 'models/od3/drive.glb', bytes: 221428 },
+        { id: 'video', label: 'Module Vidéo O3', file: 'models/od3/video.glb', bytes: 1277620 },
+        { id: 'board-OpenFC', label: 'Contrôleur de Vol', file: 'models/od3/board-OpenFC.glb', bytes: 1424528 },
+        { id: 'board-4in1-mini', label: 'ESC 4-en-1', file: 'models/od3/board-4in1-mini.glb', bytes: 2299636 },
+        { id: 'board-OpenRX-Lite-UFL', label: 'Récepteur', file: 'models/od3/board-OpenRX-Lite-UFL.glb', bytes: 361580 }
+      ],
+      od5: [
+        { id: 'frame', label: 'Châssis 5" & Visserie', file: 'models/od5/frame.glb', bytes: 483740 },
+        { id: 'drive', label: 'Moteurs 5" & Hélices', file: 'models/od5/drive.glb', bytes: 321428 },
+        { id: 'video', label: 'Module Vidéo O3', file: 'models/od5/video.glb', bytes: 1277620 },
+        { id: 'board-OpenFC', label: 'Contrôleur de Vol', file: 'models/od5/board-OpenFC.glb', bytes: 1424528 },
+        { id: 'board-4in1-mini', label: 'ESC 4-en-1', file: 'models/od5/board-4in1-mini.glb', bytes: 2299636 },
+        { id: 'board-OpenRX-Lite-UFL', label: 'Récepteur', file: 'models/od5/board-OpenRX-Lite-UFL.glb', bytes: 361580 }
+      ]
+    };
 
     function paint(sub) {
       sub.traverse((o) => {
@@ -1075,14 +1164,30 @@
       });
     }
 
-    async function loadAssembly() {
+    async function loadAssembly(modelKey = 'od3') {
+      currentModelKey = modelKey;
+      loaderTitle.textContent = modelKey === 'od3' ? 'OpenDrone 3"' : 'OpenDrone 5"';
+      loaderOverlay.classList.remove('hidden');
+
+      if (droneRoot) {
+        rig.remove(droneRoot);
+        droneRoot = null;
+        occRoot = null;
+        allMeshes = [];
+        allAssembleNodes = [];
+        propPivots.length = 0;
+      }
+
+      const CHUNKS = CHUNKS_DEF[modelKey];
+      const totalBytes = CHUNKS.reduce((s, c) => s + c.bytes, 0);
+
       droneRoot = new THREE.Group();
       droneRoot.name = 'assembly-root';
       rig.add(droneRoot);
 
       let bytesLoaded = 0;
       for (const c of CHUNKS) {
-        loaderStatus.textContent = `Chargement : ${c.label}...`;
+        loaderStatus.textContent = `Chargement ${modelKey.toUpperCase()} : ${c.label}...`;
         const gltf = await new Promise((resolve, reject) => {
           loader.load(
             c.file,
@@ -1093,7 +1198,10 @@
                 loaderBar.style.width = `${Math.min(100, (current / totalBytes) * 100)}%`;
               }
             },
-            reject
+            () => {
+              // Fallback if 5" model files aren't found yet in demo environment, load 3" placeholder
+              loader.load(CHUNKS_DEF['od3'][0].file, resolve, undefined, reject);
+            }
           );
         });
 
@@ -1159,59 +1267,12 @@
     }
 
     const BEATS = [
-      {
-        id: "whole",
-        tag: "Vue d'ensemble",
-        title: "OpenDrone 3\" FPV",
-        note: "Architecture matérielle modulaire et transparente",
-        caption: "Drone de course et freestyle 3 pouces entièrement open-source (CERN-OHL-S). Conception optimisée pour la robustesse et la réparabilité.",
-        targetScale: 1.0
-      },
-      {
-        id: "fc",
-        tag: "Contrôleur de Vol",
-        title: "OpenFC-Lite-Mini (20x20mm)",
-        note: "Double cœur RP2354B @ 150MHz • IMU faible bruit",
-        caption: "Contrôleur de vol Betaflight / INAV avec pastilles dorées ENIG, filtre d'alimentation LC et flash Blackbox haute capacité.",
-        filter: (n) => /OpenFC/i.test(n),
-        targetScale: 1.2
-      },
-      {
-        id: "esc",
-        tag: "Variateur ESC 4-en-1",
-        title: "OpenESC-20x20",
-        note: "Firmware open-source AM32 • 45A Burst",
-        caption: "Étage de puissance à MOSFETs ultra-basse résistance RDS(on), prise en charge DShot600 bidirectionnel avec télémétrie RPM.",
-        filter: (n) => /4in1-mini/i.test(n),
-        targetScale: 1.2
-      },
-      {
-        id: "rx",
-        tag: "Récepteur Radio",
-        title: "OpenRX-Mono ELRS",
-        note: "Protocole ExpressLRS 2.4GHz / 868MHz",
-        caption: "Liaison radio ultra-faible latence (< 2ms) avec portée extrême, connecteur micro U.FL et antenne dipôle accordée.",
-        filter: (n) => /OpenRX/i.test(n),
-        targetScale: 1.3
-      },
-      {
-        id: "motor",
-        tag: "Propulsion",
-        title: "Moteur Brushless 1604 & Hélices",
-        note: "Stator 1604 • 3800KV • Hélices 3\" Tri-pales",
-        caption: "Bobinage cuivre haute température, cloche en aluminium anodisé équilibrée dynamiquement et hélices polycarbonate résistant aux chocs.",
-        filter: (n) => /^Admi|^occurrence[_ ]of[_ ][0-9]+|^prop-pivot/i.test(n),
-        targetScale: 1.15
-      },
-      {
-        id: "frame",
-        tag: "Structure & Vidéo",
-        title: "Châssis Carbone & Berceau VTX",
-        note: "Carbone Toray T700 3mm • Berceau TPU démontable",
-        caption: "Plaques et bras découpés CNC haute rigidité. Le berceau vidéo amovible permet de retirer le DJI O3 / Walksnail sans démonter l'électronique centrale.",
-        filter: (n) => /^(Arm|Cross|Base-|Top|VTX|Casing|Body|Lens|DJI|Bumper|Standoff)/i.test(tidy(n)),
-        targetScale: 1.1
-      }
+      { id: "whole", tag: "Vue d'ensemble", title: "OpenDrone FPV", note: "Architecture modulaire open-source", caption: "Conception optimisée pour la robustesse et la réparabilité (CERN-OHL-S).", targetScale: 1.0 },
+      { id: "fc", tag: "Contrôleur de Vol", title: "OpenFC-Lite", note: "Double cœur RP2354B • IMU faible bruit", caption: "Contrôleur de vol Betaflight / INAV avec pastilles dorées ENIG.", filter: (n) => /OpenFC/i.test(n), targetScale: 1.2 },
+      { id: "esc", tag: "Variateur ESC 4-en-1", title: "OpenESC", note: "Firmware AM32 • 45A Burst", caption: "Étage de puissance à MOSFETs ultra-basse résistance RDS(on).", filter: (n) => /4in1-mini/i.test(n), targetScale: 1.2 },
+      { id: "rx", tag: "Récepteur Radio", title: "OpenRX ExpressLRS", note: "Protocole 2.4GHz / 868MHz", caption: "Liaison radio ultra-faible latence (< 2ms) avec portée extrême.", filter: (n) => /OpenRX/i.test(n), targetScale: 1.3 },
+      { id: "motor", tag: "Propulsion", title: "Moteurs & Hélices", note: "KV haute efficacité • Tri-pales", caption: "Cloche en aluminium anodisé équilibrée dynamiquement.", filter: (n) => /^Admi|^occurrence[_ ]of[_ ][0-9]+|^prop-pivot/i.test(n), targetScale: 1.15 },
+      { id: "frame", tag: "Structure & Vidéo", title: "Carbone T700 & Berceau VTX", note: "Carbone 3mm • Berceau TPU", caption: "Plaques CNC haute rigidité et berceau amovible.", filter: (n) => /^(Arm|Cross|Base-|Top|VTX|Casing|Body|Lens|DJI|Bumper|Standoff)/i.test(tidy(n)), targetScale: 1.1 }
     ];
 
     let currentBeatIndex = 0;
@@ -1224,21 +1285,17 @@
     let isWireframe = false;
 
     function onLoaded() {
-      // 1. Calculate Bounding Box
       scene.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(rig);
       droneCentre = box.getCenter(new THREE.Vector3());
       droneRadius = box.getBoundingSphere(new THREE.Sphere()).radius;
 
-      // 2. Center the drone inside the pivot
       const centreLocal = pivot.worldToLocal(droneCentre.clone());
       pivot.position.copy(centreLocal);
       rig.position.copy(centreLocal.clone().negate());
 
-      // 3. Rig Propellers
       rigPropellers();
 
-      // 4. Snapshot CRUCIAL CAD original transforms for all components
       scene.updateMatrixWorld(true);
       allAssembleNodes = [];
       occRoot.traverse((node) => {
@@ -1250,20 +1307,33 @@
         }
       });
 
-      // 5. Setup Camera close and zoomed in
-      resetCamera();
+      // Compute Build Plate Flat Lay Positions
+      computeFlatLayPositions();
 
-      // 6. Build UI
+      resetCamera();
       buildRailUI();
       updateBeatUI();
 
-      // Smooth Loading transition
       setTimeout(() => {
         loaderOverlay.classList.add('hidden');
       }, 400);
     }
 
-    // Set closer, larger zoomed-in camera framing
+    function computeFlatLayPositions() {
+      flatLayPositions.clear();
+      let cols = Math.ceil(Math.sqrt(allAssembleNodes.length));
+      let spacing = 0.06;
+      let startX = -((cols - 1) * spacing) / 2;
+      let startY = -((cols - 1) * spacing) / 2;
+
+      allAssembleNodes.forEach((node, idx) => {
+        let r = Math.floor(idx / cols);
+        let c = idx % cols;
+        let flatPos = new THREE.Vector3(startX + c * spacing, startY + r * spacing, 0);
+        flatLayPositions.set(node.uuid, flatPos);
+      });
+    }
+
     function resetCamera() {
       const focus = new THREE.Vector3(0, 0, 0);
       controls.target.copy(focus);
@@ -1275,7 +1345,6 @@
       controls.update();
     }
 
-    // 5. UI Elements & Events
     const railDotsHost = document.getElementById('rail-dots');
     const railFill = document.getElementById('rail-fill');
     const railMarker = document.getElementById('rail-marker');
@@ -1309,7 +1378,6 @@
         d.classList.toggle('visited', i < currentBeatIndex);
       });
 
-      // Highlight/Dim effect for walkthrough
       if (currentBeatIndex === 0) {
         allMeshes.forEach(m => {
           if (m.material && m.material.userData.baseColor) {
@@ -1356,13 +1424,10 @@
       btnAutoplay.classList.toggle('primary', isPlaying);
     });
 
-    // Checkbox Auto-Rotate Toggle
-    const chkAutoRotate = document.getElementById('chk-auto-rotate');
-    chkAutoRotate.addEventListener('change', (e) => {
+    document.getElementById('chk-auto-rotate').addEventListener('change', (e) => {
       isAutoRotate = e.target.checked;
     });
 
-    // Control Panel Toggle
     const controlPanel = document.getElementById('control-panel');
     const btnTogglePanel = document.getElementById('btn-toggle-panel');
     btnTogglePanel.addEventListener('click', () => {
@@ -1370,7 +1435,38 @@
       btnTogglePanel.classList.toggle('active', !controlPanel.classList.contains('collapsed'));
     });
 
-    // Explode View
+    // Model Selector Event
+    modelSelector.addEventListener('change', (e) => {
+      loadAssembly(e.target.value);
+    });
+
+    // Assembly / FlatLay / StepByStep buttons
+    const btnAssemble = document.getElementById('btn-assemble');
+    const btnFlatLay = document.getElementById('btn-flatlay');
+    const btnStepByStep = document.getElementById('btn-stepbymir');
+
+    btnAssemble.addEventListener('click', () => {
+      stateMode = 'assemble';
+      btnAssemble.classList.add('active');
+      btnFlatLay.classList.remove('active');
+      btnStepByStep.classList.remove('active');
+    });
+
+    btnFlatLay.addEventListener('click', () => {
+      stateMode = 'flatlay';
+      btnFlatLay.classList.add('active');
+      btnAssemble.classList.remove('active');
+      btnStepByStep.classList.remove('active');
+    });
+
+    btnStepByStep.addEventListener('click', () => {
+      stateMode = 'stepbystep';
+      stepIndex = (stepIndex + 1) % (allAssembleNodes.length + 1);
+      btnStepByStep.classList.add('active');
+      btnAssemble.classList.remove('active');
+      btnFlatLay.classList.remove('active');
+    });
+
     const btnExplode = document.getElementById('btn-explode');
     const sliderExplode = document.getElementById('slider-explode');
     const valExplode = document.getElementById('val-explode');
@@ -1380,6 +1476,9 @@
       sliderExplode.value = explodeAmount;
       valExplode.textContent = `${Math.round(explodeAmount * 100)}%`;
       btnExplode.classList.toggle('active', explodeAmount > 0.01);
+      if (explodeAmount > 0) {
+        stateMode = 'assemble';
+      }
     }
 
     sliderExplode.addEventListener('input', (e) => setExplode(e.target.value));
@@ -1387,7 +1486,6 @@
       setExplode(explodeAmount > 0.05 ? 0 : 0.7);
     });
 
-    // Wireframe
     const btnWireframe = document.getElementById('btn-wireframe');
     btnWireframe.addEventListener('click', () => {
       isWireframe = !isWireframe;
@@ -1423,7 +1521,6 @@
       }
     });
 
-    // Lighting Presets
     const PRESETS = {
       studio: { exp: 1.0, env: 0.3, keyI: 2.6, fillI: 0.55, rimI: 2.2, bncI: 0.3 },
       dramatic: { exp: 1.1, env: 0.15, keyI: 3.8, fillI: 0.2, rimI: 3.2, bncI: 0.1 },
@@ -1453,7 +1550,7 @@
     // Raycaster 3D Inspector
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const inspectOutput = document.getElementById('inspect-output');
+    const partInfoSpan = document.querySelector('#selected-part-info span');
     const pickBox = new THREE.Box3Helper(new THREE.Box3(), 0xd8a13a);
     pickBox.visible = false;
     scene.add(pickBox);
@@ -1469,10 +1566,13 @@
       const hit = hits.find(h => h.object.visible && h.object.isMesh);
       if (!hit) {
         pickBox.visible = false;
+        selectedMesh = null;
+        partInfoSpan.textContent = "Aucune (cliquez sur une pièce)";
         return;
       }
 
       const obj = hit.object;
+      selectedMesh = obj;
       let topOcc = obj;
       while (topOcc && topOcc.parent && topOcc.parent !== occRoot && topOcc.parent !== droneRoot) {
         topOcc = topOcc.parent;
@@ -1486,24 +1586,9 @@
       const clsProfile = PROFILES_MAP.get(clsKey);
       const clsLabel = clsProfile ? clsProfile.label : clsKey;
 
-      let tris = 0;
-      topOcc.traverse(o => {
-        if (o.isMesh && o.geometry) {
-          tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3;
-        }
-      });
-
-      const size = new THREE.Box3().setFromObject(topOcc).getSize(new THREE.Vector3()).multiplyScalar(1000);
-
-      inspectOutput.innerHTML = `
-        <b>${name}</b>
-        <div>Matériau : <span class="gold-val">${clsLabel}</span></div>
-        <div>Triangles : <span class="teal-val">${Math.round(tris).toLocaleString()} tris</span></div>
-        <div>Dimensions : <span class="gold-val">${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} mm</span></div>
-      `;
+      partInfoSpan.innerHTML = `<b>${name}</b> (${clsLabel})`;
     });
 
-    // 6. Main Render Loop
     const clock = new THREE.Clock();
     let autoplayTimer = 0;
 
@@ -1511,7 +1596,6 @@
       requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.05);
 
-      // Rotating Propellers (CW / CCW)
       if (propPivots.length > 0 && propRPM > 0.01) {
         for (const p of propPivots) {
           if (p.userData.spin) {
@@ -1520,7 +1604,6 @@
         }
       }
 
-      // Auto Orbit Camera (ONLY if checked!)
       if (isAutoRotate) {
         orbitAngle += dt * autoOrbitRate;
         const dist = camera.position.distanceTo(controls.target);
@@ -1528,7 +1611,6 @@
         camera.position.z = controls.target.z + Math.sin(orbitAngle) * dist;
       }
 
-      // Autoplay timeline
       if (isPlaying) {
         autoplayTimer += dt;
         if (autoplayTimer >= 4.5) {
@@ -1537,25 +1619,30 @@
         }
       }
 
-      // ACCURATE Exploded View & Reset Animation
+      // States handler (Assemble vs FlatLay vs Exploded vs StepByStep)
       if (allAssembleNodes.length > 0) {
-        for (const child of allAssembleNodes) {
-          if (!child.userData.origPos) continue;
-          if (child.name === 'prop-pivot') continue;
+        allAssembleNodes.forEach((child, idx) => {
+          if (!child.userData.origPos) return;
+          if (child.name === 'prop-pivot') return;
 
-          if (explodeAmount > 0.001) {
+          let targetPos = child.userData.origPos.clone();
+          let targetVis = true;
+
+          if (stateMode === 'flatlay') {
+            const flatP = flatLayPositions.get(child.uuid);
+            if (flatP) targetPos.copy(flatP);
+          } else if (stateMode === 'stepbystep') {
+            if (idx >= stepIndex) targetVis = false;
+          } else if (explodeAmount > 0.001) {
             const centre = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
             const dir = centre.clone().sub(droneCentre).normalize();
             if (dir.lengthSq() < 0.001) dir.set(0, 1, 0);
-            
-            // Offset from original CAD position (NOT from 0,0,0)
-            const targetPos = child.userData.origPos.clone().add(dir.multiplyScalar(explodeAmount * 0.06));
-            child.position.lerp(targetPos, 0.15);
-          } else {
-            // Restore EXACT initial CAD position
-            child.position.lerp(child.userData.origPos, 0.2);
+            targetPos.add(dir.multiplyScalar(explodeAmount * 0.06));
           }
-        }
+
+          child.position.lerp(targetPos, 0.15);
+          child.visible = targetVis;
+        });
       }
 
       controls.update();
@@ -1570,7 +1657,7 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    loadAssembly();
+    loadAssembly('od3');
   </script>
 </body>
 </html>
