@@ -933,7 +933,7 @@
     const loaderTitle = document.getElementById('loader-title');
     const modelSelector = document.getElementById('model-selector');
 
-    let currentModelKey = 'od3'; // 'od3' or 'od5'
+    let currentModelKey = 'od3';
 
     const TPU_COLORS = [
       { name: 'Ghost', hex: '#111111' },
@@ -948,7 +948,7 @@
       { name: 'Cobalt', hex: '#00b0ff' }
     ];
 
-    let activeTpuHex = '#ff6b00'; // Default Tiger orange
+    let activeTpuHex = '#ff6b00';
     let selectedMesh = null;
 
     const paletteHost = document.getElementById('tpu-palette');
@@ -1036,7 +1036,6 @@
         selectedMesh.material.color.set(activeTpuHex);
         selectedMesh.material.userData.baseColor.copy(selectedMesh.material.color);
       } else {
-        // Global TPU update
         allMeshes.forEach(m => {
           if (m.material && classOf(m.name) === 'tpu') {
             m.material.color.set(activeTpuHex);
@@ -1046,7 +1045,6 @@
       }
     }
 
-    // Renderer Setup
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -1118,7 +1116,6 @@
     let allMeshes = [];
     let allAssembleNodes = [];
 
-    // Animation / Mode states
     let stateMode = 'assemble'; // 'assemble', 'flatlay', 'stepbystep'
     let flatLayPositions = new Map();
     let stepIndex = 0;
@@ -1199,40 +1196,23 @@
               }
             },
             () => {
-              // Fallback if 5" model files aren't found yet in demo environment, load 3" placeholder
               loader.load(CHUNKS_DEF['od3'][0].file, resolve, undefined, reject);
             }
           );
         });
 
+        const src = gltf.scene.children.length === 1 ? gltf.scene.children.length === 1 ? gltf.scene.children[0] : gltf.scene : gltf.scene;
         if (!occRoot) {
           occRoot = new THREE.Group();
           occRoot.name = 'assembly';
-          occRoot.position.copy(gltf.scene.position);
-          occRoot.quaternion.copy(gltf.scene.quaternion);
-          occRoot.scale.copy(gltf.scene.scale);
+          occRoot.position.copy(src.position);
+          occRoot.quaternion.copy(src.quaternion);
+          occRoot.scale.copy(src.scale);
           droneRoot.add(occRoot);
         }
-
-        // CORRECTIF: Grouper les cartes électroniques pour qu'elles restent d'un seul bloc
-        const isGroupedComponent = c.id.includes('board') || c.id.includes('video');
-        
-        if (isGroupedComponent) {
-          const groupNode = new THREE.Group();
-          groupNode.name = c.id;
-          const children = [...gltf.scene.children];
-          for (const child of children) {
-            groupNode.add(child);
-          }
-          occRoot.add(groupNode);
-        } else {
-          // Pour les moteurs, châssis et visserie, on garde chaque pièce séparée
-          const children = [...gltf.scene.children];
-          for (const child of children) {
-            occRoot.add(child);
-          }
+        for (const child of [...src.children]) {
+          occRoot.add(child);
         }
-        
         bytesLoaded += c.bytes;
         loaderBar.style.width = `${Math.min(100, (bytesLoaded / totalBytes) * 100)}%`;
       }
@@ -1254,7 +1234,6 @@
       });
       const motorCentres = motors.map((e) => e.sum.divideScalar(e.n));
 
-      // Trouver toutes les hélices (même si elles sont groupées ou non)
       const propNodes = [];
       occRoot.traverse(c => {
          if (/^occurrence[_ ]of[_ ][0-9]+(_[0-9]+)?$/i.test(c.name || '') && c.parent === occRoot) {
@@ -1322,15 +1301,14 @@
       scene.updateMatrixWorld(true);
       allAssembleNodes = [];
       occRoot.traverse((node) => {
-        node.userData.origPos = node.position.clone();
-        node.userData.origQuat = node.quaternion.clone();
-        node.userData.origScale = node.scale.clone();
-        if (node.parent === occRoot) {
+        if (node.parent === occRoot && node.name !== 'prop-pivot') {
+          node.userData.origPos = node.position.clone();
+          node.userData.origQuat = node.quaternion.clone();
+          node.userData.origScale = node.scale.clone();
           allAssembleNodes.push(node);
         }
       });
 
-      // Compute Build Plate Flat Lay Positions
       computeFlatLayPositions();
 
       resetCamera();
@@ -1458,12 +1436,10 @@
       btnTogglePanel.classList.toggle('active', !controlPanel.classList.contains('collapsed'));
     });
 
-    // Model Selector Event
     modelSelector.addEventListener('change', (e) => {
       loadAssembly(e.target.value);
     });
 
-    // Assembly / FlatLay / StepByStep buttons
     const btnAssemble = document.getElementById('btn-assemble');
     const btnFlatLay = document.getElementById('btn-flatlay');
     const btnStepByStep = document.getElementById('btn-stepbymir');
@@ -1573,7 +1549,6 @@
       });
     });
 
-    // Raycaster 3D Inspector
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     const partInfoSpan = document.querySelector('#selected-part-info span');
@@ -1600,7 +1575,6 @@
       const obj = hit.object;
       selectedMesh = obj;
       
-      // Remonter l'arbre pour sélectionner le bloc groupé si c'est un PCB
       let topOcc = obj;
       while (topOcc && topOcc.parent && topOcc.parent !== occRoot && topOcc.parent !== droneRoot) {
         topOcc = topOcc.parent;
@@ -1647,11 +1621,9 @@
         }
       }
 
-      // States handler (Assemble vs FlatLay vs Exploded vs StepByStep)
       if (allAssembleNodes.length > 0) {
         allAssembleNodes.forEach((child, idx) => {
           if (!child.userData.origPos) return;
-          if (child.name === 'prop-pivot') return;
 
           let targetPos = child.userData.origPos.clone();
           let targetVis = true;
@@ -1665,7 +1637,7 @@
             const centre = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
             const dir = centre.clone().sub(droneCentre).normalize();
             if (dir.lengthSq() < 0.001) dir.set(0, 1, 0);
-            targetPos.add(dir.multiplyScalar(explodeAmount * 0.06));
+            targetPos.add(dir.multiplyScalar(explodeAmount * 0.12));
           }
 
           child.position.lerp(targetPos, 0.15);
