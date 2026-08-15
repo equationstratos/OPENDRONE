@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec ViewCube CAO directionnel et sélecteur de couleur pour la visserie." />
+  <meta name="description" content="Visualisation 3D temps réel avec réorientation caméra par ViewCube CAO fixe et sélecteur de visserie." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1424,7 +1424,7 @@
       else document.exitFullscreen().catch(() => {});
     });
 
-    // --- VIEW CUBE CAO (Corrigé avec orientation exacte par face) ---
+    // --- VIEW CUBE CAO (Scene fixe indépendante avec synchronisation robuste des directions) ---
     const vcContainer = document.getElementById('viewcube-container');
     const vcScene = new THREE.Scene();
     const vcCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
@@ -1464,7 +1464,7 @@
         const dist = Math.max(droneRadius * 1.55, 0.17);
         const targetPos = controls.target.clone();
         
-        // Ordre des matériaux du BoxGeometry standard : +X, -X, +Y, -Y, +Z, -Z
+        // Utilisation des directions absolues mondiales pour positionner correctement la caméra sur chaque face
         switch (faceIndex) {
           case 0: // Right (+X)
             camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z);
@@ -1475,11 +1475,11 @@
             camera.up.set(0, 1, 0);
             break;
           case 2: // Top (+Y)
-            camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.001);
+            camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.0001);
             camera.up.set(0, 0, -1);
             break;
           case 3: // Bottom (-Y)
-            camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.001);
+            camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.0001);
             camera.up.set(0, 0, 1);
             break;
           case 4: // Front (+Z)
@@ -1661,6 +1661,7 @@
         });
       }
 
+      // Synchronisation de la rotation du cube de vue avec la caméra principale
       vcCube.quaternion.copy(camera.quaternion).invert();
       vcRenderer.render(vcScene, vcCamera);
 
