@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualiseur OpenDrone - Meshopt Fix</title>
+    <title>OpenDrone - Configurateur 3D Complet</title>
     <style>
         body {
             margin: 0;
@@ -51,17 +51,18 @@
             font-size: 1.1rem;
             pointer-events: none;
             letter-spacing: 0.5px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
     <div id="ui-overlay">
-        <button class="tab-btn active" onclick="loadDroneModel('models/frame3.glb')">3" Freestyle</button>
-        <button class="tab-btn" onclick="loadDroneModel('models/frame5.glb')">5" Freestyle</button>
+        <button class="tab-btn active" onclick="loadCompleteDrone('3')">3" Freestyle</button>
+        <button class="tab-btn" onclick="loadCompleteDrone('5')">5" Freestyle</button>
     </div>
 
-    <div id="loading">Chargement des composants GLB...</div>
+    <div id="loading">Chargement de l'assemblage complet...</div>
     <div id="canvas-container"></div>
 
     <script type="importmap">
@@ -86,7 +87,7 @@
         scene.background = new THREE.Color(0x0b0b0f);
 
         const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 80, 150);
+        camera.position.set(0, 60, 120);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -94,85 +95,101 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.3;
+        renderer.toneMappingExposure = 1.4;
         container.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 + 0.1;
+        controls.maxPolarAngle = Math.PI / 2 + 0.05;
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+        // Éclairage studio orienté pour faire ressortir le carbone et le doré des moteurs
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
-        dirLight.position.set(60, 100, 60);
+        const dirLight = new TextTrackCue ? null : new THREE.DirectionalLight(0xffffff, 3.0);
+        dirLight.position.set(40, 90, 50);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        const fillLight = new THREE.DirectionalLight(0x7799ff, 1.0);
-        fillLight.position.set(-60, 40, -60);
-        scene.add(fillLight);
+        const blueFill = new THREE.DirectionalLight(0x88bbff, 1.2);
+        blueFill.position.set(-50, 30, -50);
+        scene.add(blueFill);
 
-        let currentModel = null;
         const loader = new GLTFLoader();
-
-        // Enregistrement indispensable du décodeur Meshopt pour les fichiers compressés
         loader.setMeshoptDecoder(MeshoptDecoder);
 
-        window.loadDroneModel = function(filePath) {
-            loadingElement.style.display = 'block';
-            loadingElement.innerText = "Chargement du modèle 3D...";
+        let droneGroup = new THREE.Group();
+        scene.add(droneGroup);
 
-            if (currentModel) {
-                scene.remove(currentModel);
-                currentModel = null;
+        window.loadCompleteDrone = function(sizeType) {
+            loadingElement.style.display = 'block';
+            loadingElement.innerText = "Chargement des pièces et composants...";
+
+            // Nettoyage du groupe précédent
+            while(droneGroup.children.length > 0){ 
+                droneGroup.remove(droneGroup.children[0]); 
             }
 
-            loader.load(
-                filePath,
-                (gltf) => {
-                    currentModel = gltf.scene;
+            // Liste des fichiers GLB à charger simultanément pour l'assemblage complet
+            // Adaptez les noms selon l'arborescence exacte de vos fichiers dans models/
+            const partsToLoad = [
+                `models/frame${sizeType}.glb`,       // Châssis principal carbone
+                `models/motors${sizeType}.glb`,     // Moteurs (ex: cloches dorées)
+                `models/stack.glb`,                 // Électronique (FC/ESC Stack)
+                `models/vtx.glb`                    // Unité transmission / Caméra / TPU
+            ];
 
-                    currentModel.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
+            let loadedCount = 0;
+            const masterGroup = new THREE.Group();
+
+            partsToLoad.forEach((path) => {
+                loader.load(
+                    path,
+                    (gltf) => {
+                        const part = gltf.scene;
+                        
+                        // Optimisation des matériaux pour un rendu réaliste (effet carbone/métal)
+                        part.traverse((child) => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                                if (child.material) {
+                                    // Ajustements visuels automatiques pour booster l'aspect brillant du carbone
+                                    child.material.roughness = 0.3;
+                                    child.material.metalness = 0.8;
+                                }
+                            }
+                        });
+
+                        masterGroup.add(part);
+                        loadedCount++;
+
+                        // Une fois tous les fichiers chargés, on intègre et centre le tout
+                        if (loadedCount === partsToLoad.length) {
+                            const box = new THREE.Box3().setFromObject(masterGroup);
+                            const center = box.getCenter(new THREE.Vector3());
+                            masterGroup.position.sub(center); // Centrage global
+
+                            droneGroup.add(masterGroup);
+                            loadingElement.style.display = 'none';
                         }
-                    });
-
-                    scene.add(currentModel);
-
-                    const box = new THREE.Box3().setFromObject(currentModel);
-                    const center = box.getCenter(new THREE.Vector3());
-                    const size = box.getSize(new THREE.Vector3());
-
-                    currentModel.position.sub(center);
-
-                    const maxDim = Math.max(size.x, size.y, size.z);
-                    camera.position.set(maxDim * 1.8, maxDim * 1.2, maxDim * 2.2);
-                    controls.target.set(0, 0, 0);
-                    controls.update();
-
-                    loadingElement.style.display = 'none';
-                },
-                (xhr) => {
-                    if (xhr.total) {
-                        const percent = Math.round((xhr.loaded / xhr.total) * 100);
-                        loadingElement.innerText = `Chargement : ${percent}%`;
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn(`Attention : Impossible de charger ${path} (composant optionnel ou chemin différent).`, error);
+                        loadedCount++;
+                        // Permet de valider l'affichage même si un sous-fichier mineur manque
+                        if (loadedCount === partsToLoad.length) {
+                            loadingElement.style.display = 'none';
+                        }
                     }
-                },
-                (error) => {
-                    console.error("Erreur de chargement du GLB :", error);
-                    loadingElement.innerText = "Erreur : Fichier introuvable ou échec du décodage.";
-                }
-            );
+                );
+            });
         };
 
-        // Chargement initial
-        loadDroneModel('models/frame3.glb');
+        // Chargement initial du modèle 3"
+        loadCompleteDrone('3');
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
