@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec arbre sous le logo, viewcube CAO orienté CAO, et export STL." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec arbre sous le bouton, viewcube CAO libre, et export STL." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -90,7 +90,6 @@
       align-items: center;
       gap: 12px;
       pointer-events: auto;
-      position: relative; /* Référence pour positionner l'arbre en dessous proprement */
     }
 
     .brand-badge {
@@ -209,6 +208,48 @@
       box-shadow: 0 0 16px var(--gold-glow);
     }
 
+    /* Conteneur Arbre avec le bouton en haut et le panneau juste en dessous */
+    .tree-dropdown-wrapper {
+      position: absolute;
+      top: 16px;
+      left: 24px;
+      z-index: 20;
+      pointer-events: auto;
+    }
+
+    /* Panneau Arbre dépliant positionné précisément en dessous du bouton Arbre */
+    .tree-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      width: 300px;
+      max-height: calc(100vh - 90px);
+      overflow-y: auto;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    }
+    .tree-panel.collapsed {
+      transform: translateY(-10px);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .tree-title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .tree-search {
+      width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-family: var(--font-mono); font-size: 10px; outline: none; margin-bottom: 8px;
+    }
+    .tree-search:focus { border-color: var(--border-focus); }
+    .tree-list { list-style: none; font-family: var(--font-mono); font-size: 11px; }
+    .tree-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; border-radius: 4px; cursor: pointer; transition: background 0.15s; margin-bottom: 2px; }
+    .tree-item:hover { background: rgba(255,255,255,0.05); color: #ffb700; }
+    .tree-item.selected { background: rgba(255,183,0,0.15); color: #ffb700; }
+    .tree-item-label { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .tree-item input[type=checkbox] { accent-color: #ffb700; cursor: pointer; }
+
     /* Dropdown Personnalisation */
     .dropdown-container { position: relative; display: inline-block; }
     .dropdown-content {
@@ -300,23 +341,6 @@
       position: absolute; top: 74px; right: 24px; width: 115px; height: 115px; z-index: 10; pointer-events: auto; cursor: pointer; transition: opacity 0.3s;
     }
     #viewcube-container canvas { width: 100%; height: 100%; border-radius: 10px; background: transparent; }
-
-    /* Panneau Arbre positionné exactement EN DESSOUS du bloc Logo/Sélecteur en haut à gauche */
-    .tree-panel {
-      position: absolute; top: 74px; left: 24px; width: 300px; max-height: calc(100vh - 100px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
-    }
-    .tree-panel.collapsed { transform: translateY(-20px); opacity: 0; pointer-events: none; }
-    .tree-title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .tree-search {
-      width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-family: var(--font-mono); font-size: 10px; outline: none; margin-bottom: 8px;
-    }
-    .tree-search:focus { border-color: var(--border-focus); }
-    .tree-list { list-style: none; font-family: var(--font-mono); font-size: 11px; }
-    .tree-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; border-radius: 4px; cursor: pointer; transition: background 0.15s; margin-bottom: 2px; }
-    .tree-item:hover { background: rgba(255,255,255,0.05); color: #ffb700; }
-    .tree-item.selected { background: rgba(255,183,0,0.15); color: #ffb700; }
-    .tree-item-label { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    .tree-item input[type=checkbox] { accent-color: #ffb700; cursor: pointer; }
 
     /* Right Control Panel (Studio) */
     .control-panel {
@@ -412,29 +436,12 @@
   <!-- Header -->
   <header>
     <div class="brand-group">
-      <button class="btn-pill" id="btn-toggle-tree" title="Afficher / Masquer l'arbre d'assemblage">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
-        <span>Arbre</span>
-      </button>
-
       <div class="brand-badge">
         <div class="brand-logo-text"><span class="part-open">Open</span><span class="part-drone">Drone</span></div>
         <select id="model-selector" class="model-selector" title="Choisir le modèle de drone">
           <option value="od3" selected>Modèle 3"</option>
           <option value="od5">Modèle 5"</option>
         </select>
-      </div>
-
-      <!-- Panneau Arbre dépliant positionné en dessous du logo/sélecteur dans le flux gauche -->
-      <div class="tree-panel collapsed" id="tree-panel">
-        <div class="tree-title">
-          <span>Arbre d'Assemblage</span>
-          <button class="card-close-btn" id="btn-close-tree">&times;</button>
-        </div>
-        <input type="text" class="tree-search" id="tree-search-input" placeholder="Filtrer les pièces..." />
-        <ul class="tree-list" id="tree-list-container">
-          <!-- Rempli dynamiquement -->
-        </ul>
       </div>
     </div>
 
@@ -507,6 +514,25 @@
       </button>
     </div>
   </header>
+
+  <!-- Bouton Arbre collé en haut à gauche sous le logo, avec son panneau déroulant pile en dessous -->
+  <div class="tree-dropdown-wrapper">
+    <button class="btn-pill" id="btn-toggle-tree" title="Afficher / Masquer l'arbre d'assemblage">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+      <span>Arbre</span>
+    </button>
+    
+    <div class="tree-panel collapsed" id="tree-panel">
+      <div class="tree-title">
+        <span>Arbre d'Assemblage</span>
+        <button class="card-close-btn" id="btn-close-tree">&times;</button>
+      </div>
+      <input type="text" class="tree-search" id="tree-search-input" placeholder="Filtrer les pièces..." />
+      <ul class="tree-list" id="tree-list-container">
+        <!-- Rempli dynamiquement -->
+      </ul>
+    </div>
+  </div>
 
   <!-- Left Timeline Rail -->
   <div class="timeline-rail-wrap">
@@ -1086,20 +1112,30 @@
       });
     }
 
-    // Gestion de l'arbre d'assemblage sous le logo (dans le flux gauche)
+    // Gestion de l'arbre d'assemblage sous le bouton Arbre
     const treeListContainer = document.getElementById('tree-list-container');
     const treePanel = document.getElementById('tree-panel');
     const btnToggleTree = document.getElementById('btn-toggle-tree');
     const btnCloseTree = document.getElementById('btn-close-tree');
     const treeSearchInput = document.getElementById('tree-search-input');
 
-    btnToggleTree.addEventListener('click', () => {
+    btnToggleTree.addEventListener('click', (e) => {
+      e.stopPropagation();
       treePanel.classList.toggle('collapsed');
       btnToggleTree.classList.toggle('active', !treePanel.classList.contains('collapsed'));
     });
-    btnCloseTree.addEventListener('click', () => {
+    btnCloseTree.addEventListener('click', (e) => {
+      e.stopPropagation();
       treePanel.classList.add('collapsed');
       btnToggleTree.classList.remove('active');
+    });
+
+    window.addEventListener('click', (e) => {
+      const wrapper = document.querySelector('.tree-dropdown-wrapper');
+      if (wrapper && !wrapper.contains(e.target)) {
+        treePanel.classList.add('collapsed');
+        btnToggleTree.classList.remove('active');
+      }
     });
 
     function buildAssemblyTree(filterText = '') {
@@ -1256,7 +1292,6 @@
       btnAutoplay.classList.toggle('primary', isPlaying);
     });
 
-    // Rotation Auto lancée depuis la scène actuelle (sans reset de zoom / angle initial)
     document.getElementById('chk-auto-rotate').addEventListener('change', (e) => {
       isAutoRotate = e.target.checked;
       if (isAutoRotate) {
@@ -1411,7 +1446,7 @@
       else document.exitFullscreen().catch(() => {});
     });
 
-    // --- VIEW CUBE CAO (Style Fusion 360 / Logiciel CAO professionnel avec alignement sur face au clic) ---
+    // --- VIEW CUBE CAO (Purement libre au relâchement, sans aucun saut ni effet indésirable) ---
     const vcContainer = document.getElementById('viewcube-container');
     const vcScene = new THREE.Scene();
     const vcCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
@@ -1439,8 +1474,9 @@
     const vcRaycaster = new THREE.Raycaster();
     const vcMouse = new THREE.Vector2();
 
-    // Clic sur une face du cube -> Aligne la caméra exactement sur la face (style Fusion 360 / CAO)
+    // Clic simple sur une face du cube -> Aligne la caméra sur la face de manière nette
     vcContainer.addEventListener('click', (e) => {
+      if (hasMovedViewCube) return; // Si on a glissé, ce n'est pas un clic simple
       const rect = vcContainer.getBoundingClientRect();
       vcMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       vcMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1452,24 +1488,25 @@
         const targetPos = controls.target.clone();
         
         switch (faceIndex) {
-          case 4: camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist); break; // Face Front
-          case 5: camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist); break; // Face Back
-          case 0: camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z); break; // Face Right
-          case 1: camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z); break; // Face Left
-          case 2: camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.001); break; // Face Top
-          case 3: camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.001); break; // Face Bottom
+          case 4: camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist); break;
+          case 5: camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist); break;
+          case 0: camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z); break;
+          case 1: camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z); break;
+          case 2: camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.001); break;
+          case 3: camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.001); break;
         }
         camera.lookAt(targetPos);
         controls.update();
       }
     });
 
-    // Permet aussi de déplacer l'orbite en cliquant-glissant sur le ViewCube sans snap au relâchement
     let isDraggingViewCube = false;
+    let hasMovedViewCube = false;
     let prevMousePos = { x: 0, y: 0 };
 
     vcContainer.addEventListener('pointerdown', (e) => {
       isDraggingViewCube = true;
+      hasMovedViewCube = false;
       prevMousePos = { x: e.clientX, y: e.clientY };
       vcContainer.setPointerCapture(e.pointerId);
     });
@@ -1478,6 +1515,7 @@
       if (!isDraggingViewCube) return;
       const dx = e.clientX - prevMousePos.x;
       const dy = e.clientY - prevMousePos.y;
+      if (Math.hypot(dx, dy) > 2) hasMovedViewCube = true;
       prevMousePos = { x: e.clientX, y: e.clientY };
 
       const offset = camera.position.clone().sub(controls.target);
