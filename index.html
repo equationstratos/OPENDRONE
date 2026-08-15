@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualiseur OpenDrone - Local</title>
+    <title>Visualiseur OpenDrone - Meshopt Fix</title>
     <style>
         body {
             margin: 0;
@@ -57,7 +57,6 @@
 <body>
 
     <div id="ui-overlay">
-        <!-- Pointe vers le dossier models situé dans public -->
         <button class="tab-btn active" onclick="loadDroneModel('models/frame3.glb')">3" Freestyle</button>
         <button class="tab-btn" onclick="loadDroneModel('models/frame5.glb')">5" Freestyle</button>
     </div>
@@ -78,6 +77,7 @@
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
         const container = document.getElementById('canvas-container');
         const loadingElement = document.getElementById('loading');
@@ -118,6 +118,9 @@
 
         let currentModel = null;
         const loader = new GLTFLoader();
+
+        // Enregistrement indispensable du décodeur Meshopt pour les fichiers compressés
+        loader.setMeshoptDecoder(MeshoptDecoder);
 
         window.loadDroneModel = function(filePath) {
             loadingElement.style.display = 'block';
@@ -162,13 +165,13 @@
                     }
                 },
                 (error) => {
-                    console.warn("Erreur de chargement du GLB :", error);
-                    loadingElement.innerText = "Erreur : Fichier GLB introuvable.";
+                    console.error("Erreur de chargement du GLB :", error);
+                    loadingElement.innerText = "Erreur : Fichier introuvable ou échec du décodage.";
                 }
             );
         };
 
-        // Chargement initial pointant vers le dossier models de public
+        // Chargement initial
         loadDroneModel('models/frame3.glb');
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
