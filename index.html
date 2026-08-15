@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité des drones OpenDrone 3 pouces et 5 pouces avec rendu PBR, personnalisation TPU, moteurs, entretoises, isolation et inspection." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité des drones OpenDrone avec rendu PBR, personnalisation TPU, moteurs, hélices, isolation et inspection." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -468,7 +468,7 @@
       position: absolute;
       top: 74px;
       right: 24px;
-      width: 340px;
+      width: 350px;
       max-height: calc(100vh - 110px);
       overflow-y: auto;
       z-index: 10;
@@ -513,43 +513,47 @@
       justify-content: space-between;
     }
 
+    /* Color picker tabs / grouped layout */
+    .color-category-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text);
+      margin-top: 8px;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
     .palette-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
-      gap: 6px;
-      margin-top: 6px;
-      margin-bottom: 8px;
+      gap: 5px;
+      margin-bottom: 6px;
     }
 
     .swatch {
       width: 100%;
-      height: 26px;
-      border-radius: 5px;
-      border: 2px solid var(--border);
+      height: 22px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
       cursor: pointer;
       position: relative;
-      transition: transform 0.2s ease, border-color 0.2s ease;
+      transition: transform 0.15s ease, border-color 0.15s ease;
     }
 
     .swatch:hover {
-      transform: scale(1.08);
+      transform: scale(1.1);
       border-color: var(--gold);
     }
 
     .swatch.active {
       border-color: #ffffff;
-      box-shadow: 0 0 8px var(--gold);
+      box-shadow: 0 0 6px var(--gold);
     }
 
     .swatch span {
-      position: absolute;
-      bottom: -14px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-family: var(--font-mono);
-      font-size: 7px;
-      color: var(--text-dim);
-      white-space: nowrap;
+      display: none; /* Nettoyage visuel pour garder compact */
     }
 
     .slider-row {
@@ -848,14 +852,18 @@
     </div>
 
     <div class="panel-section">
-      <div class="panel-title">Personnalisation Couleurs</div>
-      <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-bottom: 2px;">1. TPU (Imprimés) :</div>
+      <div class="panel-title">Personnalisation des Couleurs</div>
+      
+      <div class="color-category-title"><span>TPU (Supports, Antenne, GPS...)</span></div>
       <div class="palette-grid" id="palette-tpu"></div>
 
-      <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-bottom: 2px; margin-top: 6px;">2. Moteurs (Cloches) :</div>
+      <div class="color-category-title"><span>Moteurs (Cloches Anodisées)</span></div>
       <div class="palette-grid" id="palette-motor"></div>
 
-      <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-bottom: 2px; margin-top: 6px;">3. Entretoises (Standoffs) :</div>
+      <div class="color-category-title"><span>Hélices (Tri-pales)</span></div>
+      <div class="palette-grid" id="palette-prop"></div>
+
+      <div class="color-category-title"><span>Entretoises (Standoffs CNC)</span></div>
       <div class="palette-grid" id="palette-standoff"></div>
     </div>
 
@@ -964,10 +972,10 @@
 
     let activeTpuHex = '#ff6b00';
     let activeMotorHex = '#ff6b00';
+    let activePropHex = '#f0f2f5';
     let activeStandoffHex = '#d8a13a';
     let selectedNode = null;
 
-    // Build Palettes UI
     function buildPalettes() {
       const createPalette = (hostId, activeHex, callback) => {
         const host = document.getElementById(hostId);
@@ -977,7 +985,6 @@
           swatch.className = `swatch ${col.hex === activeHex ? 'active' : ''}`;
           swatch.style.backgroundColor = col.hex;
           swatch.title = col.name;
-          swatch.innerHTML = `<span>${col.name}</span>`;
           swatch.addEventListener('click', () => {
             host.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
             swatch.classList.add('active');
@@ -994,6 +1001,10 @@
       createPalette('palette-motor', activeMotorHex, (hex) => {
         activeMotorHex = hex;
         applyCategoryColor('motor', hex);
+      });
+      createPalette('palette-prop', activePropHex, (hex) => {
+        activePropHex = hex;
+        applyCategoryColor('prop', hex);
       });
       createPalette('palette-standoff', activeStandoffHex, (hex) => {
         activeStandoffHex = hex;
@@ -1012,15 +1023,14 @@
     const MATERIAL_PROFILES = [
       { id: 'carbon', label: 'Carbone T700', match: '^(Arm|Cross|Base-Top|Base-Bot|Top)$', tint: '#000000', metalness: 0, roughness: 0.19, env: 0.37, sat: 2.04 },
       { id: 'alu', label: 'Aluminium CNC (Standoff)', match: '^(Standoff|20mmx4mm)', tint: null, metalness: 0.85, roughness: 0.15, env: 0.9, sat: 1.0 },
-      { id: 'cam_mount', label: 'Aluminium Cam-Mount', match: '^Cam-Mount', tint: null, metalness: 0.74, roughness: 0.13, env: 0.87, sat: 1.06 },
       { id: 'motor', label: 'Moteur Anodisé', match: '^Admi', tint: null, metalness: 1.0, roughness: 0.32, env: 0.9, sat: 1.0 },
       { id: 'heatsink', label: 'Dissipateur VTX', match: '^(Top Casing|Bottom Casing)', tint: null, metalness: 1.0, roughness: 0.5, env: 0.0, sat: 1.0 },
-      { id: 'tpu', label: 'Impression TPU', match: '^(Bumper|Airtag/Antenna-Mount|VTX-Mount|Boot-)', tint: null, metalness: 0.79, roughness: 1.0, env: 0.0, sat: 1.0 },
+      /* Correctif TPU élargi pour inclure Airtag, Antenna, VTX-Mount, Boot, Bumper, etc. */
+      { id: 'tpu', label: 'Impression TPU', match: '^(Bumper|Airtag|Antenna|VTX|Boot|Mount)', tint: null, metalness: 0.79, roughness: 1.0, env: 0.0, sat: 1.0 },
       { id: 'rubber', label: 'Grommet Caoutchouc', match: '^softmount', tint: null, metalness: 1.0, roughness: 1.0, env: 0.05, sat: 1.0 },
       { id: 'antenna', label: 'Antenne Linéaire', match: '^DJI', tint: null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1.0 },
       { id: 'prop', label: 'Hélice Tri-pales', match: '^[0-9]+$', tint: null, metalness: 0.21, roughness: 0.44, env: 0.35, sat: 1.0 },
       { id: 'camera', label: 'Caméra FPV HD', match: '^(Body|Lens)', tint: null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1.0 },
-      { id: 'tag', label: 'AirTag Tracker', match: '^AirTag', tint: null, metalness: 0.58, roughness: 0.38, env: 0.55, sat: 1.0 },
       { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 1.0, roughness: 0.36, env: 0.9, sat: 1.0 },
       { id: 'mask', label: 'Vernis PCB (Soldermask)', match: null, tint: '#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1.0 },
       { id: 'silk', label: 'Sérigraphie PCB', match: null, tint: '#dfe3e0', metalness: 0.26, roughness: 0.63, env: 0.45, sat: 1.0 },
@@ -1058,8 +1068,9 @@
       if (customHex) mat.color.set(customHex);
       else {
         if (key === 'tpu') mat.color.set(activeTpuHex);
-        if (key === 'motor') mat.color.set(activeMotorHex);
-        if (key === 'alu') mat.color.set(activeStandoffHex);
+        else if (key === 'motor') mat.color.set(activeMotorHex);
+        else if (key === 'prop') mat.color.set(activePropHex);
+        else if (key === 'alu') mat.color.set(activeStandoffHex);
       }
       if (p.sat !== 1 && !customHex) {
         mat.color.getHSL(hsl);
@@ -1070,26 +1081,17 @@
     }
 
     function applyCategoryColor(catKey, hex) {
-      if (selectedNode && selectedNode.userData.matKey === catKey) {
-        selectedNode.traverse(o => {
-          if (o.isMesh && o.material) {
-            o.material.color.set(hex);
-            o.material.userData.baseColor.copy(o.material.color);
-          }
-        });
-      } else {
-        allMeshes.forEach(m => {
-          let p = m, match = false;
-          while(p && p !== droneRoot) {
-            if (classOf(p.name) === catKey) { match = true; break; }
-            p = p.parent;
-          }
-          if (match && m.material) {
-            m.material.color.set(hex);
-            m.material.userData.baseColor.copy(m.material.color);
-          }
-        });
-      }
+      allMeshes.forEach(m => {
+        let p = m, match = false;
+        while(p && p !== droneRoot) {
+          if (classOf(p.name) === catKey) { match = true; break; }
+          p = p.parent;
+        }
+        if (match && m.material) {
+          m.material.color.set(hex);
+          m.material.userData.baseColor.copy(m.material.color);
+        }
+      });
     }
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -1203,11 +1205,7 @@
         let m = matCache.get(ck);
         if (!m) {
           m = o.material.clone();
-          let customCol = null;
-          if (key === 'tpu') customCol = activeTpuHex;
-          else if (key === 'motor') customCol = activeMotorHex;
-          else if (key === 'alu') customCol = activeStandoffHex;
-          applyProfile(m, key, customCol);
+          applyProfile(m, key);
           matCache.set(ck, m);
         }
         o.material = m;
@@ -1367,6 +1365,12 @@
       computeFlatLayPositions();
       buildPalettes();
 
+      // Appliquer les couleurs initiales sur tous les TPU détectés
+      applyCategoryColor('tpu', activeTpuHex);
+      applyCategoryColor('motor', activeMotorHex);
+      applyCategoryColor('prop', activePropHex);
+      applyCategoryColor('alu', activeStandoffHex);
+
       resetCamera();
       buildRailUI();
       updateBeatUI();
@@ -1522,7 +1526,6 @@
       btnFlatLay.classList.remove('active');
     });
 
-    // Solo & Hide controls
     document.getElementById('btn-solo').addEventListener('click', () => {
       if (!selectedNode) return;
       soloNode = selectedNode;
