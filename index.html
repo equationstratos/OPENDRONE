@@ -106,9 +106,8 @@
     }
 
     .brand-logo-svg {
-      width: 20px;
-      height: 20px;
-      fill: var(--teal);
+      width: 22px;
+      height: 22px;
     }
 
     .brand-title {
@@ -226,6 +225,98 @@
       color: #0b0d11;
       border-color: var(--gold);
       box-shadow: 0 0 16px var(--gold-glow);
+    }
+
+    /* Dropdown Menu Header pour Personnalisation */
+    .dropdown-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    .dropdown-content {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      width: 280px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      display: none;
+      z-index: 50;
+    }
+
+    .dropdown-container.open .dropdown-content {
+      display: block;
+    }
+
+    .menu-group {
+      margin-bottom: 10px;
+    }
+    .menu-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .menu-group-header {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      margin-bottom: 4px;
+    }
+
+    .swatch {
+      width: 100%;
+      height: 22px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .swatch:hover {
+      transform: scale(1.1);
+      border-color: var(--gold);
+    }
+
+    .swatch.active {
+      border-color: #ffffff;
+      box-shadow: 0 0 6px var(--gold);
+    }
+
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+
+    .btn-theme {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .btn-theme:hover {
+      border-color: var(--border-focus);
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
     }
 
     /* Left Timeline Rail */
@@ -460,7 +551,7 @@
       position: absolute;
       top: 74px;
       right: 24px;
-      width: 360px;
+      width: 340px;
       max-height: calc(100vh - 110px);
       overflow-y: auto;
       z-index: 10;
@@ -503,114 +594,6 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-    }
-
-    /* Dropdown details style for Customization Menu */
-    details.menu-customization {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 10px;
-      transition: border-color 0.2s;
-    }
-    details.menu-customization[open] {
-      border-color: var(--border-focus);
-      background: rgba(255, 255, 255, 0.04);
-    }
-    details.menu-customization summary {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--gold);
-      cursor: pointer;
-      outline: none;
-      list-style: none;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    details.menu-customization summary::-webkit-details-marker {
-      display: none;
-    }
-    details.menu-customization summary::after {
-      content: '+';
-      font-size: 14px;
-    }
-    details.menu-customization[open] summary::after {
-      content: '-';
-    }
-
-    .customization-body {
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .menu-group {
-      margin-bottom: 8px;
-    }
-
-    .menu-group-header {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-    }
-
-    .palette-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 5px;
-      margin-bottom: 6px;
-    }
-
-    .swatch {
-      width: 100%;
-      height: 22px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      cursor: pointer;
-      position: relative;
-      transition: transform 0.15s ease, border-color 0.15s ease;
-    }
-
-    .swatch:hover {
-      transform: scale(1.1);
-      border-color: var(--gold);
-    }
-
-    .swatch.active {
-      border-color: #ffffff;
-      box-shadow: 0 0 6px var(--gold);
-    }
-
-    .theme-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 6px;
-      margin-top: 4px;
-    }
-
-    .btn-theme {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: 7px 8px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.2s ease;
-    }
-
-    .btn-theme:hover {
-      border-color: var(--border-focus);
-      color: var(--text);
-      background: rgba(255, 255, 255, 0.08);
     }
 
     .slider-row {
@@ -719,19 +702,18 @@
     .loader-logo {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
     }
 
     .loader-icon-svg {
-      width: 36px;
-      height: 36px;
-      fill: var(--teal);
-      filter: drop-shadow(0 0 10px var(--teal));
+      width: 44px;
+      height: 44px;
+      filter: drop-shadow(0 0 12px var(--teal));
     }
 
     .loader-text {
       font-family: var(--font-mono);
-      font-size: 20px;
+      font-size: 22px;
       font-weight: 700;
       letter-spacing: 0.15em;
       text-transform: uppercase;
@@ -801,11 +783,14 @@
 </head>
 <body>
 
-  <!-- Loading Screen avec Logo OpenDrone -->
+  <!-- Loading Screen avec le Logo Vectoriel Officiel OpenDrone -->
   <div id="loading-overlay">
     <div class="loader-logo">
-      <svg class="loader-icon-svg" viewBox="0 0 24 24">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      <svg class="loader-icon-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#00b2a9" stroke-width="8" stroke-linejoin="round"/>
+        <polyline points="50,5 50,50 95,72.5" fill="none" stroke="#d8a13a" stroke-width="6" stroke-linejoin="round"/>
+        <polyline points="50,50 5,72.5" fill="none" stroke="#00b2a9" stroke-width="6" stroke-linejoin="round"/>
+        <circle cx="50" cy="50" r="8" fill="#f0f2f5"/>
       </svg>
       <div class="loader-text" id="loader-title">OpenDrone</div>
     </div>
@@ -818,12 +803,15 @@
   <div class="viewport-glow"></div>
   <div id="canvas-container"></div>
 
-  <!-- Header avec Logo OpenDrone officiel -->
+  <!-- Header -->
   <header>
     <div class="brand-group">
       <div class="brand-badge">
-        <svg class="brand-logo-svg" viewBox="0 0 24 24">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        <svg class="brand-logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#00b2a9" stroke-width="8" stroke-linejoin="round"/>
+          <polyline points="50,5 50,50 95,72.5" fill="none" stroke="#d8a13a" stroke-width="6" stroke-linejoin="round"/>
+          <polyline points="50,50 5,72.5" fill="none" stroke="#00b2a9" stroke-width="6" stroke-linejoin="round"/>
+          <circle cx="50" cy="50" r="8" fill="#f0f2f5"/>
         </svg>
         <span class="brand-title">OpenDrone</span>
         <select id="model-selector" class="model-selector" title="Choisir le modèle de drone">
@@ -855,6 +843,43 @@
         </svg>
         <span>Wireframe</span>
       </button>
+
+      <!-- Menu Personnalisation bien placé après Wireframe et avant Studio -->
+      <div class="dropdown-container" id="customization-dropdown">
+        <button class="btn-pill" id="btn-customization-toggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+          </svg>
+          <span>Personnalisation</span>
+        </button>
+        <div class="dropdown-content">
+          <div class="menu-group">
+            <div class="menu-group-header">Thèmes Prédéfinis</div>
+            <div class="theme-grid">
+              <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
+              <button class="btn-theme" data-theme="sunset">Sunset FPV</button>
+              <button class="btn-theme" data-theme="stealth">Ghost Stealth</button>
+              <button class="btn-theme" data-theme="gold">Steampunk Gold</button>
+            </div>
+          </div>
+          <div class="menu-group" style="margin-top: 8px;">
+            <div class="menu-group-header">Pièces TPU</div>
+            <div class="palette-grid" id="palette-tpu"></div>
+          </div>
+          <div class="menu-group">
+            <div class="menu-group-header">Moteurs Anodisés</div>
+            <div class="palette-grid" id="palette-motor"></div>
+          </div>
+          <div class="menu-group">
+            <div class="menu-group-header">Hélices FPV</div>
+            <div class="palette-grid" id="palette-prop"></div>
+          </div>
+          <div class="menu-group">
+            <div class="menu-group-header">Entretoises (Standoffs)</div>
+            <div class="palette-grid" id="palette-standoff"></div>
+          </div>
+        </div>
+      </div>
 
       <button class="btn-pill" id="btn-toggle-panel" title="Ouvrir le panneau de réglages">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -908,44 +933,6 @@
         <span>Afficher Grille de Sol</span>
         <input type="checkbox" id="chk-grid" checked>
       </label>
-    </div>
-
-    <!-- Menu Personnalisation Regroupé (Décalé et repliable proprement) -->
-    <div class="panel-section">
-      <details class="menu-customization" open>
-        <summary>Menu Personnalisation</summary>
-        <div class="customization-body">
-          <div class="menu-group">
-            <div class="menu-group-header">Thèmes Prédéfinis Assortis</div>
-            <div class="theme-grid">
-              <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
-              <button class="btn-theme" data-theme="sunset">Sunset FPV</button>
-              <button class="btn-theme" data-theme="stealth">Ghost Stealth</button>
-              <button class="btn-theme" data-theme="gold">Steampunk Gold</button>
-            </div>
-          </div>
-
-          <div class="menu-group">
-            <div class="menu-group-header">Palette Pièces TPU</div>
-            <div class="palette-grid" id="palette-tpu"></div>
-          </div>
-
-          <div class="menu-group">
-            <div class="menu-group-header">Palette Moteurs Anodisés</div>
-            <div class="palette-grid" id="palette-motor"></div>
-          </div>
-
-          <div class="menu-group">
-            <div class="menu-group-header">Palette Hélices FPV (Haute Transparence)</div>
-            <div class="palette-grid" id="palette-prop"></div>
-          </div>
-
-          <div class="menu-group">
-            <div class="menu-group-header">Palette Entretoises (Standoffs)</div>
-            <div class="palette-grid" id="palette-standoff"></div>
-          </div>
-        </div>
-      </details>
     </div>
 
     <div class="panel-section">
@@ -1057,6 +1044,20 @@
     let activeStandoffHex = '#d8a13a';
     let selectedNode = null;
 
+    const dropdownContainer = document.getElementById('customization-dropdown');
+    const btnCustomizationToggle = document.getElementById('btn-customization-toggle');
+
+    btnCustomizationToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdownContainer.classList.toggle('open');
+    });
+
+    window.addEventListener('click', (e) => {
+      if (!dropdownContainer.contains(e.target)) {
+        dropdownContainer.classList.remove('open');
+      }
+    });
+
     function buildPalettes() {
       const createPalette = (hostId, activeHex, callback) => {
         const host = document.getElementById(hostId);
@@ -1110,8 +1111,7 @@
       { id: 'tpu', label: 'Impression TPU', match: '^(Bumper|Airtag|Antenna|VTX|Boot|Mount)', tint: null, metalness: 0.79, roughness: 1.0, env: 0.0, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'rubber', label: 'Grommet Caoutchouc', match: '^softmount', tint: null, metalness: 1.0, roughness: 1.0, env: 0.05, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'antenna', label: 'Antenne Linéaire', match: '^DJI', tint: null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1.0, transparent: false, opacity: 1.0 },
-      // Hélices FPV Ultra-translucides (style polycarbonate FPV givré)
-      { id: 'prop', label: 'Hélice Tri-pales FPV', match: '^[0-9]+$', tint: null, metalness: 0.05, roughness: 0.1, env: 0.9, sat: 1.0, transparent: true, opacity: 0.55 },
+      { id: 'prop', label: 'Hélice Tri-pales FPV', match: '^[0-9]+$', tint: null, metalness: 0.05, roughness: 0.1, env: 0.9, sat: 1.0, transparent: true, opacity: 0.45 },
       { id: 'camera', label: 'Caméra FPV HD', match: '^(Body|Lens)', tint: null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 1.0, roughness: 0.36, env: 0.9, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'mask', label: 'Vernis PCB (Soldermask)', match: null, tint: '#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1.0, transparent: false, opacity: 1.0 },
@@ -1634,7 +1634,6 @@
       selectedNode.visible = false;
     });
 
-    // Correction complète de l'affichage de toutes les pièces et hélices masquées
     document.getElementById('btn-show-all').addEventListener('click', () => {
       soloNode = null;
       allAssembleNodes.forEach(node => {
@@ -1647,7 +1646,6 @@
       }
     });
 
-    // Thèmes prédéfinis assortis
     const THEMES = {
       cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518' },
       sunset: { tpu: '#ff6b00', motor: '#ff4081', prop: '#ff6b00', standoff: '#f5c518' },
