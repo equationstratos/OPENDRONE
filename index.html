@@ -798,7 +798,6 @@
     }
   </style>
 
-  <!-- Import Map officiel via CDN pour garantir le chargement sans erreur 404 -->
   <script type="importmap">
   {
     "imports": {
@@ -880,7 +879,7 @@
         <span>Wireframe</span>
       </button>
 
-      <!-- Menu Personnalisation dans le header (après Wireframe et avant Studio) -->
+      <!-- Menu Personnalisation -->
       <div class="dropdown-container" id="customization-dropdown">
         <button class="btn-pill" id="btn-customization-toggle">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -920,7 +919,7 @@
       <button class="btn-pill" id="btn-toggle-panel" title="Ouvrir le panneau de réglages">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
         <span>Studio</span>
       </button>
@@ -1057,7 +1056,6 @@
     const loaderBar = document.getElementById('loader-bar');
     const loaderStatus = document.getElementById('loader-status');
     const loaderOverlay = document.getElementById('loading-overlay');
-    const loaderTitle = document.getElementById('loader-title');
     const modelSelector = document.getElementById('model-selector');
 
     let currentModelKey = 'od3';
@@ -1347,8 +1345,7 @@
 
     async function loadAssembly(modelKey = 'od3') {
       currentModelKey = modelKey;
-      loaderTitle.textContent = modelKey === 'od3' ? 'OpenDrone 3"' : 'OpenDrone 5"';
-      loaderOverlay.classList.remove('hidden');
+      if (loaderOverlay) loaderOverlay.classList.remove('hidden');
       soloNode = null;
 
       if (droneRoot) {
@@ -1369,13 +1366,13 @@
 
       let bytesLoaded = 0;
       for (const c of CHUNKS) {
-        loaderStatus.textContent = `Chargement ${modelKey.toUpperCase()} : ${c.label}...`;
+        if (loaderStatus) loaderStatus.textContent = `Chargement ${modelKey.toUpperCase()} : ${c.label}...`;
         const gltf = await new Promise((resolve, reject) => {
           loader.load(
             c.file,
             resolve,
             (e) => {
-              if (e.total) {
+              if (e.total && loaderBar) {
                 const current = bytesLoaded + (c.bytes * (e.loaded / e.total));
                 loaderBar.style.width = `${Math.min(100, (current / totalBytes) * 100)}%`;
               }
@@ -1399,7 +1396,7 @@
           occRoot.add(child);
         }
         bytesLoaded += c.bytes;
-        loaderBar.style.width = `${Math.min(100, (bytesLoaded / totalBytes) * 100)}%`;
+        if (loaderBar) loaderBar.style.width = `${Math.min(100, (bytesLoaded / totalBytes) * 100)}%`;
       }
       
       paint(occRoot);
@@ -1508,7 +1505,7 @@
       updateBeatUI();
 
       setTimeout(() => {
-        loaderOverlay.classList.add('hidden');
+        if (loaderOverlay) loaderOverlay.classList.add('hidden');
       }, 400);
     }
 
@@ -1543,6 +1540,7 @@
     const railMarker = document.getElementById('rail-marker');
 
     function buildRailUI() {
+      if (!railDotsHost) return;
       railDotsHost.innerHTML = '';
       BEATS.forEach((b, i) => {
         const dot = document.createElement('div');
@@ -1555,15 +1553,21 @@
 
     function updateBeatUI() {
       const b = BEATS[currentBeatIndex];
-      document.getElementById('stage-tag').textContent = b.tag;
-      document.getElementById('stage-index').textContent = `${currentBeatIndex + 1} / ${BEATS.length}`;
-      document.getElementById('stage-title').textContent = b.title;
-      document.getElementById('stage-note').textContent = b.note;
-      document.getElementById('stage-caption').textContent = b.caption;
+      const stageTag = document.getElementById('stage-tag');
+      const stageIndex = document.getElementById('stage-index');
+      const stageTitle = document.getElementById('stage-title');
+      const stageNote = document.getElementById('stage-note');
+      const stageCaption = document.getElementById('stage-caption');
+
+      if (stageTag) stageTag.textContent = b.tag;
+      if (stageIndex) stageIndex.textContent = `${currentBeatIndex + 1} / ${BEATS.length}`;
+      if (stageTitle) stageTitle.textContent = b.title;
+      if (stageNote) stageNote.textContent = b.note;
+      if (stageCaption) stageCaption.textContent = b.caption;
 
       const frac = currentBeatIndex / (BEATS.length - 1);
-      railFill.style.height = `${frac * 100}%`;
-      railMarker.style.top = `${frac * 100}%`;
+      if (railFill) railFill.style.height = `${frac * 100}%`;
+      if (railMarker) railMarker.style.top = `${frac * 100}%`;
 
       const dots = document.querySelectorAll('.rail-dot');
       dots.forEach((d, i) => {
@@ -1839,7 +1843,7 @@
       if (!hit) {
         pickBox.visible = false;
         selectedNode = null;
-        partInfoSpan.textContent = "Aucune (clic droit ou gauche)";
+        if (partInfoSpan) partInfoSpan.textContent = "Aucune (clic droit ou gauche)";
         if (isRightClick) contextMenu.style.display = 'none';
         return;
       }
@@ -1859,7 +1863,7 @@
       const clsProfile = PROFILES_MAP.get(clsKey);
       const clsLabel = clsProfile ? clsProfile.label : clsKey;
 
-      partInfoSpan.innerHTML = `<b>${name}</b> (${clsLabel})`;
+      if (partInfoSpan) partInfoSpan.innerHTML = `<b>${name}</b> (${clsLabel})`;
 
       if (isRightClick) {
         contextMenu.style.left = `${e.clientX}px`;
