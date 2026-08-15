@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>OpenDrone 3" & 5" | Visualisation 3D Interactive & Configurateur</title>
-  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec panneau d'infos bulle à gauche compact et gestion dynamique des empiètements de l'arbre." />
+  <meta name="description" content="Visualisation 3D temps réel haute fidélité avec ViewCube CAO directionnel et sélecteur de couleur pour la visserie." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -236,7 +236,6 @@
       opacity: 0;
       pointer-events: none;
     }
-    /* Mode réduit de l'arbre si l'infobulle est active et que l'arbre est ouvert */
     .tree-panel.clamped {
       max-height: calc(100vh - 280px);
     }
@@ -506,6 +505,10 @@
             <div class="menu-group-header">Entretoises (Standoffs)</div>
             <div class="palette-grid" id="palette-standoff"></div>
           </div>
+          <div class="menu-group">
+            <div class="menu-group-header">Visserie (Screws)</div>
+            <div class="palette-grid" id="palette-screw"></div>
+          </div>
         </div>
       </div>
 
@@ -668,6 +671,7 @@
     let activeMotorHex = '#ff6b00';
     let activePropHex = '#f0f2f5';
     let activeStandoffHex = '#ffb700';
+    let activeScrewHex = '#7c8590';
     let selectedNode = null;
 
     const dropdownContainer = document.getElementById('customization-dropdown');
@@ -708,6 +712,7 @@
       createPalette('palette-motor', activeMotorHex, (hex) => { activeMotorHex = hex; applyCategoryColor('motor', hex); });
       createPalette('palette-prop', activePropHex, (hex) => { activePropHex = hex; applyCategoryColor('prop', hex); });
       createPalette('palette-standoff', activeStandoffHex, (hex) => { activeStandoffHex = hex; applyCategoryColor('alu', hex); });
+      createPalette('palette-screw', activeScrewHex, (hex) => { activeScrewHex = hex; applyCategoryColor('steel', hex); });
     }
 
     const s2l = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
@@ -723,7 +728,7 @@
       { id: 'antenna', label: 'Antenne Linéaire', match: '^DJI', tint: null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'prop', label: 'Hélice Tri-pales FPV', match: '^[0-9]+$', tint: null, metalness: 0.05, roughness: 0.1, env: 0.9, sat: 1.0, transparent: true, opacity: 0.40 },
       { id: 'camera', label: 'Caméra FPV HD', match: '^(Body|Lens)', tint: null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1.0, transparent: false, opacity: 1.0 },
-      { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 1.0, roughness: 0.36, env: 0.9, sat: 1.0, transparent: false, opacity: 1.0 },
+      { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 0.9, roughness: 0.25, env: 0.9, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'mask', label: 'Vernis PCB (Soldermask)', match: null, tint: '#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'silk', label: 'Sérigraphie PCB', match: null, tint: '#dfe3e0', metalness: 0.26, roughness: 0.63, env: 0.45, sat: 1.0, transparent: false, opacity: 1.0 },
       { id: 'padgold', label: 'Pads Dorés ENIG', match: null, tint: '#d9a441', metalness: 0.58, roughness: 0.25, env: 0.23, sat: 1.0, transparent: false, opacity: 1.0 },
@@ -766,6 +771,7 @@
         else if (key === 'motor') mat.color.set(activeMotorHex);
         else if (key === 'prop') mat.color.set(activePropHex);
         else if (key === 'alu') mat.color.set(activeStandoffHex);
+        else if (key === 'steel') mat.color.set(activeScrewHex);
       }
       if (p.sat !== 1 && !customHex) {
         mat.color.getHSL(hsl);
@@ -1062,6 +1068,7 @@
       applyCategoryColor('motor', activeMotorHex);
       applyCategoryColor('prop', activePropHex);
       applyCategoryColor('alu', activeStandoffHex);
+      applyCategoryColor('steel', activeScrewHex);
 
       resetCamera();
       updateBeatUI();
@@ -1352,21 +1359,22 @@
     });
 
     const THEMES = {
-      cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518' },
-      sunset: { tpu: '#ff6b00', motor: '#ff4081', prop: '#ff6b00', standoff: '#f5c518' },
-      stealth: { tpu: '#111111', motor: '#7c8590', prop: '#f0f2f5', standoff: '#111111' },
-      gold: { tpu: '#9c27b0', motor: '#ffb700', prop: '#f0f2f5', standoff: '#ffb700' }
+      cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518', screw: '#111111' },
+      sunset: { tpu: '#ff6b00', motor: '#ff4081', prop: '#ff6b00', standoff: '#f5c518', screw: '#7c8590' },
+      stealth: { tpu: '#111111', motor: '#7c8590', prop: '#f0f2f5', standoff: '#111111', screw: '#111111' },
+      gold: { tpu: '#9c27b0', motor: '#ffb700', prop: '#f0f2f5', standoff: '#ffb700', screw: '#f5c518' }
     };
 
     document.querySelectorAll('.btn-theme').forEach(btn => {
       btn.addEventListener('click', () => {
         const theme = THEMES[btn.dataset.theme];
         if (!theme) return;
-        activeTpuHex = theme.tpu; activeMotorHex = theme.motor; activePropHex = theme.prop; activeStandoffHex = theme.standoff;
+        activeTpuHex = theme.tpu; activeMotorHex = theme.motor; activePropHex = theme.prop; activeStandoffHex = theme.standoff; activeScrewHex = theme.screw;
         applyCategoryColor('tpu', activeTpuHex);
         applyCategoryColor('motor', activeMotorHex);
         applyCategoryColor('prop', activePropHex);
         applyCategoryColor('alu', activeStandoffHex);
+        applyCategoryColor('steel', activeScrewHex);
         buildPalettes();
       });
     });
@@ -1416,7 +1424,7 @@
       else document.exitFullscreen().catch(() => {});
     });
 
-    // --- VIEW CUBE CAO (Purement libre au relâchement, sans aucun saut) ---
+    // --- VIEW CUBE CAO (Corrigé avec orientation exacte par face) ---
     const vcContainer = document.getElementById('viewcube-container');
     const vcScene = new THREE.Scene();
     const vcCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
@@ -1428,12 +1436,12 @@
 
     const cubeGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
     const cubeMat = [
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Right
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Left
-      new THREE.MeshBasicMaterial({ color: 0x303b4d }), // Top
-      new THREE.MeshBasicMaterial({ color: 0x181e26 }), // Bottom
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Front
-      new THREE.MeshBasicMaterial({ color: 0x222a35 })  // Back
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Right (+X)
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Left (-X)
+      new THREE.MeshBasicMaterial({ color: 0x303b4d }), // Top (+Y)
+      new THREE.MeshBasicMaterial({ color: 0x181e26 }), // Bottom (-Y)
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Front (+Z)
+      new THREE.MeshBasicMaterial({ color: 0x222a35 })  // Back (-Z)
     ];
     const vcCube = new THREE.Mesh(cubeGeo, cubeMat);
     vcScene.add(vcCube);
@@ -1453,16 +1461,35 @@
       const hits = vcRaycaster.intersectObject(vcCube);
       if (hits.length > 0) {
         const faceIndex = Math.floor(hits[0].faceIndex / 2);
-        const dist = camera.position.distanceTo(controls.target);
+        const dist = Math.max(droneRadius * 1.55, 0.17);
         const targetPos = controls.target.clone();
         
+        // Ordre des matériaux du BoxGeometry standard : +X, -X, +Y, -Y, +Z, -Z
         switch (faceIndex) {
-          case 4: camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist); break;
-          case 5: camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist); break;
-          case 0: camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z); break;
-          case 1: camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z); break;
-          case 2: camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.001); break;
-          case 3: camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.001); break;
+          case 0: // Right (+X)
+            camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z);
+            camera.up.set(0, 1, 0);
+            break;
+          case 1: // Left (-X)
+            camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z);
+            camera.up.set(0, 1, 0);
+            break;
+          case 2: // Top (+Y)
+            camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.001);
+            camera.up.set(0, 0, -1);
+            break;
+          case 3: // Bottom (-Y)
+            camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.001);
+            camera.up.set(0, 0, 1);
+            break;
+          case 4: // Front (+Z)
+            camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist);
+            camera.up.set(0, 1, 0);
+            break;
+          case 5: // Back (-Z)
+            camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist);
+            camera.up.set(0, 1, 0);
+            break;
         }
         camera.lookAt(targetPos);
         controls.update();
@@ -1501,6 +1528,7 @@
       offset.z = radius * Math.sin(phi) * Math.cos(theta);
 
       camera.position.copy(controls.target).add(offset);
+      camera.up.set(0, 1, 0);
       camera.lookAt(controls.target);
       controls.update();
     });
