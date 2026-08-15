@@ -1205,23 +1205,39 @@
           );
         });
 
-        const src = gltf.scene.children.length === 1 ? gltf.scene.children[0] : gltf.scene;
         if (!occRoot) {
           occRoot = new THREE.Group();
-          occRoot.name = src.name || 'assembly';
-          occRoot.position.copy(src.position);
-          occRoot.quaternion.copy(src.quaternion);
-          occRoot.scale.copy(src.scale);
+          occRoot.name = 'assembly';
+          occRoot.position.copy(gltf.scene.position);
+          occRoot.quaternion.copy(gltf.scene.quaternion);
+          occRoot.scale.copy(gltf.scene.scale);
           droneRoot.add(occRoot);
         }
-        for (const child of [...src.children]) {
-          occRoot.add(child);
+
+        // CORRECTIF: Grouper les cartes électroniques pour qu'elles restent d'un seul bloc
+        const isGroupedComponent = c.id.includes('board') || c.id.includes('video');
+        
+        if (isGroupedComponent) {
+          const groupNode = new THREE.Group();
+          groupNode.name = c.id;
+          const children = [...gltf.scene.children];
+          for (const child of children) {
+            groupNode.add(child);
+          }
+          occRoot.add(groupNode);
+        } else {
+          // Pour les moteurs, châssis et visserie, on garde chaque pièce séparée
+          const children = [...gltf.scene.children];
+          for (const child of children) {
+            occRoot.add(child);
+          }
         }
-        paint(occRoot);
+        
         bytesLoaded += c.bytes;
         loaderBar.style.width = `${Math.min(100, (bytesLoaded / totalBytes) * 100)}%`;
       }
-
+      
+      paint(occRoot);
       onLoaded();
     }
 
@@ -1238,7 +1254,14 @@
       });
       const motorCentres = motors.map((e) => e.sum.divideScalar(e.n));
 
-      const propNodes = occRoot.children.filter((c) => /^occurrence[_ ]of[_ ][0-9]+(_[0-9]+)?$/i.test(c.name || ''));
+      // Trouver toutes les hélices (même si elles sont groupées ou non)
+      const propNodes = [];
+      occRoot.traverse(c => {
+         if (/^occurrence[_ ]of[_ ][0-9]+(_[0-9]+)?$/i.test(c.name || '') && c.parent === occRoot) {
+           propNodes.push(c);
+         }
+      });
+
       for (const p of propNodes) {
         const pc = new THREE.Box3().setFromObject(p).getCenter(new THREE.Vector3());
         let axis = null, bestD = Infinity;
@@ -1322,7 +1345,7 @@
     function computeFlatLayPositions() {
       flatLayPositions.clear();
       let cols = Math.ceil(Math.sqrt(allAssembleNodes.length));
-      let spacing = 0.06;
+      let spacing = 0.08;
       let startX = -((cols - 1) * spacing) / 2;
       let startY = -((cols - 1) * spacing) / 2;
 
@@ -1478,6 +1501,9 @@
       btnExplode.classList.toggle('active', explodeAmount > 0.01);
       if (explodeAmount > 0) {
         stateMode = 'assemble';
+        btnAssemble.classList.add('active');
+        btnFlatLay.classList.remove('active');
+        btnStepByStep.classList.remove('active');
       }
     }
 
@@ -1573,6 +1599,8 @@
 
       const obj = hit.object;
       selectedMesh = obj;
+      
+      // Remonter l'arbre pour sélectionner le bloc groupé si c'est un PCB
       let topOcc = obj;
       while (topOcc && topOcc.parent && topOcc.parent !== occRoot && topOcc.parent !== droneRoot) {
         topOcc = topOcc.parent;
