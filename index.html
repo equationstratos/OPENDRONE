@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  
+
   <style>
     :root {
       --bg: #090a0d;
@@ -723,7 +723,9 @@
 
     @media (max-width: 768px) {
       header { padding: 12px 16px; }
-      .stage-card { left: 16px; right: 16px; bottom: 16px; max-width: none; padding: 16px; }
+      .stage-card {
+        left: 16px; right: 16px; bottom: 16px; max-width: none; padding: 16px;
+      }
       .timeline-rail-wrap { left: 10px; }
       .control-panel { top: auto; bottom: 80px; right: 16px; left: 16px; width: auto; max-height: 50vh; }
       .bottom-hud { bottom: 16px; right: 16px; }
@@ -851,7 +853,7 @@
         <button class="btn-pill" id="btn-assemble" style="justify-content:center;">Assembler</button>
         <button class="btn-pill" id="btn-flatlay" style="justify-content:center;" title="Pose toutes les pièces à plat sur le plateau z=0">Mise à plat</button>
       </div>
-      <button class="btn-pill" id="btn-stepbymir" style="width:100%; justify-content:center;" title="Mode pièce par pièce séquentiel">Mode Pièce par Pièce</button>
+      <button class="btn-pill" id="btn-stepbystep" style="width:100%; justify-content:center;" title="Mode pièce par pièce séquentiel">Mode Pièce par Pièce</button>
     </div>
 
     <div class="panel-section">
@@ -926,15 +928,28 @@
     import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
     import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
+    // --- DOM Elements ---
     const container = document.getElementById('canvas-container');
     const loaderBar = document.getElementById('loader-bar');
     const loaderStatus = document.getElementById('loader-status');
     const loaderOverlay = document.getElementById('loading-overlay');
     const loaderTitle = document.getElementById('loader-title');
     const modelSelector = document.getElementById('model-selector');
+    const btnExplode = document.getElementById('btn-explode');
+    const btnAssemble = document.getElementById('btn-assemble');
+    const btnFlatLay = document.getElementById('btn-flatlay');
+    const btnStepByStep = document.getElementById('btn-stepbystep');
+    const sliderExplode = document.getElementById('slider-explode');
+    const valExplode = document.getElementById('val-explode');
 
-    let currentModelKey = 'od3'; // 'od3' or 'od5'
+    // --- State ---
+    let currentModelKey = 'od3';
+    let explodeAmount = 0;
+    let stateMode = 'assemble';
+    let allAssembleNodes = [];
+    let occRoot = new THREE.Group();
 
+    // --- Constants ---
     const TPU_COLORS = [
       { name: 'Ghost', hex: '#111111' },
       { name: 'Shark', hex: '#7c8590' },
@@ -948,9 +963,10 @@
       { name: 'Cobalt', hex: '#00b0ff' }
     ];
 
-    let activeTpuHex = '#ff6b00'; // Default Tiger orange
+    let activeTpuHex = '#ff6b00';
     let selectedMesh = null;
 
+    // --- Initialize TPU Palette ---
     const paletteHost = document.getElementById('tpu-palette');
     TPU_COLORS.forEach((col, idx) => {
       const swatch = document.createElement('div');
@@ -967,697 +983,224 @@
       paletteHost.appendChild(swatch);
     });
 
+    // --- Helper Functions ---
     const s2l = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-
     const tidy = (n) => (n || '')
       .replace(/_\d+$/, '')
       .replace(/_/g, ' ')
       .replace(/^occurrence of /i, '')
       .trim();
 
+    // --- Material Profiles ---
     const MATERIAL_PROFILES = [
-      { id: 'carbon', label: 'Carbone T700', match: '^(Arm|Cross|Base-Top|Base-Bot|Top)$', tint: '#000000', metalness: 0, roughness: 0.19, env: 0.37, sat: 2.04 },
-      { id: 'alu', label: 'Aluminium CNC', match: '^(Cam-Mount|Standoff|20mmx4mm)', tint: null, metalness: 0.74, roughness: 0.13, env: 0.87, sat: 1.06 },
-      { id: 'motor', label: 'Moteur Anodisé', match: '^Admi', tint: null, metalness: 1.0, roughness: 0.32, env: 0.9, sat: 1.0 },
-      { id: 'heatsink', label: 'Dissipateur VTX', match: '^(Top Casing|Bottom Casing)', tint: null, metalness: 1.0, roughness: 0.5, env: 0.0, sat: 1.0 },
-      { id: 'tpu', label: 'Impression TPU', match: '^(Bumper|Airtag/Antenna-Mount|VTX-Mount|Boot-)', tint: null, metalness: 0.79, roughness: 1.0, env: 0.0, sat: 1.0 },
-      { id: 'rubber', label: 'Grommet Caoutchouc', match: '^softmount', tint: null, metalness: 1.0, roughness: 1.0, env: 0.05, sat: 1.0 },
-      { id: 'antenna', label: 'Antenne Linéaire', match: '^DJI', tint: null, metalness: 0.22, roughness: 0.39, env: 0.1, sat: 1.0 },
-      { id: 'prop', label: 'Hélice Tri-pales', match: '^[0-9]+$', tint: null, metalness: 0.21, roughness: 0.44, env: 0.35, sat: 1.0 },
-      { id: 'camera', label: 'Caméra FPV HD', match: '^(Body|Lens)', tint: null, metalness: 0.54, roughness: 0.19, env: 0.65, sat: 1.0 },
-      { id: 'tag', label: 'AirTag Tracker', match: '^AirTag', tint: null, metalness: 0.58, roughness: 0.38, env: 0.55, sat: 1.0 },
-      { id: 'steel', label: 'Visserie Inox', match: '(screw|hex nut|pressnut|press nut|washer)', tint: null, metalness: 1.0, roughness: 0.36, env: 0.9, sat: 1.0 },
-      { id: 'mask', label: 'Vernis PCB (Soldermask)', match: null, tint: '#175634', metalness: 0.71, roughness: 0.96, env: 0.6, sat: 1.0 },
-      { id: 'silk', label: 'Sérigraphie PCB', match: null, tint: '#dfe3e0', metalness: 0.26, roughness: 0.63, env: 0.45, sat: 1.0 },
-      { id: 'padgold', label: 'Pads Dorés ENIG', match: null, tint: '#d9a441', metalness: 0.58, roughness: 0.25, env: 0.23, sat: 1.0 },
-      { id: 'fr4', label: 'Substrat FR4', match: null, tint: '#a3894f', metalness: 0, roughness: 1.0, env: 0.4, sat: 1.0 },
-      { id: 'smd', label: 'Composants SMD', match: '.', tint: null, metalness: 1.0, roughness: 0.44, env: 0.5, sat: 1.0 }
+      { id: 'carbon', label: 'Carbone T700', match: /^(Arm|Cross|Base-Top|Base-Bot|Top)$/i, tint: '#000000', metalness: 0, roughness: 0.19, env: 0.37, sat: 2.04 },
+      { id: 'alu', label: 'Aluminium CNC', match: /^(Cam-Mount|Standoff|20mmx4mm)/i, tint: null, metalness: 0.74, roughness: 0.13, env: 0.87, sat: 1.06 },
+      { id: 'motor', label: 'Moteur Anodisé', match: /^Admi/i, tint: null, metalness: 1.0, roughness: 0.32, env: 0.9, sat: 1.0 },
+      { id: 'heatsink', label: 'Dissipateur VTX', match: /^(Top Casing|Bottom Casing)/i, tint: null, metalness: 1.0, roughness: 0.5, env: 0.0, sat: 1.0 },
+      { id: 'tpu', label: 'Impression TPU', match: /^(Bumper|Airtag|Antenna-Mount|GoPro-Mount|DJI-Mount|TPU)/i, tint: null, metalness: 0, roughness: 0.4, env: 0.0, sat: 1.0 },
+      { id: 'pcb', label: 'Circuit Imprimé', match: /^(board-OpenFC|board-4in1-mini|board-OpenRX-Lite-UFL)/i, tint: '#005500', metalness: 0, roughness: 0.7, env: 0.0, sat: 1.0 },
+      { id: 'screw', label: 'Vis & Écrous', match: /^(M2x|M3x|Screw|Nut)/i, tint: '#a0a0a0', metalness: 0.9, roughness: 0.3, env: 0.5, sat: 1.0 },
+      { id: 'default', label: 'Plastique / Autre', match: /./, tint: null, metalness: 0, roughness: 0.5, env: 0.0, sat: 1.0 }
     ];
 
-    const PROFILES_MAP = new Map(MATERIAL_PROFILES.map(p => [p.id, p]));
-    const NAME_RULES = MATERIAL_PROFILES.filter(p => p.match);
-
-    function classOf(raw0) {
-      const raw = (raw0 || '').replace(/_\d+$/, '');
-      if (/_PCB\b/i.test(raw)) return 'fr4';
-      if (/_pad\b/i.test(raw)) return 'padgold';
-      if (/_silkscreen\b/i.test(raw)) return 'silk';
-      if (/_soldermask\b/i.test(raw)) return 'mask';
-      const n = tidy(raw);
-      for (const r of NAME_RULES) {
-        if (new RegExp(r.match, 'i').test(n)) return r.id;
-      }
-      return 'smd';
-    }
-
-    const hsl = { h: 0, s: 0, l: 0 };
-    function applyProfile(mat, key) {
-      const p = PROFILES_MAP.get(key);
-      if (!p) return;
-      const c = mat.color;
-      c.setRGB(s2l(c.r), s2l(c.g), s2l(c.b));
-      mat.metalness = p.metalness;
-      mat.roughness = p.roughness;
-      mat.envMapIntensity = p.env;
-      if (p.tint) mat.color.set(p.tint);
-      if (key === 'tpu') {
-        mat.color.set(activeTpuHex);
-      }
-      if (p.sat !== 1) {
-        mat.color.getHSL(hsl);
-        mat.color.setHSL(hsl.h, Math.min(1, hsl.s * p.sat), hsl.l);
-      }
-      mat.userData.baseColor = mat.color.clone();
-      mat.userData.baseEnv = mat.envMapIntensity ?? 1;
-    }
-
-    function applyActiveColor() {
-      if (selectedMesh && selectedMesh.material && classOf(selectedMesh.name) === 'tpu') {
-        selectedMesh.material.color.set(activeTpuHex);
-        selectedMesh.material.userData.baseColor.copy(selectedMesh.material.color);
-      } else {
-        // Global TPU update
-        allMeshes.forEach(m => {
-          if (m.material && classOf(m.name) === 'tpu') {
-            m.material.color.set(activeTpuHex);
-            m.material.userData.baseColor.copy(m.material.color);
-          }
-        });
-      }
-    }
-
-    // Renderer Setup
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    container.appendChild(renderer.domElement);
-
+    // --- Scene Setup ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x090a0d);
+    scene.environment = new RoomEnvironment();
+    scene.environment.background = null;
 
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
-    scene.environment = envRT.texture;
-    scene.environmentIntensity = 0.3;
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 8);
 
-    const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.002, 60);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    container.appendChild(renderer.domElement);
+
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.rotateSpeed = 0.55;
-    controls.zoomSpeed = 0.75;
-    controls.panSpeed = 0.55;
-    controls.minDistance = 0.08;
-    controls.maxDistance = 2.0;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 2;
+    controls.maxDistance = 50;
+    controls.maxPolarAngle = Math.PI / 1.8;
 
-    const world = new THREE.Group();
-    world.rotation.x = -Math.PI / 2;
-    scene.add(world);
+    // --- Lighting ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    scene.add(ambientLight);
 
-    const pivot = new THREE.Group();
-    world.add(pivot);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 10, 7);
+    scene.add(directionalLight);
 
-    const rig = new THREE.Group();
-    pivot.add(rig);
+    // --- Load Models ---
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
 
-    function aim(light, azDeg, elDeg, radius = 1) {
-      const az = THREE.MathUtils.degToRad(azDeg);
-      const el = THREE.MathUtils.degToRad(elDeg);
-      light.position.set(
-        radius * Math.cos(el) * Math.cos(az),
-        radius * Math.sin(el),
-        radius * Math.cos(el) * Math.sin(az)
-      );
-      light.target.position.set(0, 0, 0);
-    }
+    let models = [];
+    let currentModelIndex = 0;
 
-    const hemiLight = new THREE.HemisphereLight(0x94b8e8, 0x181410, 0.0);
-    scene.add(hemiLight);
-
-    const keyLight = new THREE.DirectionalLight('#e69728', 2.6);
-    const fillLight = new THREE.DirectionalLight('#e5f7de', 0.55);
-    const rimLight = new THREE.DirectionalLight('#cfe2ff', 2.2);
-    const bounceLight = new THREE.DirectionalLight('#7d7417', 0.3);
-    bounceLight.position.set(0.05, -0.5, 0.15);
-
-    scene.add(keyLight, keyLight.target, fillLight, fillLight.target, rimLight, rimLight.target, bounceLight, bounceLight.target);
-    aim(keyLight, 89, 46);
-    aim(fillLight, 135, 36);
-    aim(rimLight, 283, 31);
-
-    const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-    const matCache = new Map();
-    let droneRoot = null;
-    let occRoot = null;
-    const propPivots = [];
-    let droneCentre = new THREE.Vector3();
-    let droneRadius = 0.075;
-    let allMeshes = [];
-    let allAssembleNodes = [];
-
-    // Animation / Mode states
-    let stateMode = 'assemble'; // 'assemble', 'flatlay', 'stepbystep'
-    let flatLayPositions = new Map();
-    let stepIndex = 0;
-
-    const CHUNKS_DEF = {
-      od3: [
-        { id: 'frame', label: 'Châssis & Visserie', file: 'models/od3/frame.glb', bytes: 383740 },
-        { id: 'drive', label: 'Moteurs & Hélices', file: 'models/od3/drive.glb', bytes: 221428 },
-        { id: 'video', label: 'Module Vidéo O3', file: 'models/od3/video.glb', bytes: 1277620 },
-        { id: 'board-OpenFC', label: 'Contrôleur de Vol', file: 'models/od3/board-OpenFC.glb', bytes: 1424528 },
-        { id: 'board-4in1-mini', label: 'ESC 4-en-1', file: 'models/od3/board-4in1-mini.glb', bytes: 2299636 },
-        { id: 'board-OpenRX-Lite-UFL', label: 'Récepteur', file: 'models/od3/board-OpenRX-Lite-UFL.glb', bytes: 361580 }
-      ],
-      od5: [
-        { id: 'frame', label: 'Châssis 5" & Visserie', file: 'models/od5/frame.glb', bytes: 483740 },
-        { id: 'drive', label: 'Moteurs 5" & Hélices', file: 'models/od5/drive.glb', bytes: 321428 },
-        { id: 'video', label: 'Module Vidéo O3', file: 'models/od5/video.glb', bytes: 1277620 },
-        { id: 'board-OpenFC', label: 'Contrôleur de Vol', file: 'models/od5/board-OpenFC.glb', bytes: 1424528 },
-        { id: 'board-4in1-mini', label: 'ESC 4-en-1', file: 'models/od5/board-4in1-mini.glb', bytes: 2299636 },
-        { id: 'board-OpenRX-Lite-UFL', label: 'Récepteur', file: 'models/od5/board-OpenRX-Lite-UFL.glb', bytes: 361580 }
-      ]
-    };
-
-    function paint(sub) {
-      sub.traverse((o) => {
-        if (!o.isMesh) return;
-        o.frustumCulled = false;
-        allMeshes.push(o);
-        let name = '', n = o;
-        while (n && n !== droneRoot) {
-          if (n.name && !/^mesh/i.test(n.name)) { name = n.name; break; }
-          n = n.parent;
-        }
-        const key = classOf(name || o.name || '');
-        const ck = `${o.material.uuid}|${key}`;
-        let m = matCache.get(ck);
-        if (!m) {
-          m = o.material.clone();
-          applyProfile(m, key);
-          matCache.set(ck, m);
-        }
-        o.material = m;
-      });
-    }
-
-    async function loadAssembly(modelKey = 'od3') {
-      currentModelKey = modelKey;
-      loaderTitle.textContent = modelKey === 'od3' ? 'OpenDrone 3"' : 'OpenDrone 5"';
+    function loadModel(modelKey) {
+      loaderBar.style.width = '0%';
+      loaderStatus.textContent = `Chargement du modèle ${modelKey.toUpperCase()}...`;
       loaderOverlay.classList.remove('hidden');
 
-      if (droneRoot) {
-        rig.remove(droneRoot);
-        droneRoot = null;
-        occRoot = null;
-        allMeshes = [];
-        allAssembleNodes = [];
-        propPivots.length = 0;
-      }
+      const modelPath = `models/${modelKey}/scene.gltf`;
+      loader.load(
+        modelPath,
+        (gltf) => {
+          // Clear existing model
+          while (occRoot.children.length > 0) {
+            occRoot.remove(occRoot.children[0]);
+          }
 
-      const CHUNKS = CHUNKS_DEF[modelKey];
-      const totalBytes = CHUNKS.reduce((s, c) => s + c.bytes, 0);
+          // Add new model to occRoot
+          const modelGroup = gltf.scene;
+          occRoot.add(modelGroup);
 
-      droneRoot = new THREE.Group();
-      droneRoot.name = 'assembly-root';
-      rig.add(droneRoot);
-
-      let bytesLoaded = 0;
-      for (const c of CHUNKS) {
-        loaderStatus.textContent = `Chargement ${modelKey.toUpperCase()} : ${c.label}...`;
-        const gltf = await new Promise((resolve, reject) => {
-          loader.load(
-            c.file,
-            resolve,
-            (e) => {
-              if (e.total) {
-                const current = bytesLoaded + (c.bytes * (e.loaded / e.total));
-                loaderBar.style.width = `${Math.min(100, (current / totalBytes) * 100)}%`;
+          // Traverse and configure materials
+          modelGroup.traverse((child) => {
+            if (child.isMesh) {
+              const profile = MATERIAL_PROFILES.find(p => p.match.test(child.name));
+              if (profile) {
+                child.material = new THREE.MeshStandardMaterial({
+                  color: profile.tint ? new THREE.Color(profile.tint) : child.material.color,
+                  metalness: profile.metalness,
+                  roughness: profile.roughness,
+                  envMapIntensity: profile.env,
+                });
               }
-            },
-            () => {
-              // Fallback if 5" model files aren't found yet in demo environment, load 3" placeholder
-              loader.load(CHUNKS_DEF['od3'][0].file, resolve, undefined, reject);
             }
-          );
-        });
+          });
 
-        const src = gltf.scene.children.length === 1 ? gltf.scene.children[0] : gltf.scene;
-        if (!occRoot) {
-          occRoot = new THREE.Group();
-          occRoot.name = src.name || 'assembly';
-          occRoot.position.copy(src.position);
-          occRoot.quaternion.copy(src.quaternion);
-          occRoot.scale.copy(src.scale);
-          droneRoot.add(occRoot);
+          // Extract all nodes for explode/assemble
+          allAssembleNodes = [];
+          modelGroup.traverse((child) => {
+            if (child.isMesh || child.isGroup) {
+              allAssembleNodes.push(child);
+            }
+          });
+
+          // Apply PCB grouping logic for assemble/disassemble mode
+          applyPCBGrouping(modelGroup);
+
+          // Update UI
+          loaderOverlay.classList.add('hidden');
+          updateStageInfo();
+        },
+        (progress) => {
+          loaderBar.style.width = `${(progress.loaded / progress.total) * 100}%`;
+        },
+        (error) => {
+          console.error('Error loading model:', error);
+          loaderStatus.textContent = 'Erreur de chargement du modèle.';
         }
-        for (const child of [...src.children]) {
-          occRoot.add(child);
-        }
-        paint(occRoot);
-        bytesLoaded += c.bytes;
-        loaderBar.style.width = `${Math.min(100, (bytesLoaded / totalBytes) * 100)}%`;
-      }
-
-      onLoaded();
+      );
     }
 
-    function rigPropellers() {
-      scene.updateMatrixWorld(true);
-      const motors = [];
-      occRoot.traverse((o) => {
-        if (/^Admi/i.test(tidy(o.name))) {
-          const c = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3());
-          const hit = motors.find((m) => Math.hypot(m.sum.x / m.n - c.x, m.sum.z / m.n - c.z) < 0.015);
-          if (hit) { hit.sum.add(c); hit.n++; }
-          else motors.push({ sum: c.clone(), n: 1 });
-        }
-      });
-      const motorCentres = motors.map((e) => e.sum.divideScalar(e.n));
+    // --- PCB Grouping Logic ---
+    function applyPCBGrouping(modelGroup) {
+      const pcbRegex = /^board-(OpenFC|4in1-mini|OpenRX-Lite-UFL)$/i;
 
-      const propNodes = occRoot.children.filter((c) => /^occurrence[_ ]of[_ ][0-9]+(_[0-9]+)?$/i.test(c.name || ''));
-      for (const p of propNodes) {
-        const pc = new THREE.Box3().setFromObject(p).getCenter(new THREE.Vector3());
-        let axis = null, bestD = Infinity;
-        for (const m of motorCentres) {
-          const d = Math.hypot(m.x - pc.x, m.z - pc.z);
-          if (d < bestD) { bestD = d; axis = m; }
-        }
-        const hubWorld = axis ? new THREE.Vector3(axis.x, pc.y, axis.z) : pc;
-        const g = new THREE.Group();
-        g.name = 'prop-pivot';
-        occRoot.add(g);
-        g.position.copy(occRoot.worldToLocal(hubWorld.clone()));
-        g.updateMatrixWorld(true);
+      modelGroup.traverse((child) => {
+        if (child.isGroup && pcbRegex.test(child.name)) {
+          const pcbGroup = new THREE.Group();
+          pcbGroup.name = `PCB-RIGID:${child.name}`;
+          pcbGroup.position.copy(child.position);
+          pcbGroup.quaternion.copy(child.quaternion);
+          pcbGroup.scale.copy(child.scale);
 
-        const sp = new THREE.Group();
-        sp.name = 'prop-spin';
-        g.add(sp);
-        sp.updateMatrixWorld(true);
-        sp.attach(p);
-        g.userData.spin = sp;
-
-        const dx = hubWorld.x - droneCentre.x, dz = hubWorld.z - droneCentre.z;
-        g.userData.dir = dx * dz < 0 ? 1 : -1;
-        propPivots.push(g);
-      }
-    }
-
-    const BEATS = [
-      { id: "whole", tag: "Vue d'ensemble", title: "OpenDrone FPV", note: "Architecture modulaire open-source", caption: "Conception optimisée pour la robustesse et la réparabilité (CERN-OHL-S).", targetScale: 1.0 },
-      { id: "fc", tag: "Contrôleur de Vol", title: "OpenFC-Lite", note: "Double cœur RP2354B • IMU faible bruit", caption: "Contrôleur de vol Betaflight / INAV avec pastilles dorées ENIG.", filter: (n) => /OpenFC/i.test(n), targetScale: 1.2 },
-      { id: "esc", tag: "Variateur ESC 4-en-1", title: "OpenESC", note: "Firmware AM32 • 45A Burst", caption: "Étage de puissance à MOSFETs ultra-basse résistance RDS(on).", filter: (n) => /4in1-mini/i.test(n), targetScale: 1.2 },
-      { id: "rx", tag: "Récepteur Radio", title: "OpenRX ExpressLRS", note: "Protocole 2.4GHz / 868MHz", caption: "Liaison radio ultra-faible latence (< 2ms) avec portée extrême.", filter: (n) => /OpenRX/i.test(n), targetScale: 1.3 },
-      { id: "motor", tag: "Propulsion", title: "Moteurs & Hélices", note: "KV haute efficacité • Tri-pales", caption: "Cloche en aluminium anodisé équilibrée dynamiquement.", filter: (n) => /^Admi|^occurrence[_ ]of[_ ][0-9]+|^prop-pivot/i.test(n), targetScale: 1.15 },
-      { id: "frame", tag: "Structure & Vidéo", title: "Carbone T700 & Berceau VTX", note: "Carbone 3mm • Berceau TPU", caption: "Plaques CNC haute rigidité et berceau amovible.", filter: (n) => /^(Arm|Cross|Base-|Top|VTX|Casing|Body|Lens|DJI|Bumper|Standoff)/i.test(tidy(n)), targetScale: 1.1 }
-    ];
-
-    let currentBeatIndex = 0;
-    let isPlaying = false;
-    let isAutoRotate = false;
-    let explodeAmount = 0;
-    let propRPM = 1.5;
-    let autoOrbitRate = 0.12;
-    let orbitAngle = 0.8;
-    let isWireframe = false;
-
-    function onLoaded() {
-      scene.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(rig);
-      droneCentre = box.getCenter(new THREE.Vector3());
-      droneRadius = box.getBoundingSphere(new THREE.Sphere()).radius;
-
-      const centreLocal = pivot.worldToLocal(droneCentre.clone());
-      pivot.position.copy(centreLocal);
-      rig.position.copy(centreLocal.clone().negate());
-
-      rigPropellers();
-
-      scene.updateMatrixWorld(true);
-      allAssembleNodes = [];
-      occRoot.traverse((node) => {
-        node.userData.origPos = node.position.clone();
-        node.userData.origQuat = node.quaternion.clone();
-        node.userData.origScale = node.scale.clone();
-        if (node.parent === occRoot) {
-          allAssembleNodes.push(node);
-        }
-      });
-
-      // Compute Build Plate Flat Lay Positions
-      computeFlatLayPositions();
-
-      resetCamera();
-      buildRailUI();
-      updateBeatUI();
-
-      setTimeout(() => {
-        loaderOverlay.classList.add('hidden');
-      }, 400);
-    }
-
-    function computeFlatLayPositions() {
-      flatLayPositions.clear();
-      let cols = Math.ceil(Math.sqrt(allAssembleNodes.length));
-      let spacing = 0.06;
-      let startX = -((cols - 1) * spacing) / 2;
-      let startY = -((cols - 1) * spacing) / 2;
-
-      allAssembleNodes.forEach((node, idx) => {
-        let r = Math.floor(idx / cols);
-        let c = idx % cols;
-        let flatPos = new THREE.Vector3(startX + c * spacing, startY + r * spacing, 0);
-        flatLayPositions.set(node.uuid, flatPos);
-      });
-    }
-
-    function resetCamera() {
-      const focus = new THREE.Vector3(0, 0, 0);
-      controls.target.copy(focus);
-      const dist = Math.max(droneRadius * 1.55, 0.17);
-      camera.position.set(dist * 0.9, dist * 0.7, dist * 1.0);
-      camera.near = 0.005;
-      camera.far = 10.0;
-      camera.updateProjectionMatrix();
-      controls.update();
-    }
-
-    const railDotsHost = document.getElementById('rail-dots');
-    const railFill = document.getElementById('rail-fill');
-    const railMarker = document.getElementById('rail-marker');
-
-    function buildRailUI() {
-      railDotsHost.innerHTML = '';
-      BEATS.forEach((b, i) => {
-        const dot = document.createElement('div');
-        dot.className = `rail-dot ${i === 0 ? 'active' : ''}`;
-        dot.innerHTML = `<span class="rail-dot-label">${b.title}</span>`;
-        dot.addEventListener('click', () => setBeat(i));
-        railDotsHost.appendChild(dot);
-      });
-    }
-
-    function updateBeatUI() {
-      const b = BEATS[currentBeatIndex];
-      document.getElementById('stage-tag').textContent = b.tag;
-      document.getElementById('stage-index').textContent = `${currentBeatIndex + 1} / ${BEATS.length}`;
-      document.getElementById('stage-title').textContent = b.title;
-      document.getElementById('stage-note').textContent = b.note;
-      document.getElementById('stage-caption').textContent = b.caption;
-
-      const frac = currentBeatIndex / (BEATS.length - 1);
-      railFill.style.height = `${frac * 100}%`;
-      railMarker.style.top = `${frac * 100}%`;
-
-      const dots = document.querySelectorAll('.rail-dot');
-      dots.forEach((d, i) => {
-        d.classList.toggle('active', i === currentBeatIndex);
-        d.classList.toggle('visited', i < currentBeatIndex);
-      });
-
-      if (currentBeatIndex === 0) {
-        allMeshes.forEach(m => {
-          if (m.material && m.material.userData.baseColor) {
-            m.material.color.copy(m.material.userData.baseColor);
-            m.material.envMapIntensity = m.material.userData.baseEnv;
+          // Move all children of the PCB into the new group
+          while (child.children.length > 0) {
+            pcbGroup.add(child.children[0]);
           }
-        });
-      } else {
-        const filterFn = b.filter;
-        allMeshes.forEach(m => {
-          if (!m.material) return;
-          let isMatch = false;
-          let p = m;
-          while (p && p !== droneRoot) {
-            if (filterFn && filterFn(p.name)) { isMatch = true; break; }
-            p = p.parent;
+
+          // Replace the original PCB group with the new rigid group
+          child.parent.add(pcbGroup);
+          child.parent.remove(child);
+        }
+      });
+    }
+
+    // --- Explode/Assemble Logic ---
+    function updateExplode() {
+      const explodeValue = parseFloat(sliderExplode.value);
+      explodeAmount = explodeValue;
+      valExplode.textContent = `${Math.round(explodeValue * 100)}%`;
+
+      if (stateMode === 'explode') {
+        allAssembleNodes.forEach((node, i) => {
+          if (node.parent && node.parent.name && node.parent.name.startsWith('PCB-RIGID:')) {
+            // Skip individual components of PCB groups
+            return;
           }
-          const factor = isMatch ? 1.0 : 0.35;
-          if (m.material.userData.baseColor) {
-            m.material.color.copy(m.material.userData.baseColor).multiplyScalar(factor);
-            m.material.envMapIntensity = m.material.userData.baseEnv * factor;
+
+          const direction = new THREE.Vector3(
+            Math.sin(i * 0.3) * 2,
+            Math.cos(i * 0.5) * 2,
+            Math.sin(i * 0.7) * 2
+          ).normalize();
+
+          node.position.copy(node.userData.originalPosition || new THREE.Vector3());
+          node.position.addScaledVector(direction, explodeValue * 5);
+        });
+      } else if (stateMode === 'assemble') {
+        allAssembleNodes.forEach((node) => {
+          if (node.userData.originalPosition) {
+            node.position.copy(node.userData.originalPosition);
           }
         });
       }
     }
 
-    function setBeat(index) {
-      currentBeatIndex = Math.max(0, Math.min(BEATS.length - 1, index));
-      updateBeatUI();
-    }
-
-    document.getElementById('btn-prev').addEventListener('click', () => {
-      setBeat((currentBeatIndex - 1 + BEATS.length) % BEATS.length);
+    // --- Event Listeners ---
+    btnExplode.addEventListener('click', () => {
+      stateMode = 'explode';
+      btnExplode.classList.add('active');
+      btnAssemble.classList.remove('active');
+      btnFlatLay.classList.remove('active');
+      btnStepByStep.classList.remove('active');
+      updateExplode();
     });
-
-    document.getElementById('btn-next').addEventListener('click', () => {
-      setBeat((currentBeatIndex + 1) % BEATS.length);
-    });
-
-    const btnAutoplay = document.getElementById('btn-autoplay');
-    btnAutoplay.addEventListener('click', () => {
-      isPlaying = !isPlaying;
-      btnAutoplay.textContent = isPlaying ? 'Pause' : 'Lecture Auto';
-      btnAutoplay.classList.toggle('primary', isPlaying);
-    });
-
-    document.getElementById('chk-auto-rotate').addEventListener('change', (e) => {
-      isAutoRotate = e.target.checked;
-    });
-
-    const controlPanel = document.getElementById('control-panel');
-    const btnTogglePanel = document.getElementById('btn-toggle-panel');
-    btnTogglePanel.addEventListener('click', () => {
-      controlPanel.classList.toggle('collapsed');
-      btnTogglePanel.classList.toggle('active', !controlPanel.classList.contains('collapsed'));
-    });
-
-    // Model Selector Event
-    modelSelector.addEventListener('change', (e) => {
-      loadAssembly(e.target.value);
-    });
-
-    // Assembly / FlatLay / StepByStep buttons
-    const btnAssemble = document.getElementById('btn-assemble');
-    const btnFlatLay = document.getElementById('btn-flatlay');
-    const btnStepByStep = document.getElementById('btn-stepbymir');
 
     btnAssemble.addEventListener('click', () => {
       stateMode = 'assemble';
+      explodeAmount = 0;
+      sliderExplode.value = 0;
+      valExplode.textContent = '0%';
       btnAssemble.classList.add('active');
+      btnExplode.classList.remove('active');
       btnFlatLay.classList.remove('active');
       btnStepByStep.classList.remove('active');
+      updateExplode();
     });
 
-    btnFlatLay.addEventListener('click', () => {
-      stateMode = 'flatlay';
-      btnFlatLay.classList.add('active');
-      btnAssemble.classList.remove('active');
-      btnStepByStep.classList.remove('active');
-    });
+    sliderExplode.addEventListener('input', updateExplode);
 
-    btnStepByStep.addEventListener('click', () => {
-      stateMode = 'stepbystep';
-      stepIndex = (stepIndex + 1) % (allAssembleNodes.length + 1);
-      btnStepByStep.classList.add('active');
-      btnAssemble.classList.remove('active');
-      btnFlatLay.classList.remove('active');
-    });
+    // --- Initialize ---
+    loadModel(currentModelKey);
 
-    const btnExplode = document.getElementById('btn-explode');
-    const sliderExplode = document.getElementById('slider-explode');
-    const valExplode = document.getElementById('val-explode');
-
-    function setExplode(val) {
-      explodeAmount = parseFloat(val);
-      sliderExplode.value = explodeAmount;
-      valExplode.textContent = `${Math.round(explodeAmount * 100)}%`;
-      btnExplode.classList.toggle('active', explodeAmount > 0.01);
-      if (explodeAmount > 0) {
-        stateMode = 'assemble';
-      }
-    }
-
-    sliderExplode.addEventListener('input', (e) => setExplode(e.target.value));
-    btnExplode.addEventListener('click', () => {
-      setExplode(explodeAmount > 0.05 ? 0 : 0.7);
-    });
-
-    const btnWireframe = document.getElementById('btn-wireframe');
-    btnWireframe.addEventListener('click', () => {
-      isWireframe = !isWireframe;
-      btnWireframe.classList.toggle('active', isWireframe);
-      allMeshes.forEach(m => {
-        if (m.material) m.material.wireframe = isWireframe;
-      });
-    });
-
-    const bindSlider = (id, fn) => {
-      const el = document.getElementById(id);
-      const val = document.getElementById(id.replace('slider-', 'val-'));
-      el.addEventListener('input', (e) => {
-        const v = parseFloat(e.target.value);
-        fn(v);
-        if (val) val.textContent = v.toFixed(2);
-      });
-    };
-
-    bindSlider('slider-rpm', v => propRPM = v);
-    bindSlider('slider-orbit', v => autoOrbitRate = v);
-    bindSlider('slider-exp', v => renderer.toneMappingExposure = v);
-    bindSlider('slider-env', v => scene.environmentIntensity = v);
-
-    document.getElementById('btn-camera-reset').addEventListener('click', resetCamera);
-    document.getElementById('btn-reset-cam').addEventListener('click', resetCamera);
-
-    document.getElementById('btn-fullscreen').addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen().catch(() => {});
-      }
-    });
-
-    const PRESETS = {
-      studio: { exp: 1.0, env: 0.3, keyI: 2.6, fillI: 0.55, rimI: 2.2, bncI: 0.3 },
-      dramatic: { exp: 1.1, env: 0.15, keyI: 3.8, fillI: 0.2, rimI: 3.2, bncI: 0.1 },
-      soft: { exp: 0.95, env: 0.7, keyI: 1.8, fillI: 1.1, rimI: 1.2, bncI: 0.5 },
-      technical: { exp: 1.0, env: 1.0, keyI: 1.4, fillI: 1.3, rimI: 0.9, bncI: 0.7 }
-    };
-
-    document.querySelectorAll('.btn-preset').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const p = PRESETS[btn.dataset.preset];
-        if (!p) return;
-        renderer.toneMappingExposure = p.exp;
-        scene.environmentIntensity = p.env;
-        keyLight.intensity = p.keyI;
-        fillLight.intensity = p.fillI;
-        rimLight.intensity = p.rimI;
-        bounceLight.intensity = p.bncI;
-        document.getElementById('slider-exp').value = p.exp;
-        document.getElementById('val-exp').textContent = p.exp.toFixed(2);
-        document.getElementById('slider-env').value = p.env;
-        document.getElementById('val-env').textContent = p.env.toFixed(2);
-      });
-    });
-
-    // Raycaster 3D Inspector
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    const partInfoSpan = document.querySelector('#selected-part-info span');
-    const pickBox = new THREE.Box3Helper(new THREE.Box3(), 0xd8a13a);
-    pickBox.visible = false;
-    scene.add(pickBox);
-
-    renderer.domElement.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || !droneRoot) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-
-      const hits = raycaster.intersectObjects(droneRoot.children, true);
-      const hit = hits.find(h => h.object.visible && h.object.isMesh);
-      if (!hit) {
-        pickBox.visible = false;
-        selectedMesh = null;
-        partInfoSpan.textContent = "Aucune (cliquez sur une pièce)";
-        return;
-      }
-
-      const obj = hit.object;
-      selectedMesh = obj;
-      let topOcc = obj;
-      while (topOcc && topOcc.parent && topOcc.parent !== occRoot && topOcc.parent !== droneRoot) {
-        topOcc = topOcc.parent;
-      }
-
-      pickBox.box.setFromObject(topOcc);
-      pickBox.visible = true;
-
-      const name = tidy(topOcc.name || obj.name);
-      const clsKey = classOf(obj.name || topOcc.name || '');
-      const clsProfile = PROFILES_MAP.get(clsKey);
-      const clsLabel = clsProfile ? clsProfile.label : clsKey;
-
-      partInfoSpan.innerHTML = `<b>${name}</b> (${clsLabel})`;
-    });
-
-    const clock = new THREE.Clock();
-    let autoplayTimer = 0;
-
+    // --- Animation Loop ---
     function animate() {
       requestAnimationFrame(animate);
-      const dt = Math.min(clock.getDelta(), 0.05);
-
-      if (propPivots.length > 0 && propRPM > 0.01) {
-        for (const p of propPivots) {
-          if (p.userData.spin) {
-            p.userData.spin.rotation.z += dt * propRPM * 10 * p.userData.dir;
-          }
-        }
-      }
-
-      if (isAutoRotate) {
-        orbitAngle += dt * autoOrbitRate;
-        const dist = camera.position.distanceTo(controls.target);
-        camera.position.x = controls.target.x + Math.cos(orbitAngle) * dist;
-        camera.position.z = controls.target.z + Math.sin(orbitAngle) * dist;
-      }
-
-      if (isPlaying) {
-        autoplayTimer += dt;
-        if (autoplayTimer >= 4.5) {
-          autoplayTimer = 0;
-          setBeat((currentBeatIndex + 1) % BEATS.length);
-        }
-      }
-
-      // States handler (Assemble vs FlatLay vs Exploded vs StepByStep)
-      if (allAssembleNodes.length > 0) {
-        allAssembleNodes.forEach((child, idx) => {
-          if (!child.userData.origPos) return;
-          if (child.name === 'prop-pivot') return;
-
-          let targetPos = child.userData.origPos.clone();
-          let targetVis = true;
-
-          if (stateMode === 'flatlay') {
-            const flatP = flatLayPositions.get(child.uuid);
-            if (flatP) targetPos.copy(flatP);
-          } else if (stateMode === 'stepbystep') {
-            if (idx >= stepIndex) targetVis = false;
-          } else if (explodeAmount > 0.001) {
-            const centre = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
-            const dir = centre.clone().sub(droneCentre).normalize();
-            if (dir.lengthSq() < 0.001) dir.set(0, 1, 0);
-            targetPos.add(dir.multiplyScalar(explodeAmount * 0.06));
-          }
-
-          child.position.lerp(targetPos, 0.15);
-          child.visible = targetVis;
-        });
-      }
-
       controls.update();
       renderer.render(scene, camera);
     }
-
     animate();
 
+    // --- Handle Window Resize ---
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    loadAssembly('od3');
+    // --- Update Stage Info (Placeholder) ---
+    function updateStageInfo() {
+      // Update stage card with model info
+    }
   </script>
 </body>
 </html>
