@@ -219,7 +219,7 @@
       position: absolute;
       top: calc(100% + 6px);
       left: 0;
-      width: 300px;
+      width: 320px;
       max-height: calc(100vh - 130px);
       overflow-y: auto;
       background: var(--bg-panel);
@@ -246,6 +246,13 @@
     }
     .tree-search:focus { border-color: var(--border-focus); }
     .tree-list { list-style: none; font-family: var(--font-mono); font-size: 11px; }
+    
+    .tree-category { margin-bottom: 8px; }
+    .tree-category-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #ffb700; background: rgba(255,183,0,0.08); padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; text-transform: uppercase;
+    }
+    .tree-sublist { list-style: none; padding-left: 10px; }
+
     .tree-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; border-radius: 4px; cursor: pointer; transition: background 0.15s; margin-bottom: 2px; }
     .tree-item:hover { background: rgba(255,255,255,0.05); color: #ffb700; }
     .tree-item.selected { background: rgba(255,183,0,0.15); color: #ffb700; }
@@ -441,9 +448,9 @@
             <button class="card-close-btn" id="btn-close-tree">&times;</button>
           </div>
           <input type="text" class="tree-search" id="tree-search-input" placeholder="Filtrer les pièces..." />
-          <ul class="tree-list" id="tree-list-container">
-            <!-- Rempli dynamiquement -->
-          </ul>
+          <div class="tree-list" id="tree-list-container">
+            <!-- Rempli dynamiquement par catégorie -->
+          </div>
         </div>
       </div>
     </div>
@@ -1067,20 +1074,11 @@
       allAssembleNodes = [];
       occRoot.traverse((node) => {
         if (node.parent === occRoot) {
-          // Filtrage pour ne garder que les pièces principales dans l'arbre (ignorer vis, écrous et petits éléments individuels)
-          const nameLower = (node.name || '').toLowerCase();
-          const isSmallPartOrScrew = /screw|nut|washer|pressnut|press nut/i.test(nameLower) || 
-                                    (/board-/i.test(nameLower) && node.children.length > 5); // Simplification des cartes si nécessaire, ou filtrage strict
-          
           node.userData.origPos = node.position.clone();
           node.userData.origQuat = node.quaternion.clone();
           node.userData.origScale = node.scale.clone();
           node.userData.userHidden = false;
-          
-          // On exclut les vis et petites pièces de la liste principale de l'arbre tout en les gardant dans le modèle 3D
-          if (!/screw|nut|washer|pressnut|press nut/i.test(nameLower)) {
-            allAssembleNodes.push(node);
-          }
+          allAssembleNodes.push(node);
         }
       });
 
@@ -1117,7 +1115,7 @@
       });
     }
 
-    // Gestion de l'arbre d'assemblage et anti-empiètement avec l'infobulle
+    // Gestion de l'arbre d'assemblage et catégorisation personnalisée
     const treeListContainer = document.getElementById('tree-list-container');
     const treePanel = document.getElementById('tree-panel');
     const btnToggleTree = document.getElementById('btn-toggle-tree');
@@ -1158,63 +1156,113 @@
       }
     });
 
+    function getCustomCategory(name) {
+      const n = name.toLowerCase();
+      if (/screw|nut|washer|pressnut|press nut/i.test(n)) return 'VISSERIE';
+      if (/arm|cross|base|top|plate|cage/i.test(n)) return 'FRAME';
+      if (/bumper|mount|airtag|antenna|boot|tpu/i.test(n)) return 'TPU';
+      if (/admi|motor/i.test(n)) return 'MOTEURS';
+      if (/^[0-9]+$/i.test(tidy(name)) || /prop/i.test(n)) return 'HELICES';
+      if (/openfc|4in1|openrx|rx/i.test(n)) return 'ELECTRONICS';
+      if (/vtx|lens|casing|camera/i.test(n)) return 'VIDEO';
+      if (/battery|batterie/i.test(n)) return 'BATTERIE';
+      if (/scratch|velcro|pad|stick/i.test(n)) return 'ACCESORIES';
+      return 'FRAME';
+    }
+
     function buildAssemblyTree(filterText = '') {
       if (!treeListContainer) return;
       treeListContainer.innerHTML = '';
 
-      allAssembleNodes.forEach((node, index) => {
-        let rawName = node.name || `Composant ${index + 1}`;
+      const categories = {
+        'FRAME': [],
+        'TPU': [],
+        'MOTEURS': [],
+        'HELICES': [],
+        'ELECTRONICS': [],
+        'VIDEO': [],
+        'BATTERIE': [],
+        'ACCESORIES': [],
+        'VISSERIE': []
+      };
+
+      allAssembleNodes.forEach((node) => {
+        let rawName = node.name || `Composant`;
         let cleanName = tidy(rawName);
         if (filterText && !cleanName.toLowerCase().includes(filterText.toLowerCase())) return;
-
-        const li = document.createElement('li');
-        li.className = `tree-item ${selectedNode === node ? 'selected' : ''}`;
-
-        const labelDiv = document.createElement('div');
-        labelDiv.className = 'tree-item-label';
-
-        const chk = document.createElement('input');
-        chk.type = 'checkbox';
-        chk.checked = !node.userData.userHidden;
-        chk.title = "Afficher / Masquer";
-        chk.addEventListener('click', (e) => e.stopPropagation());
-        chk.addEventListener('change', (e) => {
-          node.userData.userHidden = !e.target.checked;
-          node.visible = !node.userData.userHidden;
-          node.traverse(sub => { sub.visible = node.visible; });
-        });
-
-        const span = document.createElement('span');
-        span.textContent = cleanName;
-
-        labelDiv.appendChild(chk);
-        labelDiv.appendChild(span);
-        li.appendChild(labelDiv);
-
-        li.addEventListener('click', () => {
-          selectedNode = node;
-          pickBox.box.setFromObject(node);
-          pickBox.visible = true;
-          document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
-          li.classList.add('selected');
-          
-          const clsKey = classOf(node.name);
-          const clsProfile = PROFILES_MAP.get(clsKey);
-          const clsLabel = clsProfile ? clsProfile.label : clsKey;
-          
-          const stageTag = document.getElementById('stage-tag');
-          const stageTitle = document.getElementById('stage-title');
-          const stageNote = document.getElementById('stage-note');
-          const stageCaption = document.getElementById('stage-caption');
-
-          if (stageTag) stageTag.textContent = "Arbre CAO";
-          if (stageTitle) stageTitle.textContent = cleanName;
-          if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
-          if (stageCaption) stageCaption.textContent = `Composant sélectionné depuis l'arbre d'assemblage.`;
-        });
-
-        treeListContainer.appendChild(li);
+        const cat = getCustomCategory(rawName);
+        if (categories[cat]) {
+          categories[cat].push({ node, cleanName });
+        }
       });
+
+      for (const [catName, items] of Object.entries(categories)) {
+        if (items.length === 0 && !filterText) continue;
+
+        const catDiv = document.createElement('div');
+        catDiv.className = 'tree-category';
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'tree-category-title';
+        titleDiv.textContent = catName;
+        catDiv.appendChild(titleDiv);
+
+        const ul = document.createElement('ul');
+        ul.className = 'tree-sublist';
+
+        items.forEach(({ node, cleanName }) => {
+          const li = document.createElement('li');
+          li.className = `tree-item ${selectedNode === node ? 'selected' : ''}`;
+
+          const labelDiv = document.createElement('div');
+          labelDiv.className = 'tree-item-label';
+
+          const chk = document.createElement('input');
+          chk.type = 'checkbox';
+          chk.checked = !node.userData.userHidden;
+          chk.title = "Afficher / Masquer";
+          chk.addEventListener('click', (e) => e.stopPropagation());
+          chk.addEventListener('change', (e) => {
+            node.userData.userHidden = !e.target.checked;
+            node.visible = !node.userData.userHidden;
+            node.traverse(sub => { sub.visible = node.visible; });
+          });
+
+          const span = document.createElement('span');
+          span.textContent = cleanName;
+
+          labelDiv.appendChild(chk);
+          labelDiv.appendChild(span);
+          li.appendChild(labelDiv);
+
+          li.addEventListener('click', () => {
+            selectedNode = node;
+            pickBox.box.setFromObject(node);
+            pickBox.visible = true;
+            document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+            li.classList.add('selected');
+            
+            const clsKey = classOf(node.name);
+            const clsProfile = PROFILES_MAP.get(clsKey);
+            const clsLabel = clsProfile ? clsProfile.label : clsKey;
+            
+            const stageTag = document.getElementById('stage-tag');
+            const stageTitle = document.getElementById('stage-title');
+            const stageNote = document.getElementById('stage-note');
+            const stageCaption = document.getElementById('stage-caption');
+
+            if (stageTag) stageTag.textContent = "Arbre CAO";
+            if (stageTitle) stageTitle.textContent = cleanName;
+            if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
+            if (stageCaption) stageCaption.textContent = `Composant sélectionné depuis l'arbre d'assemblage.`;
+          });
+
+          ul.appendChild(li);
+        });
+
+        catDiv.appendChild(ul);
+        treeListContainer.appendChild(catDiv);
+      }
     }
 
     treeSearchInput.addEventListener('input', (e) => {
@@ -1320,7 +1368,6 @@
     function isolateNode(node) {
       if (!node) return;
       soloNode = node;
-      // Lorsqu'on isole un groupe principal comme OpenFC, on s'assure que ses sous-éléments restent visibles
       allAssembleNodes.forEach(n => { n.visible = (n === soloNode); });
       propPivots.forEach(p => { p.visible = (p === soloNode); });
     }
@@ -1340,7 +1387,6 @@
         node.visible = true;
         node.traverse(sub => { sub.visible = true; });
       });
-      // S'assurer aussi que les éléments non listés dans l'arbre (vis/petits composants) restent visibles
       if (occRoot) {
         occRoot.traverse(sub => { sub.visible = true; });
       }
@@ -1468,7 +1514,7 @@
       else document.exitFullscreen().catch(() => {});
     });
 
-    // --- VIEW CUBE CAO (Scene fixe indépendante avec synchronisation robuste des directions) ---
+    // --- VIEW CUBE CAO ---
     const vcContainer = document.getElementById('viewcube-container');
     const vcScene = new THREE.Scene();
     const vcCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
@@ -1480,12 +1526,12 @@
 
     const cubeGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
     const cubeMat = [
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Right (+X)
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Left (-X)
-      new THREE.MeshBasicMaterial({ color: 0x303b4d }), // Top (+Y)
-      new THREE.MeshBasicMaterial({ color: 0x181e26 }), // Bottom (-Y)
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }), // Front (+Z)
-      new THREE.MeshBasicMaterial({ color: 0x222a35 })  // Back (-Z)
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }),
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }),
+      new THREE.MeshBasicMaterial({ color: 0x303b4d }),
+      new THREE.MeshBasicMaterial({ color: 0x181e26 }),
+      new THREE.MeshBasicMaterial({ color: 0x222a35 }),
+      new THREE.MeshBasicMaterial({ color: 0x222a35 })
     ];
     const vcCube = new THREE.Mesh(cubeGeo, cubeMat);
     vcScene.add(vcCube);
@@ -1509,30 +1555,12 @@
         const targetPos = controls.target.clone();
         
         switch (faceIndex) {
-          case 0: // Right (+X)
-            camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z);
-            camera.up.set(0, 1, 0);
-            break;
-          case 1: // Left (-X)
-            camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z);
-            camera.up.set(0, 1, 0);
-            break;
-          case 2: // Top (+Y)
-            camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.0001);
-            camera.up.set(0, 0, -1);
-            break;
-          case 3: // Bottom (-Y)
-            camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.0001);
-            camera.up.set(0, 0, 1);
-            break;
-          case 4: // Front (+Z)
-            camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist);
-            camera.up.set(0, 1, 0);
-            break;
-          case 5: // Back (-Z)
-            camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist);
-            camera.up.set(0, 1, 0);
-            break;
+          case 0: camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z); camera.up.set(0, 1, 0); break;
+          case 1: camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z); camera.up.set(0, 1, 0); break;
+          case 2: camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.0001); camera.up.set(0, 0, -1); break;
+          case 3: camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.0001); camera.up.set(0, 0, 1); break;
+          case 4: camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist); camera.up.set(0, 1, 0); break;
+          case 5: camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist); camera.up.set(0, 1, 0); break;
         }
         camera.lookAt(targetPos);
         controls.update();
@@ -1723,4 +1751,3 @@
   </script>
 </body>
 </html>
-```[cite: 1]
