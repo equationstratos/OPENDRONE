@@ -16,7 +16,8 @@ Ce projet autonome permet de visualiser en 3D temps réel le drone **OpenDrone 3
   4. Récepteur radio OpenRX-Mono (ELRS)
   5. Propulsion : moteurs brushless 1604 et hélices tri-pales rotatives
   6. Châssis carbone T700 et berceau vidéo VTX démontable
-- **Vue éclatée interactive** : Slider pour écarter les pièces en 3D dans l'espace.
+- **Arbre d'assemblage simplifié** : 29 pièces principales seulement, regroupées en 6 catégories (Structure carbone, Propulsion, Électronique, Vidéo & FPV, Pièces TPU, Visserie & connectique). Chaque ligne regroupe la totalité des corps CAO de la pièce : masquer « Moteur avant droit » masque le moteur entier, masquer « OpenFC-Lite » masque les 700 corps de la carte. Cases à cocher par pièce et par catégorie, boutons Tout afficher / Tout masquer, filtre texte, et sélection synchronisée avec le clic dans la vue 3D.
+- **Vue éclatée interactive** : Slider pour écarter les pièces en 3D dans l'espace, chaque pièce restant solidaire.
 - **Inspecteur de composants (Raycasting 3D)** : Cliquez sur n'importe quel composant pour afficher son nom, son type de matériau, son nombre de polygones et ses dimensions exactes en millimètres.
 - **Profils d'éclairage** : Studio, Dramatique, Doux, Technique.
 - **Contrôles d'animation** : Vitesse de rotation des hélices, auto-rotation de caméra, mode filaire (Wireframe), plein écran.
