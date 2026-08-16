@@ -1637,37 +1637,46 @@
       vcMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       vcRaycaster.setFromCamera(vcMouse, vcCamera);
       const hits = vcRaycaster.intersectObject(vcCube);
-      if (hits.length > 0) {
-        const faceIndex = Math.floor(hits[0].faceIndex / 2);
+      if (hits.length > 0 && hits[0].face) {
+        // Utilisation robuste de la normale de la face touchée transformée dans l'espace du monde/objet
+        const normal = hits[0].face.normal.clone();
+        normal.transformDirection(vcCube.matrixWorld);
+
         const dist = Math.max(droneRadius * 1.55, 0.17);
         const targetPos = controls.target.clone();
-        
-        switch (faceIndex) {
-          case 0: // +X : Droite
+
+        if (Math.abs(normal.x) > 0.9) {
+          if (normal.x > 0) {
+            // Droite (+X)
             camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z);
             camera.up.set(0, 1, 0);
-            break;
-          case 1: // -X : Gauche
+          } else {
+            // Gauche (-X)
             camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z);
             camera.up.set(0, 1, 0);
-            break;
-          case 2: // +Y : Dessus
+          }
+        } else if (Math.abs(normal.y) > 0.9) {
+          if (normal.y > 0) {
+            // Dessus (+Y)
             camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.0001);
             camera.up.set(0, 0, -1);
-            break;
-          case 3: // -Y : Dessous
+          } else {
+            // Dessous (-Y)
             camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.0001);
             camera.up.set(0, 0, 1);
-            break;
-          case 4: // +Z : Avant
+          }
+        } else if (Math.abs(normal.z) > 0.9) {
+          if (normal.z > 0) {
+            // Avant (+Z)
             camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist);
             camera.up.set(0, 1, 0);
-            break;
-          case 5: // -Z : Arrière
+          } else {
+            // Arrière (-Z)
             camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist);
             camera.up.set(0, 1, 0);
-            break;
+          }
         }
+
         camera.lookAt(targetPos);
         controls.update();
       }
