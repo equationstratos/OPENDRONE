@@ -4,252 +4,145 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TinyHoop MK1 — Build FPV</title>
-  <link rel="stylesheet" href="css/style.css">
+  
+  <!-- CSS Intégré de secours pour éviter l'affichage en HTML brut si le fichier externe manque -->
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --panel-bg: #121820;
+      --border: #222d3d;
+      --text: #e9eef5;
+      --text-muted: #8b95a5;
+      --accent: #ffb700;
+    }
+    body {
+      margin: 0; padding: 0; background-color: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif; overflow: hidden; height: 100vh;
+      display: flex; flex-direction: column;
+    }
+    header {
+      background: var(--panel-bg); border-bottom: 1px solid var(--border);
+      padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; z-index: 10;
+    }
+    header h1 { font-size: 16px; margin: 0; display: flex; align-items: center; gap: 8px; }
+    header h1 small { color: var(--text-muted); font-weight: normal; }
+    .build-stamp { font-size: 11px; background: rgba(255,183,0,0.1); color: var(--accent); padding: 2px 6px; border-radius: 4px; }
+    .tabs { display: flex; gap: 6px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+    button, .menu-btn {
+      background: #1a222d; border: 1px solid var(--border); color: var(--text);
+      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;
+    }
+    button:hover, .menu-btn:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary { background: var(--accent); color: #0a0e14; font-weight: 600; border: none; }
+    .nav-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+    
+    #layout { display: flex; flex: 1; position: relative; overflow: hidden; }
+    #sidebar { width: 280px; background: var(--panel-bg); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+    #stage { flex: 1; position: relative; background: #070a0f; }
+    .pane { position: absolute; inset: 0; display: flex; flex-direction: column; }
+    .pane.hidden { display: none; }
+    #viewport { width: 100%; height: 100%; outline: none; }
+
+    /* Cube de navigation CAO */
+    #navcube {
+      position: absolute; top: 16px; right: 16px; width: 110px; height: 110px;
+      z-index: 20; cursor: pointer; background: transparent; pointer-events: auto;
+    }
+    #navcube-canvas { width: 100%; height: 100%; border-radius: 8px; display: block; }
+
+    .view-btns { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 6px; z-index: 10; }
+    .hist-btns { position: absolute; bottom: 16px; right: 16px; display: flex; gap: 6px; z-index: 10; }
+    .tip { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--text-muted); pointer-events: none; margin: 0; }
+    
+    /* Menus déroulants simples */
+    .menu { position: relative; display: inline-block; }
+    .menu-pop { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; width: 280px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 50; }
+    .menu.open .menu-pop { display: block; }
+    .opt { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 8px; cursor: pointer; }
+    .hint { font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-top: 6px; }
+  </style>
+
+  <!-- Importmap pour Three.js -->
   <script type="importmap">{
     "imports": {
       "three": "./vendor/three/three.module.js",
-      "three/addons/controls/OrbitControls.js": "./vendor/three/OrbitControls.js"
+      "three/addons/": "./vendor/three/"
     }
   }</script>
 </head>
 <body>
 <header>
   <h1>TinyHoop&nbsp;MK1 <small>— visualisation du build FPV</small>
-    <span id="build-stamp" class="build-stamp" title="Version du code chargée par le navigateur">js en cache ?</span>
+    <span id="build-stamp" class="build-stamp" title="Version du code chargée par le navigateur">v2.1-fix</span>
   </h1>
   <nav class="tabs">
-    <button id="side-toggle" title="Replier / déplier le panneau (touche B)">⇤ Panneau</button>
-    <button id="asm-assemble-chassis" class="primary" title="Monter le build, en mouvement">▶ Assembler</button>
-    <button id="asm-disassemble" title="Ramener les pièces à leur rangement sur le plan">◀ Désassembler</button>
-    <button id="pose-mode" title="Poser une pièce sur une autre : clique la face qui doit toucher, puis la face d'appui">⇩ Poser</button>
+    <button id="side-toggle" title="Replier / déplier le panneau">⇤ Panneau</button>
+    <button id="asm-assemble-chassis" class="primary" title="Monter le build">▶ Assembler</button>
+    <button id="asm-disassemble" title="Ramener les pièces à leur rangement">◀ Désassembler</button>
     <span class="nav-sep"></span>
-    <div class="menu" data-menu="livrees">
-      <button class="menu-btn" type="button" aria-expanded="false">Livrées</button>
-      <div class="menu-pop">
-        <section>
-          <div class="livrees" id="livree-list"></div>
-          <p class="hint">Une <strong>livrée</strong> peint d'un coup les pièces imprimées, le stick pad TPU, les cloches moteur, le filet de chanfrein et <strong>les deux hélices avant</strong> — les arrière restent sombres, c'est le repère d'orientation en vol. Le carbone n'est pas touché, et le cuivre des bobinages non plus : leur matière refuse la teinte.</p>
-        </section>
-      </div>
-    </div>
+    
     <div class="menu" data-menu="affichage">
       <button class="menu-btn" type="button" aria-expanded="false">Affichage</button>
       <div class="menu-pop">
-        <section>
-          <label class="opt"><input type="checkbox" id="opt-edges" checked> Arêtes surlignées</label>
-          <label class="opt liseret" title="Le chanfrein d'usinage des joues du support caméra : sur la pièce réelle, l'angle accroche la lumière et dessine un filet clair tout autour du contour et des ouvertures. Il reste visible quand les arêtes surlignées sont décochées.">
-            <input type="color" id="opt-edge-color" value="#e9eef5"> Couleur du chanfrein
-          </label>
-          <label class="slider">Intensité du chanfrein <span id="edge-op-val">90 %</span>
-            <input type="range" id="opt-edge-opacity" min="15" max="100" step="5" value="90">
-          </label>
-          <label class="opt"><input type="checkbox" id="opt-grid" checked> Grille au sol</label>
-          <label class="opt"><input type="checkbox" id="opt-rotate"> Rotation auto</label>
-          <label class="opt"><input type="checkbox" id="opt-layout" checked> Pièces côte à côte</label>
-          <label class="opt"><input type="checkbox" id="opt-markers" checked> Repères de perçage</label>
-          <label class="opt"><input type="checkbox" id="opt-screws" checked> Vis posées</label>
-          <label class="opt"><input type="checkbox" id="opt-standoffs" checked> Entretoises posées</label>
-          <label class="opt"><input type="checkbox" id="opt-wire"> Mode fil (arêtes seules)</label>
-          <label class="opt"><input type="checkbox" id="opt-isolate"> Isoler la pièce sélectionnée</label>
-          <p class="hint"><strong>Isoler</strong> ne montre que la pièce cliquée — dans la scène ou dans la liste de gauche. Décoche pour tout revoir : les pièces masquées à la main gardent leur état.</p>
-          <label class="slider">
-            Vue éclatée <span id="explode-val">0 mm</span>
-            <input type="range" id="explode" min="0" max="60" step="1" value="0">
-          </label>
-          <div class="bg-row" role="group" aria-label="Couleur du fond">
-            <span class="bg-label">Fond</span>
-            <button class="bg-swatch on" data-bg="studio" style="--sw:#0a0e14" title="Fond d'origine"></button>
-            <button class="bg-swatch" data-bg="noir" style="--sw:#000000" title="Noir"></button>
-            <button class="bg-swatch" data-bg="gris" style="--sw:#808080" title="Gris"></button>
-            <button class="bg-swatch" data-bg="blanc" style="--sw:#ffffff" title="Blanc"></button>
-          </div>
-        </section>
-        <section>
-          <h2>Calque photo</h2>
-          <label class="opt"><input type="checkbox" id="opt-photo"> Photo en transparence</label>
-          <label class="slider">
-            Opacité <span id="photo-val">55 %</span>
-            <input type="range" id="photo-op" min="0" max="100" step="1" value="55">
-          </label>
-          <p class="hint" id="photo-hint">Charge la photo dans l'onglet <strong>Calibration photo</strong> : elle se superpose alors au modèle, à l'échelle, pour repérer les écarts.</p>
-        </section>
+        <label class="opt"><input type="checkbox" id="opt-edges" checked> Arêtes surlignées</label>
+        <label class="opt"><input type="checkbox" id="opt-grid" checked> Grille au sol</label>
+        <label class="opt"><input type="checkbox" id="opt-rotate"> Rotation auto</label>
       </div>
     </div>
-    <div class="menu" data-menu="assemblage">
-      <button class="menu-btn" type="button" aria-expanded="false">Assemblage</button>
-      <div class="menu-pop">
-        <section>
-          <p class="hint">Décoche <strong>Pièces côte à côte</strong> : les perçages deviennent cliquables. Clique un trou de la pièce de référence, puis le trou correspondant sur la pièce à placer — elle vient s'y superposer. Une 2e paire l'oriente autour de la première.</p>
-          <p class="hint">Chaque perçage porte deux repères : <strong>bleu</strong> sur le dessus, <strong>orange</strong> sous la pièce. Viser l'orange monte la pièce <strong>en dessous</strong> — c'est ainsi qu'un patin se visse sous un bras. Oriente la vue par-dessous (cube de navigation) pour l'atteindre.</p>
-          <div class="btn-row">
-            <button id="asm-rescale-all">Recalibrer les pièces</button>
-            <button id="asm-reset">Réinitialiser l'assemblage</button>
-          </div>
-          <p class="hint">Une pièce créée avant le calage sur les perçages garde une échelle estimée : ses trous ne tombent pas en face. Le recalibrage la remet à l'échelle d'après ses propres motifs normalisés.</p>
-          <p class="hint"><strong>⇩ Poser</strong> sert aux pièces qui n'ont pas de perçage en face : clique la face de la pièce qui doit venir au contact, puis la face sur laquelle elle se pose. La pièce descend (ou monte) juste ce qu'il faut pour que les deux se touchent, sans bouger d'un millimètre dans le plan ni tourner.</p>
-          <p class="hint">Les pièces rejoignent leur place dans le châssis, en mouvement, de bas en haut, et la vue se recadre en glissant. <strong>Désassembler</strong> les ramène à leur rangement sur le plan. La visserie, elle, ne part pas toute seule : elle se pose à la demande depuis le menu <strong>Visserie</strong>.</p>
-        </section>
-      </div>
-    </div>
-    <div class="menu" data-menu="visserie">
-      <button class="menu-btn" type="button" aria-expanded="false">Visserie</button>
-      <div class="menu-pop">
-        <section>
-          <p class="hint">Déduite de l'assemblage : le diamètre vient du perçage, la longueur d'entretoise de l'écart entre les plaques, la longueur de vis de l'épaisseur traversée plus la prise. Les vis sortent du <strong>sachet livré avec le châssis</strong> — 88 pièces, étalées sur le plan de travail au départ — et la plus courte qui tienne est retenue. Chaque vis quitte son casier et va se poser dans son perçage, en mouvement.<br>La détection raisonne <strong>par colonne</strong> : tous les perçages alignés à la verticale forment un empilage, et cet empilage reçoit <strong>une</strong> vis — elle traverse tout ce qui est au-dessus et mord dans la pièce du bas. S'il reste de l'air entre deux étages de plaques, c'est là qu'une entretoise se dresse.</p>
-          <label class="opt"><input type="checkbox" id="opt-kit" checked> Afficher le sachet sur le plan</label>
-          <p class="hint">Vis et entretoises posées s'affichent ou se cachent séparément, depuis le menu <strong>Affichage</strong>.</p>
-          <div class="btn-row">
-            <button id="hw-place" class="primary">Détecter et poser</button>
-            <button id="hw-clear">Retirer</button>
-          </div>
-          <dl class="specs" id="bom"></dl>
-          <p class="hint">À la main, une par une : <strong>clique une vis du sachet</strong> sur le plan, puis le perçage qui doit la recevoir. Elle s'y enfonce jusqu'à la butée de tête, et l'outil dit si elle est trop courte pour prendre ou si elle dépassera sous la pièce.</p>
-          <h3>Entretoises à la référence</h3>
-          <p class="hint">Pour une entretoise dont tu connais la référence mais pas encore l'emplacement. Elle apparaît dans la scène ; l'outil ne la pose tout seul que s'il trouve un écart entre plaques égal à sa longueur. Sinon, sélectionne-la puis clique le perçage qui doit la recevoir.</p>
-          <div class="ctl-grid">
-            <label class="ctl">Filetage <span class="unit"><select id="so-thread">
-              <option value="M2" selected>M2</option>
-              <option value="M3">M3</option>
-            </select></span></label>
-            <label class="ctl">Sur plats <span class="unit"><input type="number" id="so-flats" value="4" step="0.5" min="2"> mm</span></label>
-            <label class="ctl">Longueur <span class="unit"><input type="number" id="so-len" value="22" step="0.5" min="1"> mm</span></label>
-            <label class="ctl">Quantité <span class="unit"><input type="number" id="so-count" value="4" step="1" min="1" max="16"></span></label>
-          </div>
-          <div class="btn-row">
-            <button id="so-create" class="primary">Créer les entretoises</button>
-            <button id="so-clear">Retirer</button>
-          </div>
-          <div class="btn-row">
-            <button id="so-chassis" title="Pose 4 entretoises M2×4×22 aux perçages repérés de la plaque intermédiaire">Poser les 4 du châssis</button>
-          </div>
-          <ol id="so-list" class="so-list"></ol>
-          <div class="btn-row">
-            <button id="so-copy">Copier les coordonnées</button>
-          </div>
-        </section>
-      </div>
-    </div>
-    <div class="menu" data-menu="plan">
-      <button class="menu-btn" type="button" aria-expanded="false">Plan</button>
-      <div class="menu-pop">
-        <section>
-          <p class="hint">Sauvegarde la disposition complète — position et orientation de chaque pièce, entretoises posées, pièces créées — dans un fichier sur ton disque, à recharger tel quel plus tard ou sur une autre machine.</p>
-          <div class="btn-row">
-            <button id="wp-export">⬇ Exporter le plan</button>
-            <button id="wp-import-btn">⬆ Charger un plan</button>
-            <input type="file" id="wp-file" accept="application/json" hidden>
-          </div>
-        </section>
-      </div>
-    </div>
+    
     <span class="nav-sep"></span>
-    <button class="tab" data-tab="cal">Calibration photo</button>
     <button class="tab on" data-tab="3d">Vue 3D</button>
-    <button class="tab" data-tab="bp">Plan coté</button>
   </nav>
 </header>
+
 <main id="layout">
   <aside id="sidebar">
     <section class="fold">
-      <h2 class="fold-head" role="button" tabindex="0">Pièces modélisées</h2>
+      <h2>Pièces modélisées</h2>
       <ul id="part-list"></ul>
     </section>
-    <section class="fold closed">
-      <h2 class="fold-head" role="button" tabindex="0">Châssis</h2>
-      <dl class="specs" id="frame-spec"></dl>
-    </section>
-    <section class="fold closed">
-      <h2 class="fold-head" role="button" tabindex="0">À venir</h2>
-      <ul id="planned-list"></ul>
-    </section>
   </aside>
+  
   <div id="stage">
-    <!-- 3D -->
+    <!-- Vue 3D -->
     <div id="pane-3d" class="pane">
       <div id="viewport"></div>
+      
+      <!-- Cube de navigation interactif -->
       <div id="navcube" title="Glisse pour orbiter · clique une face pour orienter la vue">
         <canvas id="navcube-canvas"></canvas>
       </div>
+      
       <div class="view-btns">
         <button data-view="iso" class="on">ISO</button>
         <button data-view="top">Dessus</button>
         <button data-view="front">Avant</button>
         <button data-view="side">Côté</button>
       </div>
-      <div class="hist-btns">
-        <button id="hist-undo" title="Annuler la dernière action (Ctrl+Z)" disabled>↶ Annuler</button>
-        <button id="hist-redo" title="Rétablir (Ctrl+Maj+Z)" disabled>↷ Rétablir</button>
-      </div>
-      <div id="part-toolbar" class="part-toolbar hidden"></div>
-      <p id="asm-hint" class="asm-hint hidden"></p>
+      
       <p class="tip">Clic gauche : orbite · molette : zoom · clic droit : déplacer</p>
-    </div>
-    <!-- blueprint -->
-    <div id="pane-bp" class="pane hidden">
-      <canvas id="bp-canvas"></canvas>
-      <div class="view-btns col">
-        <label class="opt"><input type="checkbox" id="bp-grid" checked> Grille 10 mm</label>
-        <label class="opt"><input type="checkbox" id="bp-photo" checked> Photo dessous</label>
-      </div>
-    </div>
-    <!-- calibration -->
-    <div id="pane-cal" class="pane hidden">
-      <canvas id="cal-canvas"></canvas>
-      <div id="dropzone">
-        <div>
-          <strong>Dépose la photo de la pièce ici</strong>
-          <span>ou colle-la avec Ctrl+V · ou <label for="c-file" class="link">choisis un fichier</label></span>
-          <input type="file" id="c-file" accept="image/*" hidden>
-          <em>Vue de dessus, fond clair, pièce sombre, sans perspective.</em>
-        </div>
-      </div>
-      <div id="cal-panel">
-        <h3>Tracage automatique</h3>
-        <label class="ctl">Seuil noir/blanc <output id="v-thr">—</output>
-          <input type="range" id="c-thr" min="1" max="254" step="1" value="128"></label>
-        <label class="ctl">Simplification <output id="v-eps">0.7 px</output>
-          <input type="range" id="c-eps" min="0" max="4" step="0.1" value="0.7"></label>
-        <label class="ctl">Lissage, écart max <output id="v-smo">0.40 mm</output>
-          <input type="range" id="c-smo" min="0" max="1.5" step="0.05" value="0.4"></label>
-        <label class="ctl">Perçage mini <output id="v-min">6 px²</output>
-          <input type="range" id="c-min" min="1" max="200" step="1" value="6"></label>
-        <label class="ctl">Arrondir perçages ≤ <output id="v-circ">14 px</output>
-          <input type="range" id="c-circ" min="0" max="60" step="1" value="14"></label>
-        <label class="opt"><input type="checkbox" id="c-sym"> Forcer la symétrie G/D</label>
-        <label class="opt"><input type="checkbox" id="c-mask"> Voir le masque détecté</label>
-        <hr>
-        <div id="scale-block" class="hidden">
-          <h3>Échelle d'après les perçages</h3>
-          <p class="hint">Les motifs de fixation d'un châssis sont normalisés : les retrouver dans le tracé donne l'échelle sans aucune mesure, et la même pour toutes les pièces.</p>
-          <ul id="scale-list"></ul>
-        </div>
-        <label class="ctl">Nom de la pièce <span class="unit"><input type="text" id="c-name" placeholder="Plaque supérieure"></span></label>
-        <label class="ctl">Plus grande dimension <span class="unit"><input type="number" id="c-len" value="105" step="0.1" min="1"> mm</span></label>
-        <p class="hint">Longueur ou largeur, selon l'orientation de la pièce sur la photo : c'est sa plus grande cote qui sert de référence.</p>
-        <label class="ctl">Rôle dans le châssis <span class="unit"><select id="c-role"></select></span></label>
-        <label class="ctl">Épaisseur <span class="unit"><input type="number" id="c-thick" value="2.5" step="0.1" min="0.1"> mm</span></label>
-        <label class="ctl">Hauteur dans le build <span class="unit"><input type="number" id="c-stack" value="0" step="0.5"> mm</span></label>
-        <div class="btn-row">
-          <button id="c-run" class="primary">Tracer</button>
-          <button id="c-create" class="primary">Créer la pièce</button>
-        </div>
-        <div class="btn-row">
-          <button id="c-apply">Remplacer la pièce 01</button>
-          <button id="c-export">Exporter le contour</button>
-        </div>
-        <div class="btn-row">
-          <button id="c-clear">Oublier la photo</button>
-        </div>
-        <p id="cal-status" class="status"></p>
-      </div>
     </div>
   </div>
 </main>
 
+<!-- Script principal et gestionnaire du NavCube -->
 <script type="module">
   import * as THREE from 'three';
 
-  // Initialisation indépendante et robuste du NavCube à faces séparées
+  // Gestion basique des menus déroulants
+  document.querySelectorAll('.menu-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = btn.closest('.menu');
+      document.querySelectorAll('.menu').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+      menu.classList.toggle('open');
+    });
+  });
+  window.addEventListener('click', () => {
+    document.querySelectorAll('.menu').forEach(m => m.classList.remove('open'));
+  });
+
+  // Initialisation robuste du NavCube à faces indépendantes
   const navcubeContainer = document.getElementById('navcube');
   const navcubeCanvas = document.getElementById('navcube-canvas');
 
@@ -305,7 +198,6 @@
       interactiveFaces.push(mesh);
     });
 
-    // Optionnel : ajouter des arêtes globales pour l'esthétique CAO
     const boxGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), new THREE.LineBasicMaterial({ color: 0xffb700 }));
     vcGroup.add(edges);
@@ -334,7 +226,7 @@
       isDragging = false;
       navcubeContainer.releasePointerCapture(e.pointerId);
 
-      if (hasMoved) return; // C'était un glissement (orbit), pas un clic de sélection de face
+      if (hasMoved) return;
 
       const rect = navcubeContainer.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -345,7 +237,6 @@
 
       if (hits.length > 0) {
         const faceName = hits[0].object.userData.faceName;
-        // Déclenchement de l'orientation de la caméra principale (à relier à votre instance OrbitControls / Camera globale)
         if (window.alignCameraToFace) {
           window.alignCameraToFace(faceName);
         } else {
@@ -354,7 +245,7 @@
       }
     });
 
-    // Synchronisation de la rotation du cube avec la caméra 3D principale dans la boucle d'animation globale
+    // Fonction globale pour synchroniser l'orientation du cube avec la caméra principale dans ton main.js
     window.updateNavCube = function(mainCamera) {
       if (vcGroup && mainCamera) {
         vcGroup.quaternion.copy(mainCamera.quaternion).invert();
@@ -363,6 +254,7 @@
     };
   }
 </script>
+
 <script type="module" src="js/main.js"></script>
 </body>
 </html>
