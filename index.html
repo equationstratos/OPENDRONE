@@ -287,7 +287,7 @@
     .menu-group { margin-bottom: 10px; }
     .menu-group:last-child { margin-bottom: 0; }
     .menu-group-header { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
-    .palette-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 4px; }
+    .palette-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 4px; }
     .swatch {
       width: 100%; height: 22px; border-radius: 4px; border: 1px solid var(--border); cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease;
     }
@@ -621,7 +621,16 @@
         </button>
         <div class="dropdown-content">
           <div class="menu-group" style="margin-top: 4px;">
-            <div class="menu-group-header">Thèmes Prédéfinis</div>
+            <div class="menu-group-header">Bicolores OpenDrone</div>
+            <div class="theme-grid">
+              <button class="btn-theme" data-theme="bleu-jaune">Bleu / Jaune</button>
+              <button class="btn-theme" data-theme="bleu-blanc">Bleu / Blanc</button>
+              <button class="btn-theme" data-theme="bleu-noir">Bleu / Noir</button>
+              <button class="btn-theme" data-theme="vert-violet">Vert / Violet</button>
+            </div>
+          </div>
+          <div class="menu-group" style="margin-top: 8px;">
+            <div class="menu-group-header">Signatures</div>
             <div class="theme-grid">
               <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
               <button class="btn-theme" data-theme="sunset">Sunset FPV</button>
@@ -868,7 +877,8 @@
       { name: 'Girly', hex: '#ff4081' },
       { name: 'White Wolf', hex: '#f0f2f5' },
       { name: 'Spider', hex: '#9c27b0' },
-      { name: 'Cobalt', hex: '#00b0ff' }
+      { name: 'Cobalt', hex: '#00b0ff' },
+      { name: 'Bleu Roi', hex: '#0f3fd8' }
     ];
 
     let activeTpuHex = '#ff6b00';
@@ -1052,7 +1062,7 @@
     controls.panSpeed = 0.55;
     controls.addEventListener('start', () => { camTween = null; });
     controls.minDistance = 0.08;
-    controls.maxDistance = 3.0;
+    controls.maxDistance = 4.5;
 
     const world = new THREE.Group();
     world.rotation.x = -Math.PI / 2;
@@ -1605,33 +1615,97 @@
       stepIndex = 0;
     }
 
+    // Les pièces d'un même type partagent une famille : les 4 moteurs se posent
+    // en bloc, les 4 hélices aussi, au lieu d'être dispersées dans la grille.
+    function familyOf(g) {
+      const m = /^(motor|prop)-\d+$/.exec(g.id);
+      return m ? m[1] : g.id;
+    }
+
+    // Largeur d'une bande, en cases. Les gouttières sont fractionnaires : elles
+    // séparent les familles à l'œil sans coûter une case entière.
+    const FLAT_MAX_COLS = 6.5;
+    const FLAT_GAP_COL = 0.3;  // entre deux familles d'une même catégorie
+    const FLAT_GAP_CAT = 0.7;  // entre deux catégories
+    const FLAT_GAP_ROW = 0.45;
+
     function computeFlatLayPositions() {
       if (!assemblyGroups.length || !occRoot) return;
       const scl = new THREE.Vector3();
       occRoot.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), scl);
       const unit = Math.abs(scl.x) > 1e-6 ? Math.abs(scl.x) : 1;
       worldToLocalUnit = 1 / unit;
-      const spacing = droneRadius * 0.95 * worldToLocalUnit;
+      const spacing = droneRadius * 0.8 * worldToLocalUnit;
 
-      const n = assemblyGroups.length;
-      const cols = Math.ceil(Math.sqrt(n));
-      const rows = Math.ceil(n / cols);
-      const startX = -((cols - 1) * spacing) / 2;
-      const startY = -((rows - 1) * spacing) / 2;
+      // 1. Regrouper les entrées consécutives de même famille (l'arbre est déjà trié par catégorie).
+      const clusters = [];
+      assemblyGroups.forEach((g) => {
+        const fam = familyOf(g);
+        const last = clusters[clusters.length - 1];
+        if (last && last.fam === fam && last.cat === g.cat) last.items.push(g);
+        else clusters.push({ fam, cat: g.cat, items: [g] });
+      });
 
-      assemblyGroups.forEach((g, idx) => {
-        const r = Math.floor(idx / cols);
-        const c = idx % cols;
+      // 2. Rangement en bandes : les familles restent d'un seul tenant et les
+      //    catégories se suivent, mais deux catégories courtes partagent une
+      //    bande — sinon le plateau s'étire et les pièces deviennent minuscules.
+      const cells = new Map();
+      const bandWidths = [];
+      let row = 0, col = 0, bandHeight = 1, usedCols = 0, currentCat = null, band = 0;
+
+      const closeBand = () => { bandWidths[band] = col; };
+
+      clusters.forEach((cl) => {
+        const n = cl.items.length;
+        const w = n > 1 ? Math.ceil(n / 2) : 1;
+        const h = n > 1 ? 2 : 1;
+        const gap = (currentCat === null || cl.cat === currentCat) ? FLAT_GAP_COL : FLAT_GAP_CAT;
+
+        // Nouvelle bande si la place manque, ou si le bloc est plus haut qu'elle.
+        if (col > 0 && (col + gap + w > FLAT_MAX_COLS || h > bandHeight)) {
+          closeBand(); band++; row += bandHeight + FLAT_GAP_ROW; col = 0; bandHeight = h;
+        } else if (col === 0) {
+          bandHeight = h;
+        } else {
+          col += gap;
+        }
+
+        // Un bloc plus court que sa bande est centré verticalement dedans.
+        const rowOffset = (bandHeight - h) / 2;
+        cl.items.forEach((g, i) => {
+          cells.set(g, {
+            c: col + (n > 1 ? i % w : 0),
+            r: row + rowOffset + (n > 1 ? Math.floor(i / w) : 0),
+            band
+          });
+        });
+
+        col += w;
+        usedCols = Math.max(usedCols, col);
+        currentCat = cl.cat;
+      });
+      closeBand();
+
+      // Chaque bande est recentrée : sans ça les catégories courtes restent
+      // collées à gauche et le plateau paraît vide à droite.
+      cells.forEach((cell) => { cell.c += (usedCols - bandWidths[cell.band]) / 2; });
+
+      const totalRows = row + bandHeight;
+      const startX = -((usedCols - 1) * spacing) / 2;
+      const startY = -((totalRows - 1) * spacing) / 2;
+
+      assemblyGroups.forEach((g) => {
+        const cell = cells.get(g) || { c: 0, r: 0 };
         g.flatOffset.set(
-          startX + c * spacing - g.centreLocal.x,
-          startY + r * spacing - g.centreLocal.y,
+          startX + cell.c * spacing - g.centreLocal.x,
+          startY + cell.r * spacing - g.centreLocal.y,
           -g.centreLocal.z
         );
       });
 
       // Sphère englobante du plateau (en unités monde) pour cadrer la caméra sans attendre l'animation.
       flatLayCentre.set(0, 0, 0).applyMatrix4(occRoot.matrixWorld);
-      const halfDiag = Math.hypot((cols - 1) * spacing, (rows - 1) * spacing) / 2;
+      const halfDiag = Math.hypot((usedCols - 1) * spacing, (totalRows - 1) * spacing) / 2;
       const biggest = assemblyGroups.reduce((m, g) => Math.max(m, g.size.length() / 2), 0);
       flatLayRadius = halfDiag * unit + biggest;
     }
@@ -1889,15 +1963,6 @@
       return { pos: dir.normalize().multiplyScalar(dist).add(centre), dist };
     }
 
-    function fitCamera(centre, radiusWorld, margin = 1.35) {
-      const { pos, dist } = cameraPosFor(centre, radiusWorld, margin);
-      controls.target.copy(centre);
-      camera.position.copy(pos);
-      camera.far = Math.max(10, dist * 4);
-      camera.updateProjectionMatrix();
-      controls.update();
-    }
-
     // Oriente la caméra le long d'une direction monde, en conservant le zoom
     // courant : on ne fait que pivoter autour de la cible. Partagé par le
     // ViewCube et le sélecteur de vue en bas à gauche.
@@ -2042,7 +2107,7 @@
     btnFlatLay.addEventListener('click', () => {
       setMode('flatlay');
       startMorph();
-      flyToFit(flatLayCentre, flatLayRadius, 1.35, MORPH_DUR + MORPH_STAGGER);
+      flyToFit(flatLayCentre, flatLayRadius, 1.08, MORPH_DUR + MORPH_STAGGER);
     });
     btnStepByStep.addEventListener('click', () => {
       if (stateMode === 'stepbystep') { gotoStep(stepIndex + 1); return; }
@@ -2323,7 +2388,15 @@
       updateTreeClamping();
     });
 
+    const BLEU_ROI = '#0f3fd8';
+
     const THEMES = {
+      // Bicolores de la roadmap, construits autour du bleu roi.
+      'bleu-jaune': { tpu: BLEU_ROI, motor: BLEU_ROI, prop: '#f5c518', standoff: '#f5c518', screw: '#111111' },
+      'bleu-blanc': { tpu: BLEU_ROI, motor: '#f0f2f5', prop: '#f0f2f5', standoff: '#f0f2f5', screw: '#7c8590' },
+      'bleu-noir': { tpu: BLEU_ROI, motor: '#111111', prop: '#111111', standoff: BLEU_ROI, screw: '#111111' },
+      'vert-violet': { tpu: '#00e676', motor: '#9c27b0', prop: '#00e676', standoff: '#9c27b0', screw: '#111111' },
+      // Signatures d'origine.
       cyberpunk: { tpu: '#00e676', motor: '#111111', prop: '#00e676', standoff: '#f5c518', screw: '#111111' },
       sunset: { tpu: '#ff6b00', motor: '#ff4081', prop: '#ff6b00', standoff: '#f5c518', screw: '#7c8590' },
       stealth: { tpu: '#111111', motor: '#7c8590', prop: '#f0f2f5', standoff: '#111111', screw: '#111111' },
@@ -2334,6 +2407,7 @@
       btn.addEventListener('click', () => {
         const theme = THEMES[btn.dataset.theme];
         if (!theme) return;
+        document.querySelectorAll('.btn-theme[data-theme]').forEach(o => o.classList.toggle('active', o === btn));
         activeTpuHex = theme.tpu; activeMotorHex = theme.motor; activePropHex = theme.prop; activeStandoffHex = theme.standoff; activeScrewHex = theme.screw;
         applyCategoryColor('tpu', activeTpuHex);
         applyCategoryColor('motor', activeMotorHex);
