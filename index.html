@@ -481,6 +481,14 @@
         </button>
         <div class="dropdown-content">
           <div class="menu-group">
+            <div class="menu-group-header">Fond du Plan de Travail</div>
+            <div class="theme-grid">
+              <button class="btn-theme" data-bg="#0b1329">Bleu Foncé</button>
+              <button class="btn-theme" data-bg="#2a2e35">Gris</button>
+              <button class="btn-theme" data-bg="#f0f2f5" style="color:#000;">Blanc</button>
+            </div>
+          </div>
+          <div class="menu-group" style="margin-top: 8px;">
             <div class="menu-group-header">Thèmes Prédéfinis</div>
             <div class="theme-grid">
               <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
@@ -623,6 +631,12 @@
 
   <!-- Bottom HUD -->
   <div class="bottom-hud">
+    <button class="btn-pill active" id="btn-toggle-prop-spin" title="Activer / Désactiver la rotation des hélices">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83"></path>
+      </svg>
+      <span>Hélices</span>
+    </button>
     <button class="btn-pill" id="btn-camera-reset" title="Recentrer et zoomer sur le drone">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -1035,6 +1049,7 @@
     let autoOrbitRate = 0.12;
     let orbitAngle = 0.8;
     let isWireframe = false;
+    let isPropSpinning = true;
 
     function onLoaded() {
       scene.updateMatrixWorld(true);
@@ -1052,11 +1067,20 @@
       allAssembleNodes = [];
       occRoot.traverse((node) => {
         if (node.parent === occRoot) {
+          // Filtrage pour ne garder que les pièces principales dans l'arbre (ignorer vis, écrous et petits éléments individuels)
+          const nameLower = (node.name || '').toLowerCase();
+          const isSmallPartOrScrew = /screw|nut|washer|pressnut|press nut/i.test(nameLower) || 
+                                    (/board-/i.test(nameLower) && node.children.length > 5); // Simplification des cartes si nécessaire, ou filtrage strict
+          
           node.userData.origPos = node.position.clone();
           node.userData.origQuat = node.quaternion.clone();
           node.userData.origScale = node.scale.clone();
           node.userData.userHidden = false;
-          allAssembleNodes.push(node);
+          
+          // On exclut les vis et petites pièces de la liste principale de l'arbre tout en les gardant dans le modèle 3D
+          if (!/screw|nut|washer|pressnut|press nut/i.test(nameLower)) {
+            allAssembleNodes.push(node);
+          }
         }
       });
 
@@ -1296,6 +1320,7 @@
     function isolateNode(node) {
       if (!node) return;
       soloNode = node;
+      // Lorsqu'on isole un groupe principal comme OpenFC, on s'assure que ses sous-éléments restent visibles
       allAssembleNodes.forEach(n => { n.visible = (n === soloNode); });
       propPivots.forEach(p => { p.visible = (p === soloNode); });
     }
@@ -1304,6 +1329,7 @@
       if (!node) return;
       node.userData.userHidden = true;
       node.visible = false;
+      node.traverse(sub => { sub.visible = false; });
       buildAssemblyTree(treeSearchInput.value);
     }
 
@@ -1314,11 +1340,14 @@
         node.visible = true;
         node.traverse(sub => { sub.visible = true; });
       });
+      // S'assurer aussi que les éléments non listés dans l'arbre (vis/petits composants) restent visibles
+      if (occRoot) {
+        occRoot.traverse(sub => { sub.visible = true; });
+      }
       propPivots.forEach(p => {
         p.visible = true;
         p.traverse(sub => { sub.visible = true; });
       });
-      if (occRoot) occRoot.traverse(sub => { sub.visible = true; });
       buildAssemblyTree(treeSearchInput.value);
     }
 
@@ -1365,7 +1394,7 @@
       gold: { tpu: '#9c27b0', motor: '#ffb700', prop: '#f0f2f5', standoff: '#ffb700', screw: '#f5c518' }
     };
 
-    document.querySelectorAll('.btn-theme').forEach(btn => {
+    document.querySelectorAll('.btn-theme[data-theme]').forEach(btn => {
       btn.addEventListener('click', () => {
         const theme = THEMES[btn.dataset.theme];
         if (!theme) return;
@@ -1376,6 +1405,14 @@
         applyCategoryColor('alu', activeStandoffHex);
         applyCategoryColor('steel', activeScrewHex);
         buildPalettes();
+      });
+    });
+
+    // Sélecteur de couleur de fond
+    document.querySelectorAll('.btn-theme[data-bg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const bgColor = btn.dataset.bg;
+        scene.background.set(bgColor);
       });
     });
 
@@ -1399,6 +1436,13 @@
       isWireframe = !isWireframe;
       btnWireframe.classList.toggle('active', isWireframe);
       allMeshes.forEach(m => { if (m.material) m.material.wireframe = isWireframe; });
+    });
+
+    // Bouton marche/arrêt de rotation des hélices
+    const btnTogglePropSpin = document.getElementById('btn-toggle-prop-spin');
+    btnTogglePropSpin.addEventListener('click', () => {
+      isPropSpinning = !isPropSpinning;
+      btnTogglePropSpin.classList.toggle('active', isPropSpinning);
     });
 
     const bindSlider = (id, fn) => {
@@ -1464,7 +1508,6 @@
         const dist = Math.max(droneRadius * 1.55, 0.17);
         const targetPos = controls.target.clone();
         
-        // Utilisation des directions absolues mondiales pour positionner correctement la caméra sur chaque face
         switch (faceIndex) {
           case 0: // Right (+X)
             camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z);
@@ -1616,7 +1659,7 @@
       requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.05);
 
-      if (propPivots.length > 0 && propRPM > 0.01) {
+      if (propPivots.length > 0 && propRPM > 0.01 && isPropSpinning) {
         for (const p of propPivots) {
           if (p.userData.spin) p.userData.spin.rotation.z += dt * propRPM * 10 * p.userData.dir;
         }
@@ -1661,7 +1704,6 @@
         });
       }
 
-      // Synchronisation de la rotation du cube de vue avec la caméra principale
       vcCube.quaternion.copy(camera.quaternion).invert();
       vcRenderer.render(vcScene, vcCamera);
 
@@ -1681,3 +1723,4 @@
   </script>
 </body>
 </html>
+```[cite: 1]
