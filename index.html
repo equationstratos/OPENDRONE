@@ -1074,33 +1074,50 @@
         }
       });
 
-      let motorCount = 0;
-      let propCount = 0;
+      // Ajout explicite groupé pour les 4 moteurs avec toutes leurs sous-parties groupées sous le même nœud logique
+      const motorsMap = new Map();
       occRoot.traverse((node) => {
         const rawName = node.name || '';
         if (/^Admi/i.test(tidy(rawName))) {
-          motorCount++;
-          if (motorCount <= 4) {
-            node.userData.customDisplayName = `moteur ${motorCount}`;
-            node.userData.customCategory = 'MOTEURS';
-            node.userData.origPos = node.position.clone();
-            node.userData.origQuat = node.quaternion.clone();
-            node.userData.origScale = node.scale.clone();
-            node.userData.userHidden = false;
-            allAssembleNodes.push(node);
+          let topMotor = node;
+          while (topMotor.parent && topMotor.parent !== occRoot) {
+            topMotor = topMotor.parent;
+          }
+          if (!motorsMap.has(topMotor)) {
+            motorsMap.set(topMotor, []);
+          }
+          motorsMap.get(topMotor).push(node);
+        }
+      });
+
+      let motorIdx = 0;
+      for (const [topMotor] of motorsMap.entries()) {
+        motorIdx++;
+        if (motorIdx <= 4) {
+          topMotor.userData.customDisplayName = `moteur ${motorIdx}`;
+          topMotor.userData.customCategory = 'MOTEURS';
+          if (!topMotor.userData.origPos) {
+            topMotor.userData.origPos = topMotor.position.clone();
+            topMotor.userData.origQuat = topMotor.quaternion.clone();
+            topMotor.userData.origScale = topMotor.scale.clone();
+            topMotor.userData.userHidden = false;
+            allAssembleNodes.push(topMotor);
           }
         }
-        if (/^prop-pivot/i.test(rawName)) {
-          propCount++;
-          if (propCount <= 4) {
-            node.userData.customDisplayName = `helice ${propCount}`;
-            node.userData.customCategory = 'HELICES';
-            node.userData.origPos = node.position.clone();
-            node.userData.origQuat = node.quaternion.clone();
-            node.userData.origScale = node.scale.clone();
-            node.userData.userHidden = false;
-            allAssembleNodes.push(node);
-          }
+      }
+
+      // Ajout des pivots d'hélices
+      let propCount = 0;
+      propPivots.forEach((p) => {
+        propCount++;
+        if (propCount <= 4) {
+          p.userData.customDisplayName = `helice ${propCount}`;
+          p.userData.customCategory = 'HELICES';
+          p.userData.origPos = p.position.clone();
+          p.userData.origQuat = p.quaternion.clone();
+          p.userData.origScale = p.scale.clone();
+          p.userData.userHidden = false;
+          allAssembleNodes.push(p);
         }
       });
 
@@ -1799,4 +1816,3 @@
   </script>
 </body>
 </html>
-```[cite: 1]
