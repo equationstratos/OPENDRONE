@@ -209,7 +209,6 @@
       box-shadow: 0 0 16px var(--gold-glow);
     }
 
-    /* Conteneur Arbre vertical */
     .tree-dropdown-wrapper {
       position: relative;
       display: inline-block;
@@ -259,7 +258,6 @@
     .tree-item-label { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .tree-item input[type=checkbox] { accent-color: #ffb700; cursor: pointer; }
 
-    /* Dropdown Personnalisation */
     .dropdown-container { position: relative; display: inline-block; }
     .dropdown-content {
       position: absolute;
@@ -291,7 +289,6 @@
     }
     .btn-theme:hover { border-color: var(--border-focus); color: var(--text); background: rgba(255, 255, 255, 0.08); }
 
-    /* Menu Contextuel Clic Droit */
     #context-menu {
       position: absolute; display: none; z-index: 1000; background: rgba(18, 23, 30, 0.95); border: 1px solid var(--border-focus); border-radius: 10px; padding: 6px; backdrop-filter: blur(16px); box-shadow: 0 10px 30px rgba(0,0,0,0.7); min-width: 170px;
     }
@@ -301,7 +298,6 @@
     .context-menu-item:hover { background: rgba(255, 183, 0, 0.15); color: #ffb700; }
     .context-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
-    /* Stage Card */
     .stage-card {
       position: absolute; left: 24px; bottom: 24px; width: 300px; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s ease, opacity 0.3s ease;
     }
@@ -326,13 +322,11 @@
     #btn-show-card { position: absolute; left: 24px; bottom: 24px; z-index: 9; display: none; }
     #btn-show-card.visible { display: inline-flex; }
 
-    /* ViewCube CAO */
     #viewcube-container {
       position: absolute; top: 74px; right: 24px; width: 115px; height: 115px; z-index: 10; pointer-events: auto; cursor: pointer; transition: opacity 0.3s;
     }
     #viewcube-container canvas { width: 100%; height: 100%; border-radius: 10px; background: transparent; }
 
-    /* Right Control Panel */
     .control-panel {
       position: absolute; top: 200px; right: 24px; width: 340px; max-height: calc(100vh - 220px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
@@ -385,7 +379,6 @@
 </head>
 <body>
 
-  <!-- Loading Screen -->
   <div id="loading-overlay">
     <div class="loader-logo">
       <div class="loader-text-logo"><span class="part-open">Open</span><span class="part-drone">Drone</span></div>
@@ -399,10 +392,8 @@
   <div class="viewport-glow"></div>
   <div id="canvas-container"></div>
 
-  <!-- ViewCube CAO -->
   <div id="viewcube-container" title="Cube de vue CAO interactif"></div>
 
-  <!-- Menu Contextuel Clic Droit -->
   <div id="context-menu">
     <div class="context-menu-item" id="ctx-solo">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
@@ -423,10 +414,8 @@
     </div>
   </div>
 
-  <!-- Header -->
   <header>
     <div class="brand-group">
-      <!-- Logo collé en haut à gauche -->
       <div class="brand-badge">
         <div class="brand-logo-text"><span class="part-open">Open</span><span class="part-drone">Drone</span></div>
         <select id="model-selector" class="model-selector" title="Choisir le modèle de drone">
@@ -435,7 +424,6 @@
         </select>
       </div>
 
-      <!-- Bouton Arbre et son panneau déroulant placés verticalement EN DESSOUS du logo -->
       <div class="tree-dropdown-wrapper">
         <button class="btn-pill" id="btn-toggle-tree" title="Afficher / Masquer l'arbre d'assemblage">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
@@ -448,9 +436,7 @@
             <button class="card-close-btn" id="btn-close-tree">&times;</button>
           </div>
           <input type="text" class="tree-search" id="tree-search-input" placeholder="Filtrer les pièces..." />
-          <div class="tree-list" id="tree-list-container">
-            <!-- Rempli dynamiquement -->
-          </div>
+          <div class="tree-list" id="tree-list-container"></div>
         </div>
       </div>
     </div>
@@ -478,7 +464,6 @@
         <span>Wireframe</span>
       </button>
 
-      <!-- Menu Personnalisation -->
       <div class="dropdown-container" id="customization-dropdown">
         <button class="btn-pill" id="btn-customization-toggle">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -537,7 +522,6 @@
     </div>
   </header>
 
-  <!-- Stage Card -->
   <div class="stage-card" id="stage-card">
     <div class="stage-card-header">
       <span class="stage-tag" id="stage-tag">Vue d'ensemble</span>
@@ -561,7 +545,6 @@
     <span>Afficher Infos</span>
   </button>
 
-  <!-- Right Control Panel -->
   <div class="control-panel collapsed" id="control-panel">
     <div class="panel-section">
       <div class="panel-title">Inspection & Visibilité</div>
@@ -636,7 +619,6 @@
     </div>
   </div>
 
-  <!-- Bottom HUD -->
   <div class="bottom-hud">
     <button class="btn-pill active" id="btn-toggle-prop-spin" title="Activer / Désactiver la rotation des hélices">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1072,15 +1054,47 @@
 
       scene.updateMatrixWorld(true);
       allAssembleNodes = [];
+      
+      // Collecte robuste de tous les noeuds principaux de premier niveau sous occRoot
       occRoot.traverse((node) => {
         if (node.parent === occRoot) {
           const rawName = node.name || '';
-          // Filtrage rigoureux pour exclure les sous-parties, vis, pièces SMD, doublons de moteurs et petits éléments inutiles de l'arbre
           const isSubPart = /soldermask|silkscreen|pad|smd|screw|nut|washer|pressnut|press nut/i.test(rawName);
-          const isRedundantMotor = /^Admi/i.test(tidy(rawName)) && allAssembleNodes.some(n => getCustomCategory(n.name) === 'MOTEURS');
-          const isRedundantProp = /^prop-pivot/i.test(rawName) && allAssembleNodes.some(n => getCustomCategory(n.name) === 'HELICES');
+          const isRedundantMotor = /^Admi/i.test(tidy(rawName));
+          const isRedundantProp = /^prop-pivot/i.test(rawName);
 
           if (!isSubPart && !isRedundantMotor && !isRedundantProp) {
+            node.userData.origPos = node.position.clone();
+            node.userData.origQuat = node.quaternion.clone();
+            node.userData.origScale = node.scale.clone();
+            node.userData.userHidden = false;
+            allAssembleNodes.push(node);
+          }
+        }
+      });
+
+      // Ajout explicite groupé et numéroté pour les moteurs et hélices
+      let motorCount = 0;
+      let propCount = 0;
+      occRoot.traverse((node) => {
+        const rawName = node.name || '';
+        if (/^Admi/i.test(tidy(rawName))) {
+          motorCount++;
+          if (motorCount <= 4) {
+            node.userData.customDisplayName = `moteur ${motorCount}`;
+            node.userData.customCategory = 'MOTEURS';
+            node.userData.origPos = node.position.clone();
+            node.userData.origQuat = node.quaternion.clone();
+            node.userData.origScale = node.scale.clone();
+            node.userData.userHidden = false;
+            allAssembleNodes.push(node);
+          }
+        }
+        if (/^prop-pivot/i.test(rawName)) {
+          propCount++;
+          if (propCount <= 4) {
+            node.userData.customDisplayName = `helice ${propCount}`;
+            node.userData.customCategory = 'HELICES';
             node.userData.origPos = node.position.clone();
             node.userData.origQuat = node.quaternion.clone();
             node.userData.origScale = node.scale.clone();
@@ -1123,7 +1137,6 @@
       });
     }
 
-    // Gestion de l'arbre d'assemblage et catégorisation simplifiée
     const treeListContainer = document.getElementById('tree-list-container');
     const treePanel = document.getElementById('tree-panel');
     const btnToggleTree = document.getElementById('btn-toggle-tree');
@@ -1164,17 +1177,18 @@
       }
     });
 
-    function getCustomCategory(name) {
-      const n = (name || '').toLowerCase();
-      if (/screw|nut|washer|pressnut|press nut/i.test(n)) return 'VISSERIE';
-      if (/arm|cross|base|top|plate|cage/i.test(n)) return 'FRAME';
-      if (/bumper|mount|airtag|antenna|boot|tpu/i.test(n)) return 'TPU';
-      if (/admi|motor/i.test(n)) return 'MOTEURS';
-      if (/^[0-9]+$/i.test(tidy(name)) || /prop/i.test(n)) return 'HELICES';
-      if (/openfc|4in1|openrx|rx/i.test(n)) return 'ELECTRONICS';
-      if (/vtx|lens|casing|camera/i.test(n)) return 'VIDEO';
-      if (/battery|batterie/i.test(n)) return 'BATTERIE';
-      if (/scratch|velcro|pad|stick/i.test(n)) return 'ACCESORIES';
+    function getCustomCategory(node) {
+      if (node.userData && node.userData.customCategory) return node.userData.customCategory;
+      const name = (node.name || '').toLowerCase();
+      if (/screw|nut|washer|pressnut|press nut/i.test(name)) return 'VISSERIE';
+      if (/arm|cross|base|top|plate|cage/i.test(name)) return 'FRAME';
+      if (/bumper|mount|airtag|antenna|boot|tpu/i.test(name)) return 'TPU';
+      if (/admi|motor/i.test(name)) return 'MOTEURS';
+      if (/^[0-9]+$/i.test(tidy(name)) || /prop/i.test(name)) return 'HELICES';
+      if (/openfc|4in1|openrx|rx|board/i.test(name)) return 'ELECTRONICS';
+      if (/vtx|lens|casing|camera/i.test(name)) return 'VIDEO';
+      if (/battery|batterie/i.test(name)) return 'BATTERIE';
+      if (/scratch|velcro|pad|stick/i.test(name)) return 'ACCESORIES';
       return 'FRAME';
     }
 
@@ -1194,16 +1208,17 @@
         'VISSERIE': []
       };
 
+      const seenNames = new Set();
+
       allAssembleNodes.forEach((node) => {
-        let rawName = node.name || `Composant`;
-        let cleanName = tidy(rawName);
+        let cleanName = node.userData.customDisplayName || tidy(node.name || `Composant`);
+        if (seenNames.has(cleanName)) return;
+        seenNames.add(cleanName);
+
         if (filterText && !cleanName.toLowerCase().includes(filterText.toLowerCase())) return;
-        const cat = getCustomCategory(rawName);
+        const cat = getCustomCategory(node);
         if (categories[cat]) {
-          // Pour regrouper et ne garder qu'une seule entrée par nom de pièce principale (ex: Moteurs uniques, Hélices uniques)
-          if (!categories[cat].some(item => item.cleanName.toLowerCase() === cleanName.toLowerCase())) {
-            categories[cat].push({ node, cleanName });
-          }
+          categories[cat].push({ node, cleanName });
         }
       });
 
@@ -1234,9 +1249,10 @@
           chk.title = "Afficher / Masquer";
           chk.addEventListener('click', (e) => e.stopPropagation());
           chk.addEventListener('change', (e) => {
-            node.userData.userHidden = !e.target.checked;
-            node.visible = !node.userData.userHidden;
-            node.traverse(sub => { sub.visible = node.visible; });
+            const isChecked = e.target.checked;
+            node.userData.userHidden = !isChecked;
+            node.visible = isChecked;
+            node.traverse(sub => { sub.visible = isChecked; });
           });
 
           const span = document.createElement('span');
@@ -1523,7 +1539,6 @@
       else document.exitFullscreen().catch(() => {});
     });
 
-    // --- VIEW CUBE CAO ---
     const vcContainer = document.getElementById('viewcube-container');
     const vcScene = new THREE.Scene();
     const vcCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
@@ -1652,7 +1667,7 @@
       pickBox.box.setFromObject(topOcc);
       pickBox.visible = true;
 
-      const name = tidy(topOcc.name || obj.name);
+      const name = topOcc.userData.customDisplayName || tidy(topOcc.name || obj.name);
       const clsKey = classOf(obj.name || topOcc.name || '');
       const clsProfile = PROFILES_MAP.get(clsKey);
       const clsLabel = clsProfile ? clsProfile.label : clsKey;
@@ -1718,26 +1733,28 @@
         allAssembleNodes.forEach((child, idx) => {
           if (!child.userData.origPos) return;
           let targetPos = child.userData.origPos.clone();
-          let targetVis = true;
+          let targetVis = !child.userData.userHidden;
 
-          if (child.userData.userHidden) targetVis = false;
-          else if (soloNode && soloNode !== child) targetVis = false;
-          else {
-            if (stateMode === 'flatlay') {
-              const flatP = flatLayPositions.get(child.uuid);
-              if (flatP) targetPos.copy(flatP);
-            } else if (stateMode === 'stepbystep') {
-              if (idx >= stepIndex) targetVis = false;
-            } else if (explodeAmount > 0.001) {
-              const centre = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
-              const dir = centre.clone().sub(droneCentre).normalize();
-              if (dir.lengthSq() < 0.001) dir.set(0, 1, 0);
-              targetPos.add(dir.multiplyScalar(explodeAmount * 0.12));
+          if (targetVis) {
+            if (soloNode && soloNode !== child) targetVis = false;
+            else {
+              if (stateMode === 'flatlay') {
+                const flatP = flatLayPositions.get(child.uuid);
+                if (flatP) targetPos.copy(flatP);
+              } else if (stateMode === 'stepbystep') {
+                if (idx >= stepIndex) targetVis = false;
+              } else if (explodeAmount > 0.001) {
+                const centre = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
+                const dir = centre.clone().sub(droneCentre).normalize();
+                if (dir.lengthSq() < 0.001) dir.set(0, 1, 0);
+                targetPos.add(dir.multiplyScalar(explodeAmount * 0.12));
+              }
             }
           }
 
           child.position.lerp(targetPos, 0.15);
           child.visible = targetVis;
+          child.traverse(sub => { sub.visible = targetVis && !child.userData.userHidden; });
         });
       }
 
@@ -1760,4 +1777,3 @@
   </script>
 </body>
 </html>
-```[cite: 1]
