@@ -1584,7 +1584,6 @@
       else document.exitFullscreen().catch(() => {});
     });
 
-    // Génération dynamique des textures de texte pour le ViewCube
     function createFaceTexture(text) {
       const canvas = document.createElement('canvas');
       canvas.width = 128;
@@ -1613,14 +1612,18 @@
     vcContainer.appendChild(vcRenderer.domElement);
 
     const cubeGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+    
+    // Ordre des matériaux pour les 6 faces d'un BoxGeometry dans Three.js :
+    // [0] +X (Droite), [1] -X (Gauche), [2] +Y (Dessus), [3] -Y (Dessous), [4] +Z (Avant), [5] -Z (Arrière)
     const cubeMat = [
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Droite') }),  // 0: Right (+X)
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Gauche') }),  // 1: Left (-X)
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessus') }),  // 2: Top (+Y)
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessous') }), // 3: Bottom (-Y)
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Avant') }),   // 4: Front (+Z)
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Arrière') })  // 5: Back (-Z)
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Droite') }),  // 0: +X
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Gauche') }),  // 1: -X
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessus') }),  // 2: +Y
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessous') }), // 3: -Y
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Avant') }),   // 4: +Z
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Arrière') })  // 5: -Z
     ];
+    
     const vcCube = new THREE.Mesh(cubeGeo, cubeMat);
     vcScene.add(vcCube);
 
@@ -1638,17 +1641,36 @@
       vcRaycaster.setFromCamera(vcMouse, vcCamera);
       const hits = vcRaycaster.intersectObject(vcCube);
       if (hits.length > 0) {
+        // Chaque face d'un cube est composée de 2 triangles (faces index 0 & 1, 2 & 3, etc.)
         const faceIndex = Math.floor(hits[0].faceIndex / 2);
         const dist = Math.max(droneRadius * 1.55, 0.17);
         const targetPos = controls.target.clone();
         
         switch (faceIndex) {
-          case 0: camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z); camera.up.set(0, 1, 0); break;
-          case 1: camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z); camera.up.set(0, 1, 0); break;
-          case 2: camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.0001); camera.up.set(0, 0, -1); break;
-          case 3: camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.0001); camera.up.set(0, 0, 1); break;
-          case 4: camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist); camera.up.set(0, 1, 0); break;
-          case 5: camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist); camera.up.set(0, 1, 0); break;
+          case 0: // +X : Droite
+            camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z);
+            camera.up.set(0, 1, 0);
+            break;
+          case 1: // -X : Gauche
+            camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z);
+            camera.up.set(0, 1, 0);
+            break;
+          case 2: // +Y : Dessus
+            camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.0001);
+            camera.up.set(0, 0, -1);
+            break;
+          case 3: // -Y : Dessous
+            camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.0001);
+            camera.up.set(0, 0, 1);
+            break;
+          case 4: // +Z : Avant
+            camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist);
+            camera.up.set(0, 1, 0);
+            break;
+          case 5: // -Z : Arrière
+            camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist);
+            camera.up.set(0, 1, 0);
+            break;
         }
         camera.lookAt(targetPos);
         controls.update();
