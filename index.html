@@ -443,28 +443,55 @@
     </div>
 
     <div class="top-controls">
-      <label class="toggle-wrap" title="Activer / Désactiver la rotation automatique">
-        <input type="checkbox" id="chk-auto-rotate">
-        <span>Rotation Auto</span>
-      </label>
+      <!-- Menu ASSEMBLAGE -->
+      <div class="dropdown-container" id="assemblage-dropdown">
+        <button class="btn-pill" id="btn-assemblage-toggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Assemblage</span>
+        </button>
+        <div class="dropdown-content">
+          <div class="menu-group">
+            <div class="menu-group-header">Modes de Montage & Plateau</div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <button class="btn-pill" id="btn-assemble" style="justify-content:center; width:100%;">Assembler</button>
+              <button class="btn-pill" id="btn-flatlay" style="justify-content:center; width:100%;" title="Pose toutes les pièces à plat sur le plateau z=0">Mise à plat</button>
+              <button class="btn-pill" id="btn-stepbymir" style="width:100%; justify-content:center;" title="Mode pièce par pièce séquentiel">Mode Pièce par Pièce</button>
+            </div>
+          </div>
+          <div class="menu-group" style="margin-top: 10px;">
+            <div class="menu-group-header">Vue Éclatée</div>
+            <div class="slider-row" style="margin-top: 4px;">
+              <label>Éclatement</label>
+              <input type="range" id="slider-explode" min="0" max="1" step="0.01" value="0">
+              <span class="val" id="val-explode">0%</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <button class="btn-pill" id="btn-explode" title="Vue éclatée des pièces">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="2"/>
-          <path d="M16.2 7.8 21 3m-4.8 13.2 4.8 4.8M7.8 7.8 3 3m4.8 13.2-4.8 4.8"/>
-        </svg>
-        <span>Éclaté</span>
-      </button>
+      <!-- Menu AFFICHAGE -->
+      <div class="dropdown-container" id="affichage-dropdown">
+        <button class="btn-pill" id="btn-affichage-toggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Affichage</span>
+        </button>
+        <div class="dropdown-content">
+          <div class="menu-group">
+            <div class="menu-group-header">Options d'Affichage</div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <button class="btn-pill" id="btn-wireframe" style="justify-content:center; width:100%;" title="Afficher le maillage filaire">
+                <span>Wireframe</span>
+              </button>
+              <label class="toggle-wrap" style="width:100%; justify-content:space-between;">
+                <span>Grille de Sol</span>
+                <input type="checkbox" id="chk-grid" checked>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <button class="btn-pill" id="btn-wireframe" title="Afficher le maillage filaire">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-          <line x1="12" y1="22.08" x2="12" y2="12"/>
-        </svg>
-        <span>Wireframe</span>
-      </button>
-
+      <!-- Menu PERSONNALISATION -->
       <div class="dropdown-container" id="customization-dropdown">
         <button class="btn-pill" id="btn-customization-toggle">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -513,7 +540,8 @@
         </div>
       </div>
 
-      <button class="btn-pill" id="btn-toggle-panel" title="Ouvrir le panneau de réglages">
+      <!-- Menu STUDIO -->
+      <button class="btn-pill" id="btn-toggle-panel" title="Ouvrir le panneau de réglages Studio">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -557,19 +585,6 @@
         <button class="btn-pill" id="btn-hide" style="justify-content:center; font-size:10px; padding:6px 4px;">Masquer</button>
         <button class="btn-pill" id="btn-show-all" style="justify-content:center; font-size:10px; padding:6px 4px;">Tout Afficher</button>
       </div>
-      <label class="toggle-wrap" style="width:100%; justify-content:space-between; margin-top: 6px;">
-        <span>Afficher Grille de Sol</span>
-        <input type="checkbox" id="chk-grid" checked>
-      </label>
-    </div>
-
-    <div class="panel-section">
-      <div class="panel-title">Modes de Montage & Build Plate</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
-        <button class="btn-pill" id="btn-assemble" style="justify-content:center;">Assembler</button>
-        <button class="btn-pill" id="btn-flatlay" style="justify-content:center;" title="Pose toutes les pièces à plat sur le plateau z=0">Mise à plat</button>
-      </div>
-      <button class="btn-pill" id="btn-stepbymir" style="width:100%; justify-content:center;" title="Mode pièce par pièce séquentiel">Mode Pièce par Pièce</button>
     </div>
 
     <div class="panel-section">
@@ -584,11 +599,6 @@
 
     <div class="panel-section">
       <div class="panel-title">Mouvements & Animation</div>
-      <div class="slider-row">
-        <label>Éclatement</label>
-        <input type="range" id="slider-explode" min="0" max="1" step="0.01" value="0">
-        <span class="val" id="val-explode">0%</span>
-      </div>
       <div class="slider-row">
         <label>Rotation Hélices</label>
         <input type="range" id="slider-rpm" min="0" max="25" step="0.5" value="1.5">
@@ -627,6 +637,10 @@
       </svg>
       <span>Hélices</span>
     </button>
+    <label class="toggle-wrap" title="Activer / Désactiver la rotation automatique" style="background: var(--bg-surface); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);">
+      <input type="checkbox" id="chk-auto-rotate">
+      <span>Rotation Auto</span>
+    </label>
     <button class="btn-pill" id="btn-camera-reset" title="Recentrer et zoomer sur le drone">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -678,17 +692,41 @@
     let activeScrewHex = '#7c8590';
     let selectedNode = null;
 
+    const assemblageDropdown = document.getElementById('assemblage-dropdown');
+    const btnAssemblageToggle = document.getElementById('btn-assemblage-toggle');
+    const affichageDropdown = document.getElementById('affichage-dropdown');
+    const btnAffichageToggle = document.getElementById('btn-affichage-toggle');
     const dropdownContainer = document.getElementById('customization-dropdown');
     const btnCustomizationToggle = document.getElementById('btn-customization-toggle');
     const contextMenu = document.getElementById('context-menu');
 
+    btnAssemblageToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      assemblageDropdown.classList.toggle('open');
+      affichageDropdown.classList.remove('open');
+      dropdownContainer.classList.remove('open');
+      contextMenu.style.display = 'none';
+    });
+
+    btnAffichageToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      affichageDropdown.classList.toggle('open');
+      assemblageDropdown.classList.remove('open');
+      dropdownContainer.classList.remove('open');
+      contextMenu.style.display = 'none';
+    });
+
     btnCustomizationToggle.addEventListener('click', (e) => {
       e.stopPropagation();
       dropdownContainer.classList.toggle('open');
+      assemblageDropdown.classList.remove('open');
+      affichageDropdown.classList.remove('open');
       contextMenu.style.display = 'none';
     });
 
     window.addEventListener('click', (e) => {
+      if (!assemblageDropdown.contains(e.target)) assemblageDropdown.classList.remove('open');
+      if (!affichageDropdown.contains(e.target)) affichageDropdown.classList.remove('open');
       if (!dropdownContainer.contains(e.target)) dropdownContainer.classList.remove('open');
       if (!contextMenu.contains(e.target)) contextMenu.style.display = 'none';
     });
@@ -1074,7 +1112,6 @@
         }
       });
 
-      // Ajout explicite groupé pour les 4 moteurs avec toutes leurs sous-parties groupées sous le même nœud logique
       const motorsMap = new Map();
       occRoot.traverse((node) => {
         const rawName = node.name || '';
@@ -1106,7 +1143,6 @@
         }
       }
 
-      // Ajout des pivots d'hélices
       let propCount = 0;
       propPivots.forEach((p) => {
         propCount++;
@@ -1390,16 +1426,6 @@
       updateBeatUI();
     }
 
-    document.getElementById('btn-prev').addEventListener('click', () => setBeat((currentBeatIndex - 1 + BEATS.length) % BEATS.length));
-    document.getElementById('btn-next').addEventListener('click', () => setBeat((currentBeatIndex + 1) % BEATS.length));
-
-    const btnAutoplay = document.getElementById('btn-autoplay');
-    btnAutoplay.addEventListener('click', () => {
-      isPlaying = !isPlaying;
-      btnAutoplay.textContent = isPlaying ? 'Pause' : 'Lecture';
-      btnAutoplay.classList.toggle('primary', isPlaying);
-    });
-
     document.getElementById('chk-auto-rotate').addEventListener('change', (e) => {
       isAutoRotate = e.target.checked;
       if (isAutoRotate) {
@@ -1527,7 +1553,6 @@
       });
     });
 
-    const btnExplode = document.getElementById('btn-explode');
     const sliderExplode = document.getElementById('slider-explode');
     const valExplode = document.getElementById('val-explode');
 
@@ -1535,12 +1560,10 @@
       explodeAmount = parseFloat(val);
       sliderExplode.value = explodeAmount;
       valExplode.textContent = `${Math.round(explodeAmount * 100)}%`;
-      btnExplode.classList.toggle('active', explodeAmount > 0.01);
       if (explodeAmount > 0) { stateMode = 'assemble'; btnAssemble.classList.add('active'); btnFlatLay.classList.remove('active'); btnStepByStep.classList.remove('active'); }
     }
 
     sliderExplode.addEventListener('input', (e) => setExplode(e.target.value));
-    btnExplode.addEventListener('click', () => setExplode(explodeAmount > 0.05 ? 0 : 0.7));
 
     const btnWireframe = document.getElementById('btn-wireframe');
     btnWireframe.addEventListener('click', () => {
@@ -1558,6 +1581,7 @@
     const bindSlider = (id, fn) => {
       const el = document.getElementById(id);
       const val = document.getElementById(id.replace('slider-', 'val-'));
+      if (!el) return;
       el.addEventListener('input', (e) => {
         const v = parseFloat(e.target.value);
         fn(v);
@@ -1744,7 +1768,6 @@
     });
 
     const clock = new THREE.Clock();
-    let autoplayTimer = 0;
 
     function animate() {
       requestAnimationFrame(animate);
@@ -1761,11 +1784,6 @@
         const dist = camera.position.distanceTo(controls.target);
         camera.position.x = controls.target.x + Math.cos(orbitAngle) * dist;
         camera.position.z = controls.target.z + Math.sin(orbitAngle) * dist;
-      }
-
-      if (isPlaying) {
-        autoplayTimer += dt;
-        if (autoplayTimer >= 4.5) { autoplayTimer = 0; setBeat((currentBeatIndex + 1) % BEATS.length); }
       }
 
       if (allAssembleNodes.length > 0) {
