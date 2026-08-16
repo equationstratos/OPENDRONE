@@ -5,8 +5,7 @@ ROADMAP
 WEBBUILDING:
 ------------
 
--Deplacer bouton commander
-
+-...
 
 CREER OU MODELISER:
 -------------------
@@ -19,7 +18,7 @@ CREER OU MODELISER:
 
 -créer capacitor + mount
 
--creer cable + protect
+-creer cables + protect bras
 
 -o4 unit lite and pro ready
 
