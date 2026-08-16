@@ -385,6 +385,51 @@
     .step-hud-label { text-align: center; min-width: 190px; line-height: 1.3; }
     .step-hud-count { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; }
     .step-hud-name { display: block; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+
+    .btn-pill.accent { background: rgba(255, 183, 0, 0.16); border-color: rgba(255, 183, 0, 0.45); color: #ffb700; }
+    .btn-pill.accent:hover { background: rgba(255, 183, 0, 0.26); border-color: #ffb700; }
+
+    .modal-backdrop {
+      position: absolute; inset: 0; z-index: 60; background: rgba(6, 8, 12, 0.72); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+      opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s;
+    }
+    .modal-backdrop.open { opacity: 1; visibility: visible; }
+    .modal {
+      width: 640px; max-width: 100%; max-height: 100%; overflow-y: auto;
+      background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px 20px; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7);
+      transform: translateY(10px); transition: transform 0.2s ease;
+    }
+    .modal-backdrop.open .modal { transform: translateY(0); }
+    .modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+    .modal-title { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+    .modal-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-bottom: 14px; }
+    .kit-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .kit-card {
+      text-align: left; padding: 10px 12px; border-radius: 8px; cursor: pointer;
+      background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); transition: all 0.15s ease;
+    }
+    .kit-card:hover { border-color: var(--border-focus); background: rgba(255, 255, 255, 0.07); }
+    .kit-card.active { border-color: rgba(255, 183, 0, 0.6); background: rgba(255, 183, 0, 0.1); }
+    .kit-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .kit-card.active .kit-card-name { color: #ffb700; }
+    .kit-card-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.35; }
+    .kit-card-count { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal); margin-top: 5px; display: block; }
+    .kit-detail {
+      margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;
+      font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); line-height: 1.7;
+      max-height: 120px; overflow-y: auto;
+    }
+    .kit-format { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+    .kit-format label { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+    .kit-format select {
+      flex: 1; font-family: var(--font-mono); font-size: 11px; padding: 7px 9px; border-radius: 6px;
+      background: var(--bg-surface); border: 1px solid var(--border); color: var(--text); cursor: pointer;
+    }
+    .kit-note { font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 10px; min-height: 32px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .modal-actions .btn-pill { flex: 1; justify-content: center; }
     .control-panel::-webkit-scrollbar, .tree-panel::-webkit-scrollbar { width: 5px; }
     .control-panel::-webkit-scrollbar-track, .tree-panel::-webkit-scrollbar-track { background: transparent; }
     .control-panel::-webkit-scrollbar-thumb, .tree-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
@@ -661,7 +706,40 @@
     </button>
   </div>
 
+  <div class="modal-backdrop" id="order-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">Commander / Télécharger les pièces</div>
+          <div class="modal-sub" id="order-model-label">OpenDrone 3"</div>
+        </div>
+        <button class="card-close-btn" id="btn-close-order">&times;</button>
+      </div>
+      <div class="kit-grid" id="kit-grid"></div>
+      <div class="kit-detail" id="kit-detail"></div>
+      <div class="kit-format">
+        <label for="kit-format-select">Format</label>
+        <select id="kit-format-select">
+          <option value="stl">STL — maillage imprimable / visualisable</option>
+          <option value="step">STEP — CAO paramétrique (sur demande)</option>
+        </select>
+      </div>
+      <div class="kit-note" id="kit-note"></div>
+      <div class="modal-actions">
+        <button class="btn-pill accent" id="btn-kit-download">Télécharger</button>
+        <button class="btn-pill" id="btn-kit-order">Commander sur opendrone.be</button>
+      </div>
+    </div>
+  </div>
+
   <div class="bottom-hud">
+    <button class="btn-pill accent" id="btn-order" title="Commander ou télécharger les pièces">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+      </svg>
+      <span>Commander</span>
+    </button>
     <button class="btn-pill active" id="btn-toggle-prop-spin" title="Activer / Désactiver la rotation des hélices">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83"></path>
@@ -1920,6 +1998,114 @@
     document.getElementById('ctx-showall').addEventListener('click', () => { showAllGroups(); contextMenu.style.display = 'none'; });
     document.getElementById('ctx-export-stl').addEventListener('click', () => { exportSelectedSTL(); contextMenu.style.display = 'none'; });
 
+    /* ============================================================
+       COMMANDER / TÉLÉCHARGER — kits construits sur l'arbre d'assemblage
+       ============================================================ */
+
+    const SHOP_URL = 'https://opendrone.be';
+
+    const KITS = [
+      { id: 'full', label: 'Drone entier', desc: 'Assemblage complet, toutes catégories', cats: null },
+      { id: 'frame', label: 'Kit châssis carbone', desc: 'Plaques, bras, croix, entretoises et visserie', cats: ['STRUCTURE', 'VISSERIE'] },
+      { id: 'tpu', label: 'Kit TPU', desc: 'Pièces imprimées : bumper, protections, supports', cats: ['TPU'] },
+      { id: 'drive', label: 'Kit propulsion', desc: 'Moteurs, hélices et silentblocs', cats: ['PROPULSION'] },
+      { id: 'elec', label: 'Kit électronique', desc: 'OpenFC, OpenESC, OpenRX, caméra et VTX', cats: ['ELECTRONIQUE', 'VIDEO'] }
+    ];
+
+    let activeKitId = 'full';
+
+    const orderModal = document.getElementById('order-modal');
+    const kitGridEl = document.getElementById('kit-grid');
+    const kitDetailEl = document.getElementById('kit-detail');
+    const kitNoteEl = document.getElementById('kit-note');
+    const kitFormatSelect = document.getElementById('kit-format-select');
+    const btnKitDownload = document.getElementById('btn-kit-download');
+
+    const kitOf = (id) => KITS.find(k => k.id === id) || KITS[0];
+    const groupsOfKit = (kit) => (kit.cats ? assemblyGroups.filter(g => kit.cats.includes(g.cat)) : assemblyGroups.slice());
+    const kitPieceCount = (kit) => groupsOfKit(kit).reduce((s, g) => s + g.qty, 0);
+
+    function renderKits() {
+      kitGridEl.innerHTML = '';
+      KITS.forEach((kit) => {
+        const card = document.createElement('button');
+        card.className = `kit-card ${kit.id === activeKitId ? 'active' : ''}`;
+        card.dataset.kitId = kit.id;
+        card.innerHTML = `<div class="kit-card-name"></div><div class="kit-card-desc"></div><span class="kit-card-count"></span>`;
+        card.querySelector('.kit-card-name').textContent = kit.label;
+        card.querySelector('.kit-card-desc').textContent = kit.desc;
+        card.querySelector('.kit-card-count').textContent = `${kitPieceCount(kit)} pièces`;
+        card.addEventListener('click', () => { activeKitId = kit.id; renderKits(); });
+        kitGridEl.appendChild(card);
+      });
+      renderKitDetail();
+    }
+
+    function renderKitDetail() {
+      const kit = kitOf(activeKitId);
+      const groups = groupsOfKit(kit);
+      kitDetailEl.textContent = groups.length
+        ? groups.map(g => `• ${g.label}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('\n')
+        : 'Modèle en cours de chargement…';
+      kitDetailEl.style.whiteSpace = 'pre-line';
+
+      const isStep = kitFormatSelect.value === 'step';
+      btnKitDownload.textContent = isStep ? 'Demander le fichier STEP' : 'Télécharger le STL';
+      kitNoteEl.textContent = isStep
+        ? "Le visualiseur ne contient que les maillages du drone : le STEP paramétrique vient des sources CAO Onshape. Le bouton ouvre opendrone.be pour la demande."
+        : `STL binaire généré depuis le modèle affiché (${groups.reduce((s, g) => s + g.nodes.length, 0)} corps CAO), pièces à leur position d'origine.`;
+    }
+
+    function downloadKitSTL(kit) {
+      const groups = groupsOfKit(kit);
+      if (!groups.length) return;
+      const exporter = new STLExporter();
+      const tmp = new THREE.Group();
+      groups.forEach(g => g.nodes.forEach(n => {
+        const c = n.clone(true);
+        // Position d'assemblage, quel que soit le mode d'affichage courant.
+        if (n.userData.origPos) c.position.copy(n.userData.origPos);
+        tmp.add(c);
+      }));
+      const blob = new Blob([exporter.parse(tmp, { binary: true })], { type: 'application/octet-stream' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `opendrone-${currentModelKey}-${kit.id}.stl`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function openOrderModal() {
+      document.getElementById('order-model-label').textContent =
+        currentModelKey === 'od5' ? 'OpenDrone 5"' : 'OpenDrone 3"';
+      renderKits();
+      orderModal.classList.add('open');
+    }
+
+    document.getElementById('btn-order').addEventListener('click', openOrderModal);
+    document.getElementById('btn-close-order').addEventListener('click', () => orderModal.classList.remove('open'));
+    orderModal.addEventListener('click', (e) => { if (e.target === orderModal) orderModal.classList.remove('open'); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') orderModal.classList.remove('open'); });
+    kitFormatSelect.addEventListener('change', renderKitDetail);
+
+    btnKitDownload.addEventListener('click', () => {
+      const kit = kitOf(activeKitId);
+      if (kitFormatSelect.value === 'step') { window.open(SHOP_URL, '_blank', 'noopener'); return; }
+      btnKitDownload.disabled = true;
+      btnKitDownload.textContent = 'Génération…';
+      // Laisse le navigateur repeindre avant l'export (le drone entier est lourd).
+      setTimeout(() => {
+        try { downloadKitSTL(kit); } finally {
+          btnKitDownload.disabled = false;
+          renderKitDetail();
+        }
+      }, 40);
+    });
+
+    document.getElementById('btn-kit-order').addEventListener('click', () => {
+      window.open(SHOP_URL, '_blank', 'noopener');
+    });
+
     const btnCloseCard = document.getElementById('btn-close-card');
     const btnShowCard = document.getElementById('btn-show-card');
 
@@ -2027,7 +2213,11 @@
       ctx.font = 'bold 20px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(text, 64, 64);
+      // Vues de dessus / dessous : l'écran a pour haut l'avant du drone, ce qui
+      // fait apparaître le texte de ces deux faces à 180°. On le prépivote.
+      ctx.translate(64, 64);
+      if (rotateDeg) ctx.rotate((rotateDeg * Math.PI) / 180);
+      ctx.fillText(text, 0, 0);
       return new THREE.CanvasTexture(canvas);
     }
 
@@ -2045,7 +2235,7 @@
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Droite') }),  // 0: +X
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Gauche') }),  // 1: -X
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessus', 180) }),  // 2: +Y
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessous', 180) }), // 3: -Y
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessous') }), // 3: -Y
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Avant') }),   // 4: +Z
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Arrière') })  // 5: -Z
     ];
@@ -2209,11 +2399,15 @@
         }
       }
 
-      if (isAutoRotate) {
+      if (isAutoRotate && !camTween) {
         orbitAngle += dt * autoOrbitRate;
-        const dist = camera.position.distanceTo(controls.target);
-        camera.position.x = controls.target.x + Math.cos(orbitAngle) * dist;
-        camera.position.z = controls.target.z + Math.sin(orbitAngle) * dist;
+        // Rayon HORIZONTAL, pas la distance 3D : sinon la caméra saute vers
+        // l'extérieur au démarrage (effet de zoom) dès qu'elle est en hauteur.
+        const dx = camera.position.x - controls.target.x;
+        const dz = camera.position.z - controls.target.z;
+        const radius = Math.hypot(dx, dz);
+        camera.position.x = controls.target.x + Math.cos(orbitAngle) * radius;
+        camera.position.z = controls.target.z + Math.sin(orbitAngle) * radius;
       }
 
       if (assemblyGroups.length > 0) {

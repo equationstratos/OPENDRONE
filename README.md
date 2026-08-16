@@ -24,7 +24,8 @@ Ce projet autonome permet de visualiser en 3D temps réel le drone **OpenDrone 3
 - **Fond du plan de travail** : Origine (fond du site), Bleu foncé, Gris ou Blanc.
 - **Inspecteur de composants (Raycasting 3D)** : Cliquez sur n'importe quel composant pour afficher son nom, son type de matériau, son nombre de polygones et ses dimensions exactes en millimètres.
 - **Profils d'éclairage** : Studio, Dramatique, Doux, Technique.
-- **Contrôles d'animation** : Vitesse de rotation des hélices, auto-rotation de caméra, mode filaire (Wireframe), plein écran.
+- **Contrôles d'animation** : Vitesse de rotation des hélices, auto-rotation de caméra (elle repart de la vue courante, sans saut de distance ni d'élévation), mode filaire (Wireframe), plein écran.
+- **Commander / Télécharger les pièces** : Bouton en bas à droite ouvrant le choix du kit — drone entier, châssis carbone, TPU, propulsion ou électronique — avec la liste des pièces et leur nombre, calculés depuis l'arbre d'assemblage. Le STL binaire est généré à la volée depuis le modèle affiché (pièces remises à leur position d'assemblage) ; le STEP paramétrique, absent du visualiseur qui ne contient que des maillages, renvoie vers opendrone.be, tout comme la commande.
 - **100% autonome et hors-ligne** : Tous les modèles GLB et les bibliothèques Three.js sont inclus localement.
 
 ---
