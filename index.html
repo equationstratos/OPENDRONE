@@ -258,6 +258,19 @@
     .tree-item.selected { background: rgba(255,183,0,0.15); color: #ffb700; }
     .tree-item-label { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .tree-item input[type=checkbox] { accent-color: #ffb700; cursor: pointer; }
+    .tree-count {
+      font-size: 9px; letter-spacing: 0.04em; color: rgba(255,255,255,0.45);
+      background: rgba(255,255,255,0.06); border-radius: 999px; padding: 1px 6px; margin-left: 6px; flex: none;
+    }
+    .tree-item.selected .tree-count { color: #ffb700; background: rgba(255,183,0,0.14); }
+    .tree-empty { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.4); padding: 8px 4px; }
+    .tree-actions { display: flex; gap: 6px; margin-bottom: 8px; }
+    .tree-actions button {
+      flex: 1; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+      color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px; padding: 5px 4px; cursor: pointer; transition: all 0.15s;
+    }
+    .tree-actions button:hover { color: #ffb700; border-color: rgba(255,183,0,0.5); background: rgba(255,183,0,0.08); }
 
     .dropdown-container { position: relative; display: inline-block; }
     .dropdown-content {
@@ -435,6 +448,10 @@
             <button class="card-close-btn" id="btn-close-tree">&times;</button>
           </div>
           <input type="text" class="tree-search" id="tree-search-input" placeholder="Filtrer les pièces..." />
+          <div class="tree-actions">
+            <button id="btn-tree-showall" title="Réafficher toutes les pièces">Tout afficher</button>
+            <button id="btn-tree-hideall" title="Masquer toutes les pièces">Tout masquer</button>
+          </div>
           <div class="tree-list" id="tree-list-container"></div>
         </div>
       </div>
@@ -851,7 +868,7 @@
     controls.zoomSpeed = 0.75;
     controls.panSpeed = 0.55;
     controls.minDistance = 0.08;
-    controls.maxDistance = 2.0;
+    controls.maxDistance = 3.0;
 
     const world = new THREE.Group();
     world.rotation.x = -Math.PI / 2;
@@ -893,11 +910,17 @@
     let droneRadius = 0.075;
     let allMeshes = [];
     let allAssembleNodes = [];
+    let assemblyGroups = [];
+    let nodeGroupMap = new Map();
+    let selectedGroup = null;
+    let soloGroup = null;
 
-    let stateMode = 'assemble'; 
-    let flatLayPositions = new Map();
+    let stateMode = 'assemble';
     let stepIndex = 0;
-    let soloNode = null;
+    let worldToLocalUnit = 1;
+    let flatLayRadius = 0.4;
+    const flatLayCentre = new THREE.Vector3();
+    const groupTarget = new THREE.Vector3();
 
     const CHUNKS_DEF = {
       od3: [
@@ -944,7 +967,10 @@
     async function loadAssembly(modelKey = 'od3') {
       currentModelKey = modelKey;
       if (loaderOverlay) loaderOverlay.classList.remove('hidden');
-      soloNode = null;
+      soloGroup = null;
+      selectedGroup = null;
+      selectedNode = null;
+      pickBox.visible = false;
 
       if (droneRoot) {
         rig.remove(droneRoot);
@@ -952,6 +978,8 @@
         occRoot = null;
         allMeshes = [];
         allAssembleNodes = [];
+        assemblyGroups = [];
+        nodeGroupMap = new Map();
         propPivots.length = 0;
       }
 
@@ -989,6 +1017,8 @@
           droneRoot.add(occRoot);
         }
         for (const child of [...src.children]) {
+          child.userData.chunkId = c.id;
+          child.userData.chunkLabel = c.label;
           occRoot.add(child);
         }
         bytesLoaded += c.bytes;
@@ -1029,6 +1059,7 @@
         const hubWorld = axis ? new THREE.Vector3(axis.x, pc.y, axis.z) : pc;
         const g = new THREE.Group();
         g.name = 'prop-pivot';
+        g.userData.chunkId = 'drive';
         occRoot.add(g);
         g.position.copy(occRoot.worldToLocal(hubWorld.clone()));
         g.updateMatrixWorld(true);
@@ -1078,71 +1109,7 @@
       rigPropellers();
 
       scene.updateMatrixWorld(true);
-      allAssembleNodes = [];
-      
-      occRoot.traverse((node) => {
-        if (node.parent === occRoot) {
-          const rawName = node.name || '';
-          const isSubPart = /soldermask|silkscreen|pad|smd|screw|nut|washer|pressnut|press nut/i.test(rawName);
-          const isRedundantMotor = /^Admi/i.test(tidy(rawName));
-          const isRedundantProp = /^prop-pivot/i.test(rawName);
-          const isFrameMinor = /^(mesh|occurrence)/i.test(rawName) && !/(Arm|Cross|Base|Top|Plate|Standoff)/i.test(rawName);
-
-          if (!isSubPart && !isRedundantMotor && !isRedundantProp && !isFrameMinor) {
-            node.userData.origPos = node.position.clone();
-            node.userData.origQuat = node.quaternion.clone();
-            node.userData.origScale = node.scale.clone();
-            node.userData.userHidden = false;
-            allAssembleNodes.push(node);
-          }
-        }
-      });
-
-      const motorsMap = new Map();
-      occRoot.traverse((node) => {
-        const rawName = node.name || '';
-        if (/^Admi/i.test(tidy(rawName))) {
-          let topMotor = node;
-          while (topMotor.parent && topMotor.parent !== occRoot) {
-            topMotor = topMotor.parent;
-          }
-          if (!motorsMap.has(topMotor)) {
-            motorsMap.set(topMotor, []);
-          }
-          motorsMap.get(topMotor).push(node);
-        }
-      });
-
-      let motorIdx = 0;
-      for (const [topMotor] of motorsMap.entries()) {
-        motorIdx++;
-        if (motorIdx <= 4) {
-          topMotor.userData.customDisplayName = `moteur ${motorIdx}`;
-          topMotor.userData.customCategory = 'MOTEURS';
-          if (!topMotor.userData.origPos) {
-            topMotor.userData.origPos = topMotor.position.clone();
-            topMotor.userData.origQuat = topMotor.quaternion.clone();
-            topMotor.userData.origScale = topMotor.scale.clone();
-            topMotor.userData.userHidden = false;
-            allAssembleNodes.push(topMotor);
-          }
-        }
-      }
-
-      let propCount = 0;
-      propPivots.forEach((p) => {
-        propCount++;
-        if (propCount <= 4) {
-          p.userData.customDisplayName = `helice ${propCount}`;
-          p.userData.customCategory = 'HELICES';
-          p.userData.origPos = p.position.clone();
-          p.userData.origQuat = p.quaternion.clone();
-          p.userData.origScale = p.scale.clone();
-          p.userData.userHidden = false;
-          allAssembleNodes.push(p);
-        }
-      });
-
+      buildAssemblyGroups();
       computeFlatLayPositions();
       buildPalettes();
       buildAssemblyTree();
@@ -1161,19 +1128,233 @@
       }, 400);
     }
 
-    function computeFlatLayPositions() {
-      flatLayPositions.clear();
-      let cols = Math.ceil(Math.sqrt(allAssembleNodes.length));
-      let spacing = 0.08;
-      let startX = -((cols - 1) * spacing) / 2;
-      let startY = -((cols - 1) * spacing) / 2;
+    /* ============================================================
+       ARBRE D'ASSEMBLAGE — regroupement en pièces principales
+       Chaque entrée de l'arbre est un GROUPE qui possède tous les
+       nœuds CAO de la pièce (une carte = ~700 nœuds, un moteur = 5
+       nœuds...). Masquer/isoler agit sur la totalité du groupe.
+       ============================================================ */
 
-      allAssembleNodes.forEach((node, idx) => {
-        let r = Math.floor(idx / cols);
-        let c = idx % cols;
-        let flatPos = new THREE.Vector3(startX + c * spacing, startY + r * spacing, 0);
-        flatLayPositions.set(node.uuid, flatPos);
+    const CATEGORY_ORDER = ['STRUCTURE', 'PROPULSION', 'ELECTRONIQUE', 'VIDEO', 'TPU', 'VISSERIE', 'AUTRES'];
+    const CATEGORY_LABEL = {
+      STRUCTURE: 'Structure carbone',
+      PROPULSION: 'Propulsion',
+      ELECTRONIQUE: 'Électronique',
+      VIDEO: 'Vidéo & FPV',
+      TPU: 'Pièces TPU',
+      VISSERIE: 'Visserie & connectique',
+      AUTRES: 'Divers'
+    };
+
+    // Règles de regroupement : le 1er match gagne (chunk = fichier GLB source).
+    const PART_RULES = [
+      // --- Structure carbone (frame.glb) ---
+      { id: 'plate-top', chunk: 'frame', cat: 'STRUCTURE', label: 'Plaque supérieure', match: /^Top$/i },
+      { id: 'plate-mid', chunk: 'frame', cat: 'STRUCTURE', label: 'Platine médiane', match: /^Base-Top$/i },
+      { id: 'plate-bot', chunk: 'frame', cat: 'STRUCTURE', label: 'Plaque inférieure', match: /^Base-Bot$/i },
+      { id: 'cross', chunk: 'frame', cat: 'STRUCTURE', label: 'Croix centrale', match: /^Cross$/i },
+      { id: 'arms', chunk: 'frame', cat: 'STRUCTURE', label: 'Bras carbone', match: /^Arm$/i, perNode: true },
+      // --- TPU (frame.glb) ---
+      { id: 'bumper', chunk: 'frame', cat: 'TPU', label: 'Bumper avant', match: /^Bumper/i },
+      { id: 'boots', chunk: 'frame', cat: 'TPU', label: 'Protections de bras', match: /^Boot/i, perNode: true },
+      { id: 'cam-mount', chunk: 'frame', cat: 'TPU', label: 'Support caméra', match: /^Cam-Mount/i, perNode: true },
+      // Note : GLTFLoader assainit les noms de nœuds (les "/" et "." sont supprimés).
+      { id: 'airtag-mount', chunk: 'frame', cat: 'TPU', label: 'Support AirTag / antenne', match: /^Airtag[\/ ]?Antenna/i },
+      { id: 'airtag', chunk: 'frame', cat: 'TPU', label: 'AirTag', match: /^AirTag$/i },
+      // --- Visserie & connectique (frame.glb) ---
+      { id: 'standoffs', chunk: 'frame', cat: 'VISSERIE', label: 'Entretoises alu', match: /^(Standoff|20mmx4mm)/i, perNode: true },
+      { id: 'screws', chunk: 'frame', cat: 'VISSERIE', label: 'Visserie', match: /screw|nut|washer|vis\b/i, perNode: true },
+      { id: 'wiring', chunk: 'frame', cat: 'VISSERIE', label: 'Connecteurs & nappes', match: /^CONN[-_]/i, perNode: true },
+      // --- Propulsion (drive.glb) : moteurs et hélices traités à part ---
+      { id: 'softmounts', chunk: 'drive', cat: 'PROPULSION', label: 'Silentblocs moteur', match: /^softmount/i, perNode: true },
+      // --- Vidéo (video.glb) ---
+      { id: 'camera', chunk: 'video', cat: 'VIDEO', label: 'Caméra FPV', match: /^(Body|Lens)/i },
+      { id: 'vtx-antenna', chunk: 'video', cat: 'VIDEO', label: 'Antennes vidéo', match: /^DJI/i, perNode: true },
+      { id: 'vtx-mount', chunk: 'video', cat: 'TPU', label: 'Berceau VTX', match: /^VTX-Mount/i },
+      { id: 'vtx', chunk: 'video', cat: 'VIDEO', label: 'Émetteur vidéo VTX', match: /./ },
+      // --- Cartes électroniques : un groupe par fichier GLB ---
+      { id: 'fc', chunk: 'board-OpenFC', cat: 'ELECTRONIQUE', label: 'OpenFC-Lite (contrôleur de vol)', match: /./ },
+      { id: 'esc', chunk: 'board-4in1-mini', cat: 'ELECTRONIQUE', label: 'OpenESC 4-en-1', match: /./ },
+      { id: 'rx', chunk: 'board-OpenRX-Lite-UFL', cat: 'ELECTRONIQUE', label: 'OpenRX-Lite (récepteur ELRS)', match: /./ }
+    ];
+
+    function newGroup(id, cat, label, order) {
+      return {
+        id, cat, label, order,
+        nodes: [],
+        qty: 1,
+        hidden: false,
+        centre: new THREE.Vector3(),
+        centreLocal: new THREE.Vector3(),
+        size: new THREE.Vector3(),
+        explodeDir: new THREE.Vector3(),
+        flatOffset: new THREE.Vector3(),
+        _off: new THREE.Vector3(),
+        _vis: true
+      };
+    }
+
+    function buildAssemblyGroups() {
+      assemblyGroups = [];
+      nodeGroupMap = new Map();
+      allAssembleNodes = [];
+      selectedGroup = null;
+      selectedNode = null;
+      soloGroup = null;
+
+      if (!occRoot) return;
+
+      const byId = new Map();
+      const getGroup = (id, cat, label, order) => {
+        let g = byId.get(id);
+        if (!g) { g = newGroup(id, cat, label, order); byId.set(id, g); assemblyGroups.push(g); }
+        return g;
+      };
+
+      const tops = occRoot.children.slice();
+      const motorNodes = [];
+      const propNodes = [];
+
+      // Repère avant/arrière : la caméra FPV donne le sens de vol.
+      const front = new THREE.Vector3(0, 0, 1);
+      const camBox = new THREE.Box3();
+      let hasCam = false;
+      for (const n of tops) {
+        if (n.userData.chunkId === 'video' && /^(Body|Lens)/i.test(tidy(n.name || ''))) { camBox.expandByObject(n); hasCam = true; }
+      }
+      if (hasCam) {
+        const cc = camBox.getCenter(new THREE.Vector3());
+        front.set(cc.x - droneCentre.x, 0, cc.z - droneCentre.z);
+        if (front.lengthSq() < 1e-9) front.set(0, 0, 1);
+        front.normalize();
+      }
+      const right = new THREE.Vector3(0, 1, 0).cross(front).normalize();
+
+      const orientOf = (c) => {
+        const d = new THREE.Vector3(c.x - droneCentre.x, 0, c.z - droneCentre.z);
+        const fwd = d.dot(front) >= 0;
+        const rgt = d.dot(right) >= 0;
+        return { fwd, rgt, order: (fwd ? 0 : 2) + (rgt ? 1 : 0) };
+      };
+      const orientLabel = (o, fem) => `${o.fwd ? 'avant' : 'arrière'} ${o.rgt ? (fem ? 'droite' : 'droit') : 'gauche'}`;
+
+      for (const node of tops) {
+        const chunk = node.userData.chunkId || '';
+        const name = tidy(node.name || '');
+
+        if (node.name === 'prop-pivot') { propNodes.push(node); continue; }
+        if (chunk === 'drive' && /^Admi/i.test(name)) { motorNodes.push(node); continue; }
+
+        const ruleIdx = PART_RULES.findIndex(r => (!r.chunk || r.chunk === chunk) && r.match.test(name));
+        if (ruleIdx >= 0) {
+          const r = PART_RULES[ruleIdx];
+          const g = getGroup(r.id, r.cat, r.label, 100 + ruleIdx);
+          g.nodes.push(node);
+          if (r.perNode) g.qty = g.nodes.length;
+        } else {
+          const g = getGroup(`misc:${name.toLowerCase()}`, 'AUTRES', name || 'Composant', 900);
+          g.nodes.push(node);
+          g.qty = g.nodes.length;
+        }
+      }
+
+      // --- Moteurs : les 20 sous-pièces Admi sont regroupées en 4 moteurs (cluster XZ) ---
+      const clusters = [];
+      const tmpBox = new THREE.Box3();
+      const tmpC = new THREE.Vector3();
+      const clusterTol = Math.max(droneRadius * 0.35, 0.005);
+      for (const n of motorNodes) {
+        tmpBox.setFromObject(n).getCenter(tmpC);
+        let best = null, bestD = Infinity;
+        for (const cl of clusters) {
+          const d = Math.hypot(cl.centre.x - tmpC.x, cl.centre.z - tmpC.z);
+          if (d < bestD) { bestD = d; best = cl; }
+        }
+        if (best && bestD < clusterTol) {
+          best.nodes.push(n);
+          best.sum.add(tmpC);
+          best.centre.copy(best.sum).divideScalar(best.nodes.length);
+        } else {
+          clusters.push({ nodes: [n], sum: tmpC.clone(), centre: tmpC.clone() });
+        }
+      }
+      clusters.forEach((cl, i) => {
+        const o = orientOf(cl.centre);
+        const g = getGroup(`motor-${i}`, 'PROPULSION', `Moteur ${clusters.length === 4 ? orientLabel(o, false) : i + 1}`, 10 + (clusters.length === 4 ? o.order : i));
+        cl.nodes.forEach(n => g.nodes.push(n));
       });
+
+      // --- Hélices : un pivot = une hélice ---
+      propNodes.forEach((p, i) => {
+        tmpBox.setFromObject(p).getCenter(tmpC);
+        const o = orientOf(tmpC);
+        const g = getGroup(`prop-${i}`, 'PROPULSION', `Hélice ${propNodes.length === 4 ? orientLabel(o, true) : i + 1}`, 20 + (propNodes.length === 4 ? o.order : i));
+        g.nodes.push(p);
+      });
+
+      // --- Métriques par groupe (centre, direction d'éclatement, position d'origine) ---
+      const invOcc = new THREE.Matrix4().copy(occRoot.matrixWorld).invert();
+      const box = new THREE.Box3();
+      for (const g of assemblyGroups) {
+        box.makeEmpty();
+        g.nodes.forEach(n => box.expandByObject(n));
+        if (!box.isEmpty()) {
+          box.getCenter(g.centre);
+          box.getSize(g.size);
+        }
+        g.centreLocal.copy(g.centre).applyMatrix4(invOcc);
+
+        const dir = g.centre.clone().sub(droneCentre);
+        if (dir.lengthSq() < 1e-9) dir.set(0, 1, 0);
+        g.explodeDir.copy(dir.normalize()).transformDirection(invOcc);
+
+        g.nodes.forEach(n => {
+          n.userData.origPos = n.position.clone();
+          n.userData.userHidden = false;
+          nodeGroupMap.set(n, g);
+          allAssembleNodes.push(n);
+        });
+      }
+
+      assemblyGroups.sort((a, b) => {
+        const ca = CATEGORY_ORDER.indexOf(a.cat), cb = CATEGORY_ORDER.indexOf(b.cat);
+        if (ca !== cb) return ca - cb;
+        if (a.order !== b.order) return a.order - b.order;
+        return a.label.localeCompare(b.label);
+      });
+
+      stepIndex = 0;
+    }
+
+    function computeFlatLayPositions() {
+      if (!assemblyGroups.length || !occRoot) return;
+      const scl = new THREE.Vector3();
+      occRoot.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), scl);
+      const unit = Math.abs(scl.x) > 1e-6 ? Math.abs(scl.x) : 1;
+      worldToLocalUnit = 1 / unit;
+      const spacing = droneRadius * 0.95 * worldToLocalUnit;
+
+      const n = assemblyGroups.length;
+      const cols = Math.ceil(Math.sqrt(n));
+      const rows = Math.ceil(n / cols);
+      const startX = -((cols - 1) * spacing) / 2;
+      const startY = -((rows - 1) * spacing) / 2;
+
+      assemblyGroups.forEach((g, idx) => {
+        const r = Math.floor(idx / cols);
+        const c = idx % cols;
+        g.flatOffset.set(
+          startX + c * spacing - g.centreLocal.x,
+          startY + r * spacing - g.centreLocal.y,
+          -g.centreLocal.z
+        );
+      });
+
+      // Sphère englobante du plateau (en unités monde) pour cadrer la caméra sans attendre l'animation.
+      flatLayCentre.set(0, 0, 0).applyMatrix4(occRoot.matrixWorld);
+      const halfDiag = Math.hypot((cols - 1) * spacing, (rows - 1) * spacing) / 2;
+      const biggest = assemblyGroups.reduce((m, g) => Math.max(m, g.size.length() / 2), 0);
+      flatLayRadius = halfDiag * unit + biggest;
     }
 
     const treeListContainer = document.getElementById('tree-list-container');
@@ -1216,53 +1397,101 @@
       }
     });
 
-    function getCustomCategory(node) {
-      if (node.userData && node.userData.customCategory) return node.userData.customCategory;
-      const name = (node.name || '').toLowerCase();
-      if (/screw|nut|washer|pressnut|press nut/i.test(name)) return 'VISSERIE';
-      if (/arm|cross|base|top|plate|cage/i.test(name)) return 'FRAME';
-      if (/bumper|mount|airtag|antenna|boot|tpu/i.test(name)) return 'TPU';
-      if (/admi|motor/i.test(name)) return 'MOTEURS';
-      if (/^[0-9]+$/i.test(tidy(name)) || /prop/i.test(name)) return 'HELICES';
-      if (/openfc|4in1|openrx|rx|board/i.test(name)) return 'ELECTRONICS';
-      if (/vtx|lens|casing|camera/i.test(name)) return 'VIDEO';
-      if (/battery|batterie/i.test(name)) return 'BATTERIE';
-      if (/scratch|velcro|pad|stick/i.test(name)) return 'ACCESORIES';
-      return 'FRAME';
+    /* ---- Visibilité / sélection pilotées par groupe ---- */
+
+    function groupIsVisible(g, idx) {
+      if (g.hidden) return false;
+      if (soloGroup && soloGroup !== g) return false;
+      if (stateMode === 'stepbystep' && idx >= stepIndex) return false;
+      return true;
     }
+
+    function applyGroupVisibility(g, vis) {
+      g._vis = vis;
+      g.nodes.forEach(n => {
+        n.visible = vis;
+        n.traverse(sub => { sub.visible = vis; });
+      });
+    }
+
+    function setGroupHidden(g, hidden) {
+      if (!g) return;
+      g.hidden = hidden;
+      g.nodes.forEach(n => { n.userData.userHidden = hidden; });
+      applyGroupVisibility(g, groupIsVisible(g, assemblyGroups.indexOf(g)));
+    }
+
+    function showAllGroups() {
+      soloGroup = null;
+      assemblyGroups.forEach((g, i) => {
+        g.hidden = false;
+        g.nodes.forEach(n => { n.userData.userHidden = false; });
+        applyGroupVisibility(g, groupIsVisible(g, i));
+      });
+      buildAssemblyTree(treeSearchInput.value);
+    }
+
+    function groupBox(g, target) {
+      target.makeEmpty();
+      g.nodes.forEach(n => target.expandByObject(n));
+      return target;
+    }
+
+    function selectGroup(g) {
+      selectedGroup = g;
+      selectedNode = g ? g.nodes[0] : null;
+
+      if (!g) {
+        pickBox.visible = false;
+        return;
+      }
+
+      groupBox(g, pickBox.box);
+      pickBox.visible = true;
+
+      document.querySelectorAll('.tree-item').forEach(el => {
+        el.classList.toggle('selected', el.dataset.groupId === g.id);
+      });
+
+      const clsKey = classOf(g.nodes[0] ? g.nodes[0].name : '');
+      const clsProfile = PROFILES_MAP.get(clsKey);
+      const clsLabel = clsProfile ? clsProfile.label : clsKey;
+      const size = pickBox.box.getSize(new THREE.Vector3());
+      const mm = (v) => (v * 1000).toFixed(1);
+
+      const stageTag = document.getElementById('stage-tag');
+      const stageTitle = document.getElementById('stage-title');
+      const stageNote = document.getElementById('stage-note');
+      const stageCaption = document.getElementById('stage-caption');
+
+      if (stageTag) stageTag.textContent = CATEGORY_LABEL[g.cat] || 'Pièce';
+      if (stageTitle) stageTitle.textContent = g.label + (g.qty > 1 ? ` (x${g.qty})` : '');
+      if (stageNote) stageNote.textContent = `Matériau : ${clsLabel}`;
+      if (stageCaption) stageCaption.textContent = `${mm(size.x)} x ${mm(size.y)} x ${mm(size.z)} mm — ${g.nodes.length} corps CAO.`;
+    }
+
+    /* ---- Construction de l'arbre (une ligne = une pièce principale) ---- */
 
     function buildAssemblyTree(filterText = '') {
       if (!treeListContainer) return;
       treeListContainer.innerHTML = '';
 
-      const categories = {
-        'FRAME': [],
-        'TPU': [],
-        'MOTEURS': [],
-        'HELICES': [],
-        'ELECTRONICS': [],
-        'VIDEO': [],
-        'BATTERIE': [],
-        'ACCESORIES': [],
-        'VISSERIE': []
-      };
+      const needle = (filterText || '').trim().toLowerCase();
+      const visibleGroups = assemblyGroups.filter(g => !needle || g.label.toLowerCase().includes(needle));
 
-      const seenNames = new Set();
+      if (!visibleGroups.length) {
+        const empty = document.createElement('div');
+        empty.className = 'tree-empty';
+        empty.textContent = assemblyGroups.length ? 'Aucune pièce ne correspond.' : 'Chargement...';
+        treeListContainer.appendChild(empty);
+        return;
+      }
 
-      allAssembleNodes.forEach((node) => {
-        let cleanName = node.userData.customDisplayName || tidy(node.name || `Composant`);
-        if (seenNames.has(cleanName)) return;
-        seenNames.add(cleanName);
+      const refresh = () => buildAssemblyTree(treeSearchInput.value);
 
-        if (filterText && !cleanName.toLowerCase().includes(filterText.toLowerCase())) return;
-        const cat = getCustomCategory(node);
-        if (categories[cat]) {
-          categories[cat].push({ node, cleanName });
-        }
-      });
-
-      for (const [catName, items] of Object.entries(categories)) {
-        if (items.length === 0) continue;
+      for (const catName of CATEGORY_ORDER) {
+        const items = visibleGroups.filter(g => g.cat === catName);
+        if (!items.length) continue;
 
         const catDiv = document.createElement('div');
         catDiv.className = 'tree-category';
@@ -1272,79 +1501,66 @@
 
         const catChk = document.createElement('input');
         catChk.type = 'checkbox';
-        catChk.checked = items.every(item => !item.node.userData.userHidden);
-        catChk.title = "Afficher / Masquer toute la catégorie";
+        catChk.checked = items.every(g => !g.hidden);
+        catChk.indeterminate = !catChk.checked && items.some(g => !g.hidden);
+        catChk.title = 'Afficher / Masquer toute la catégorie';
         catChk.addEventListener('click', (e) => e.stopPropagation());
         catChk.addEventListener('change', (e) => {
-          const isChecked = e.target.checked;
-          items.forEach(({ node }) => {
-            node.userData.userHidden = !isChecked;
-            node.visible = isChecked;
-            node.traverse(sub => { sub.visible = isChecked; });
-          });
-          buildAssemblyTree(treeSearchInput.value);
+          items.forEach(g => setGroupHidden(g, !e.target.checked));
+          refresh();
         });
 
         const catSpan = document.createElement('span');
-        catSpan.textContent = catName;
+        catSpan.textContent = CATEGORY_LABEL[catName] || catName;
         catSpan.style.flex = '1';
+
+        const catCount = document.createElement('span');
+        catCount.className = 'tree-count';
+        catCount.textContent = items.length;
 
         titleDiv.appendChild(catChk);
         titleDiv.appendChild(catSpan);
+        titleDiv.appendChild(catCount);
         catDiv.appendChild(titleDiv);
 
         const ul = document.createElement('ul');
         ul.className = 'tree-sublist';
 
-        items.forEach(({ node, cleanName }) => {
+        items.forEach((g) => {
           const li = document.createElement('li');
-          li.className = `tree-item ${selectedNode === node ? 'selected' : ''}`;
+          li.className = `tree-item ${selectedGroup === g ? 'selected' : ''}`;
+          li.dataset.groupId = g.id;
+          li.title = g.label;
 
           const labelDiv = document.createElement('div');
           labelDiv.className = 'tree-item-label';
 
           const chk = document.createElement('input');
           chk.type = 'checkbox';
-          chk.checked = !node.userData.userHidden;
-          chk.title = "Afficher / Masquer";
+          chk.checked = !g.hidden;
+          chk.title = 'Afficher / Masquer';
           chk.addEventListener('click', (e) => e.stopPropagation());
           chk.addEventListener('change', (e) => {
-            const isChecked = e.target.checked;
-            node.userData.userHidden = !isChecked;
-            node.visible = isChecked;
-            node.traverse(sub => { sub.visible = isChecked; });
-            catChk.checked = items.every(item => !item.node.userData.userHidden);
+            setGroupHidden(g, !e.target.checked);
+            catChk.checked = items.every(x => !x.hidden);
+            catChk.indeterminate = !catChk.checked && items.some(x => !x.hidden);
           });
 
           const span = document.createElement('span');
-          span.textContent = cleanName;
+          span.textContent = g.label;
 
           labelDiv.appendChild(chk);
           labelDiv.appendChild(span);
           li.appendChild(labelDiv);
 
-          li.addEventListener('click', () => {
-            selectedNode = node;
-            pickBox.box.setFromObject(node);
-            pickBox.visible = true;
-            document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
-            li.classList.add('selected');
-            
-            const clsKey = classOf(node.name);
-            const clsProfile = PROFILES_MAP.get(clsKey);
-            const clsLabel = clsProfile ? clsProfile.label : clsKey;
-            
-            const stageTag = document.getElementById('stage-tag');
-            const stageTitle = document.getElementById('stage-title');
-            const stageNote = document.getElementById('stage-note');
-            const stageCaption = document.getElementById('stage-caption');
+          if (g.qty > 1) {
+            const qty = document.createElement('span');
+            qty.className = 'tree-count';
+            qty.textContent = `x${g.qty}`;
+            li.appendChild(qty);
+          }
 
-            if (stageTag) stageTag.textContent = "Arbre CAO";
-            if (stageTitle) stageTitle.textContent = cleanName;
-            if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
-            if (stageCaption) stageCaption.textContent = `Composant sélectionné depuis l'arbre d'assemblage.`;
-          });
-
+          li.addEventListener('click', () => selectGroup(g));
           ul.appendChild(li);
         });
 
@@ -1357,6 +1573,18 @@
       buildAssemblyTree(e.target.value);
     });
 
+    document.getElementById('btn-tree-showall').addEventListener('click', (e) => {
+      e.stopPropagation();
+      showAllGroups();
+    });
+
+    document.getElementById('btn-tree-hideall').addEventListener('click', (e) => {
+      e.stopPropagation();
+      soloGroup = null;
+      assemblyGroups.forEach(g => setGroupHidden(g, true));
+      buildAssemblyTree(treeSearchInput.value);
+    });
+
     function resetCamera() {
       const focus = new THREE.Vector3(0, 0, 0);
       controls.target.copy(focus);
@@ -1364,6 +1592,19 @@
       camera.position.set(dist * 0.9, dist * 0.7, dist * 1.0);
       camera.near = 0.005;
       camera.far = 10.0;
+      camera.updateProjectionMatrix();
+      controls.update();
+    }
+
+    // Cadre la caméra sur une sphère (centre + rayon en unités monde), en gardant l'angle de vue courant.
+    function fitCamera(centre, radiusWorld, margin = 1.35) {
+      const dist = (radiusWorld * margin) / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5));
+      const dir = camera.position.clone().sub(controls.target);
+      if (dir.lengthSq() < 1e-9) dir.set(0.9, 0.7, 1.0);
+      dir.normalize();
+      controls.target.copy(centre);
+      camera.position.copy(centre).add(dir.multiplyScalar(dist));
+      camera.far = Math.max(10, dist * 4);
       camera.updateProjectionMatrix();
       controls.update();
     }
@@ -1435,62 +1676,44 @@
     const btnFlatLay = document.getElementById('btn-flatlay');
     const btnStepByStep = document.getElementById('btn-stepbymir');
 
-    btnAssemble.addEventListener('click', () => { stateMode = 'assemble'; btnAssemble.classList.add('active'); btnFlatLay.classList.remove('active'); btnStepByStep.classList.remove('active'); });
-    btnFlatLay.addEventListener('click', () => { stateMode = 'flatlay'; btnFlatLay.classList.add('active'); btnAssemble.classList.remove('active'); btnStepByStep.classList.remove('active'); });
+    btnAssemble.addEventListener('click', () => {
+      stateMode = 'assemble'; btnAssemble.classList.add('active'); btnFlatLay.classList.remove('active'); btnStepByStep.classList.remove('active');
+      resetCamera();
+    });
+    btnFlatLay.addEventListener('click', () => {
+      stateMode = 'flatlay'; btnFlatLay.classList.add('active'); btnAssemble.classList.remove('active'); btnStepByStep.classList.remove('active');
+      fitCamera(flatLayCentre, flatLayRadius);
+    });
     btnStepByStep.addEventListener('click', () => {
       stateMode = 'stepbystep';
-      stepIndex = (stepIndex + 1) % (allAssembleNodes.length + 1);
+      stepIndex = (stepIndex + 1) % (assemblyGroups.length + 1);
       btnStepByStep.classList.add('active'); btnAssemble.classList.remove('active'); btnFlatLay.classList.remove('active');
     });
 
-    function isolateNode(node) {
-      if (!node) return;
-      soloNode = node;
-      allAssembleNodes.forEach(n => { n.visible = (n === soloNode); });
-      propPivots.forEach(p => { p.visible = (p === soloNode); });
-    }
-
-    function hideNode(node) {
-      if (!node) return;
-      node.userData.userHidden = true;
-      node.visible = false;
-      node.traverse(sub => { sub.visible = false; });
-      buildAssemblyTree(treeSearchInput.value);
-    }
-
-    function showAllNodes() {
-      soloNode = null;
-      allAssembleNodes.forEach(node => {
-        node.userData.userHidden = false;
-        node.visible = true;
-        node.traverse(sub => { sub.visible = true; });
-      });
-      if (occRoot) {
-        occRoot.traverse(sub => { sub.visible = true; });
-      }
-      propPivots.forEach(p => {
-        p.visible = true;
-        p.traverse(sub => { sub.visible = true; });
-      });
-      buildAssemblyTree(treeSearchInput.value);
+    function isolateGroup(g) {
+      if (!g) return;
+      soloGroup = (soloGroup === g) ? null : g;
+      assemblyGroups.forEach((x, i) => applyGroupVisibility(x, groupIsVisible(x, i)));
     }
 
     function exportSelectedSTL() {
-      if (!selectedNode) { alert("Veuillez d'abord sélectionner une pièce."); return; }
+      if (!selectedGroup) { alert("Veuillez d'abord sélectionner une pièce."); return; }
       const exporter = new STLExporter();
-      const result = exporter.parse(selectedNode, { binary: true });
+      const tmp = new THREE.Group();
+      selectedGroup.nodes.forEach(n => tmp.add(n.clone(true)));
+      const result = exporter.parse(tmp, { binary: true });
       const blob = new Blob([result], { type: 'application/octet-stream' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      const partName = tidy(selectedNode.name || 'piece-opendrone');
-      link.download = `${partName.replace(/\s+/g, '_')}.stl`;
+      const partName = selectedGroup.label || 'piece-opendrone';
+      link.download = `${partName.replace(/[^\w\-]+/g, '_')}.stl`;
       link.click();
       URL.revokeObjectURL(link.href);
     }
 
-    document.getElementById('ctx-solo').addEventListener('click', () => { isolateNode(selectedNode); contextMenu.style.display = 'none'; });
-    document.getElementById('ctx-hide').addEventListener('click', () => { hideNode(selectedNode); contextMenu.style.display = 'none'; });
-    document.getElementById('ctx-showall').addEventListener('click', () => { showAllNodes(); contextMenu.style.display = 'none'; });
+    document.getElementById('ctx-solo').addEventListener('click', () => { isolateGroup(selectedGroup); contextMenu.style.display = 'none'; });
+    document.getElementById('ctx-hide').addEventListener('click', () => { setGroupHidden(selectedGroup, true); buildAssemblyTree(treeSearchInput.value); contextMenu.style.display = 'none'; });
+    document.getElementById('ctx-showall').addEventListener('click', () => { showAllGroups(); contextMenu.style.display = 'none'; });
     document.getElementById('ctx-export-stl').addEventListener('click', () => { exportSelectedSTL(); contextMenu.style.display = 'none'; });
 
     const btnCloseCard = document.getElementById('btn-close-card');
@@ -1740,37 +1963,29 @@
       const hits = raycaster.intersectObjects(droneRoot.children, true);
       const hit = hits.find(h => h.object.visible && h.object.isMesh);
       if (!hit) {
-        pickBox.visible = false;
-        selectedNode = null;
+        selectGroup(null);
         if (isRightClick) contextMenu.style.display = 'none';
         return;
       }
 
-      const obj = hit.object;
-      let topOcc = obj;
+      let topOcc = hit.object;
       while (topOcc && topOcc.parent && topOcc.parent !== occRoot && topOcc.parent !== droneRoot) {
         topOcc = topOcc.parent;
       }
 
-      selectedNode = topOcc;
-      pickBox.box.setFromObject(topOcc);
-      pickBox.visible = true;
+      const g = nodeGroupMap.get(topOcc);
+      if (!g) {
+        selectGroup(null);
+        if (isRightClick) contextMenu.style.display = 'none';
+        return;
+      }
 
-      const name = topOcc.userData.customDisplayName || tidy(topOcc.name || obj.name);
+      selectGroup(g);
 
-      const stageTag = document.getElementById('stage-tag');
-      const stageTitle = document.getElementById('stage-title');
-      const stageNote = document.getElementById('stage-note');
-      const stageCaption = document.getElementById('stage-caption');
-
-      if (stageTag) stageTag.textContent = "Sélection Pièce";
-      if (stageTitle) stageTitle.textContent = name;
-      if (stageNote) stageNote.textContent = `Modèle : ${currentModelKey.toUpperCase()}`;
-      if (stageCaption) stageCaption.textContent = `Composant actif sélectionné.`;
-
-      document.querySelectorAll('.tree-item').forEach(el => {
-        el.classList.toggle('selected', el.textContent.includes(name));
-      });
+      const selectedLi = treeListContainer.querySelector('.tree-item.selected');
+      if (selectedLi && !treePanel.classList.contains('collapsed')) {
+        selectedLi.scrollIntoView({ block: 'nearest' });
+      }
 
       if (isRightClick) {
         contextMenu.style.left = `${e.clientX}px`;
@@ -1807,32 +2022,28 @@
         camera.position.z = controls.target.z + Math.sin(orbitAngle) * dist;
       }
 
-      if (allAssembleNodes.length > 0) {
-        allAssembleNodes.forEach((child, idx) => {
-          if (!child.userData.origPos) return;
-          let targetPos = child.userData.origPos.clone();
-          let targetVis = !child.userData.userHidden;
-
-          if (targetVis) {
-            if (soloNode && soloNode !== child) targetVis = false;
-            else {
-              if (stateMode === 'flatlay') {
-                const flatP = flatLayPositions.get(child.uuid);
-                if (flatP) targetPos.copy(flatP);
-              } else if (stateMode === 'stepbystep') {
-                if (idx >= stepIndex) targetVis = false;
-              } else if (explodeAmount > 0.001) {
-                const centre = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
-                const dir = centre.clone().sub(droneCentre).normalize();
-                if (dir.lengthSq() < 0.001) dir.set(0, 1, 0);
-                targetPos.add(dir.multiplyScalar(explodeAmount * 0.12));
-              }
-            }
+      if (assemblyGroups.length > 0) {
+        const explodeDist = explodeAmount * droneRadius * 0.9 * worldToLocalUnit;
+        assemblyGroups.forEach((g, idx) => {
+          // Cible de déplacement : le groupe entier bouge d'un bloc.
+          if (stateMode === 'flatlay') {
+            groupTarget.copy(g.flatOffset);
+          } else if (stateMode === 'assemble' && explodeAmount > 0.001) {
+            groupTarget.copy(g.explodeDir).multiplyScalar(explodeDist);
+          } else {
+            groupTarget.set(0, 0, 0);
           }
 
-          child.position.lerp(targetPos, 0.15);
-          child.visible = targetVis;
-          child.traverse(sub => { sub.visible = targetVis && !child.userData.userHidden; });
+          if (g._off.distanceToSquared(groupTarget) > 1e-12) {
+            g._off.lerp(groupTarget, 0.15);
+            if (g._off.distanceToSquared(groupTarget) < 1e-12) g._off.copy(groupTarget);
+            g.nodes.forEach(n => {
+              if (n.userData.origPos) n.position.copy(n.userData.origPos).add(g._off);
+            });
+          }
+
+          const vis = groupIsVisible(g, idx);
+          if (g._vis !== vis) applyGroupVisibility(g, vis);
         });
       }
 
