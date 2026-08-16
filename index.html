@@ -235,10 +235,6 @@
       opacity: 0;
       pointer-events: none;
     }
-    .tree-panel.clamped {
-      max-height: calc(100vh - 280px);
-    }
-
     .tree-title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
     .tree-search {
       width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-family: var(--font-mono); font-size: 10px; outline: none; margin-bottom: 8px;
@@ -314,9 +310,11 @@
     .context-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
     .stage-card {
-      position: absolute; left: 24px; bottom: 24px; width: 300px; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s ease, opacity 0.3s ease;
+      position: relative; width: 300px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s ease, opacity 0.3s ease;
     }
     .stage-card.hidden { transform: translateY(20px); opacity: 0; pointer-events: none; }
+    /* Retiré du flux une fois l'animation finie, pour que le pavé de vue redescende. */
+    .stage-card.gone { display: none; }
     .stage-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
     .stage-tag { font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; display: inline-flex; align-items: center; gap: 5px; }
     .stage-tag::before { content: ''; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: #ffb700; }
@@ -334,8 +332,64 @@
     .card-close-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px; transition: color 0.2s; }
     .card-close-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 
-    #btn-show-card { position: absolute; left: 24px; bottom: 24px; z-index: 9; display: none; }
+    /* Colonne du coin bas-gauche : sélecteur de vue, puis encart infos.
+       Le pavé se cale donc toujours au-dessus de ce qui est affiché. */
+    .dock-bl {
+      position: absolute; left: 24px; bottom: 24px; z-index: 10;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+      pointer-events: none;
+    }
+    .dock-bl > * { pointer-events: auto; }
+    #btn-show-card { display: none; }
     #btn-show-card.visible { display: inline-flex; }
+
+    .view-pad {
+      background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 7px; backdrop-filter: blur(20px); box-shadow: 0 16px 30px rgba(0, 0, 0, 0.55);
+    }
+    .view-pad-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em;
+      text-transform: uppercase; color: #ffb700; padding: 1px 3px 6px;
+    }
+    .view-pad-collapse {
+      background: none; border: 0; color: var(--text-dim); cursor: pointer;
+      padding: 0 1px; font-size: 11px; line-height: 1; font-family: var(--font-mono);
+    }
+    .view-pad-collapse:hover { color: #ffb700; }
+    .view-pad-keys { display: grid; grid-template-columns: repeat(3, 36px); grid-auto-rows: 36px; gap: 4px; }
+    .view-pad-isos { display: flex; gap: 4px; margin-top: 4px; }
+    .view-pad-isos .view-key { flex: 1; height: 24px; border-radius: 6px; }
+    .view-pad-isos .view-key svg { width: 15px; height: 15px; }
+    .view-key {
+      display: grid; place-items: center; cursor: pointer; padding: 0;
+      background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-muted);
+      transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+    }
+    .view-key:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--border-focus); color: var(--text); }
+    .view-key[aria-pressed="true"] { background: rgba(255, 183, 0, 0.12); border-color: rgba(255, 183, 0, 0.55); color: #ffb700; }
+    .view-key.home { border-radius: 50%; background: rgba(255, 255, 255, 0.02); }
+    .view-key.slot-empty { visibility: hidden; cursor: default; }
+    .view-key svg { width: 20px; height: 20px; display: block; }
+    .view-key .face { fill: currentColor; opacity: 0.14; }
+    .view-key .face.on { opacity: 0.95; }
+    .view-key .edge { fill: none; stroke: currentColor; stroke-width: 1.1; opacity: 0.55; }
+    .view-pad-name {
+      font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; color: var(--text-muted);
+      text-align: center; padding-top: 6px; margin-top: 5px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06); min-height: 13px;
+    }
+    .view-pad-reopen {
+      display: none; align-items: center; gap: 6px; cursor: pointer;
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; color: #ffb700;
+      background: var(--bg-panel); border: 1px solid var(--border-focus); border-radius: 8px; padding: 7px 11px;
+    }
+    .dock-bl.pad-collapsed .view-pad { display: none; }
+    .dock-bl.pad-collapsed .view-pad-reopen { display: inline-flex; }
+    .view-pad-collapse:focus-visible, .view-key:focus-visible, .view-pad-reopen:focus-visible {
+      outline: 2px solid #ffb700; outline-offset: 2px;
+    }
 
     #viewcube-container {
       position: absolute; top: 74px; right: 24px; width: 115px; height: 115px; z-index: 10; pointer-events: auto; cursor: pointer; transition: opacity 0.3s;
@@ -626,7 +680,23 @@
     </div>
   </header>
 
-  <div class="stage-card" id="stage-card">
+  <div class="dock-bl" id="dock-bl">
+
+    <div class="view-pad" id="view-pad">
+      <div class="view-pad-head">
+        <span>Vue</span>
+        <button class="view-pad-collapse" id="btn-view-pad-collapse" type="button" title="Replier le sélecteur de vue" aria-label="Replier le sélecteur de vue">&#9662;</button>
+      </div>
+      <div class="view-pad-keys" id="view-pad-keys"></div>
+      <div class="view-pad-isos" id="view-pad-isos"></div>
+      <div class="view-pad-name" id="view-pad-name">&nbsp;</div>
+    </div>
+
+    <button class="view-pad-reopen" id="btn-view-pad-reopen" type="button" title="Afficher le sélecteur de vue">
+      <span aria-hidden="true">&#9652;</span> Vue
+    </button>
+
+    <div class="stage-card" id="stage-card">
     <div class="stage-card-header">
       <span class="stage-tag" id="stage-tag">Vue d'ensemble</span>
       <div style="display:flex; align-items:center; gap:6px;">
@@ -641,13 +711,15 @@
       <button class="btn-nav" id="btn-prev">&larr; Précédent</button>
       <button class="btn-nav" id="btn-next">Suivant &rarr;</button>
       <button class="btn-nav primary" id="btn-autoplay">Lecture</button>
+      </div>
     </div>
-  </div>
 
-  <button class="btn-pill" id="btn-show-card">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-    <span>Afficher Infos</span>
-  </button>
+    <button class="btn-pill" id="btn-show-card">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      <span>Afficher Infos</span>
+    </button>
+
+  </div>
 
   <div class="control-panel collapsed" id="control-panel">
     <div class="panel-section">
@@ -1566,14 +1638,17 @@
     const treeSearchInput = document.getElementById('tree-search-input');
     const stageCard = document.getElementById('stage-card');
 
+    // L'arbre s'arrête juste au-dessus du coin bas-gauche (sélecteur de vue +
+    // encart infos), dont la hauteur varie : on la mesure au lieu de la figer.
     function updateTreeClamping() {
-      const isCardVisible = !stageCard.classList.contains('hidden');
-      const isTreeOpen = !treePanel.classList.contains('collapsed');
-      if (isCardVisible && isTreeOpen) {
-        treePanel.classList.add('clamped');
-      } else {
-        treePanel.classList.remove('clamped');
+      if (treePanel.classList.contains('collapsed')) {
+        treePanel.style.maxHeight = '';
+        return;
       }
+      const dock = document.getElementById('dock-bl');
+      const dockTop = dock ? dock.getBoundingClientRect().top : window.innerHeight - 24;
+      const panelTop = treePanel.getBoundingClientRect().top;
+      treePanel.style.maxHeight = `${Math.max(180, Math.round(dockTop - panelTop - 14))}px`;
     }
 
     btnToggleTree.addEventListener('click', (e) => {
@@ -1787,14 +1862,16 @@
       buildAssemblyTree(treeSearchInput.value);
     });
 
-    function resetCamera() {
+    function resetCamera(animated = false, dur = 0.6) {
       const focus = new THREE.Vector3(0, 0, 0);
-      controls.target.copy(focus);
       const dist = Math.max(droneRadius * 1.55, 0.17);
-      camera.position.set(dist * 0.9, dist * 0.7, dist * 1.0);
+      const pos = new THREE.Vector3(dist * 0.9, dist * 0.7, dist * 1.0);
       camera.near = 0.005;
       camera.far = 10.0;
       camera.updateProjectionMatrix();
+      if (animated) { flyCameraTo(pos, focus, new THREE.Vector3(0, 1, 0), dur); return; }
+      controls.target.copy(focus);
+      camera.position.copy(pos);
       controls.update();
     }
 
@@ -1814,6 +1891,15 @@
       camera.far = Math.max(10, dist * 4);
       camera.updateProjectionMatrix();
       controls.update();
+    }
+
+    // Oriente la caméra le long d'une direction monde, en conservant le zoom
+    // courant : on ne fait que pivoter autour de la cible. Partagé par le
+    // ViewCube et le sélecteur de vue en bas à gauche.
+    function applyViewDirection(dir, upVec = null, dur = 0.6) {
+      const targetPos = controls.target.clone();
+      const dist = Math.max(camera.position.distanceTo(targetPos), droneRadius * 1.2);
+      flyCameraTo(targetPos.clone().add(dir.clone().normalize().multiplyScalar(dist)), targetPos, upVec, dur);
     }
 
     // Même cadrage, mais en vol animé.
@@ -1946,7 +2032,7 @@
     btnAssemble.addEventListener('click', () => {
       setMode('assemble');
       startMorph();
-      flyToFit(droneCentre, droneRadius, 0.85, MORPH_DUR + MORPH_STAGGER);
+      resetCamera(true, MORPH_DUR + MORPH_STAGGER);
     });
     btnFlatLay.addEventListener('click', () => {
       setMode('flatlay');
@@ -1997,6 +2083,111 @@
     document.getElementById('ctx-hide').addEventListener('click', () => { setGroupHidden(selectedGroup, true); buildAssemblyTree(treeSearchInput.value); contextMenu.style.display = 'none'; });
     document.getElementById('ctx-showall').addEventListener('click', () => { showAllGroups(); contextMenu.style.display = 'none'; });
     document.getElementById('ctx-export-stl').addEventListener('click', () => { exportSelectedSTL(); contextMenu.style.display = 'none'; });
+
+    /* ============================================================
+       SÉLECTEUR DE VUE (bas-gauche) — croix des 4 vues orthogonales
+       + recentrer au centre, les deux isométries en dessous.
+       Les vues suivent les axes propres du drone : "Avant" est le côté
+       caméra FPV, comme pour le ViewCube.
+       ============================================================ */
+
+    // Cube isométrique dont la face visée s'allume. Pour « Dessous », le cube
+    // est retourné, ce qui se lit comme un point de vue passant sous le drone.
+    function viewCubeIcon(faces, flip = false) {
+      const on = (f) => (faces.includes(f) ? ' on' : '');
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"${flip ? ' style="transform:scaleY(-1)"' : ''}>
+        <polygon class="face${on('top')}" points="12,3 20.5,7.9 12,12.8 3.5,7.9"/>
+        <polygon class="face${on('left')}" points="3.5,7.9 12,12.8 12,21.5 3.5,16.6"/>
+        <polygon class="face${on('right')}" points="20.5,7.9 12,12.8 12,21.5 20.5,16.6"/>
+        <path class="edge" d="M12 3 20.5 7.9 20.5 16.6 12 21.5 3.5 16.6 3.5 7.9Z"/>
+        <path class="edge" d="M3.5 7.9 12 12.8 20.5 7.9M12 12.8 12 21.5"/>
+      </svg>`;
+    }
+
+    const UP_Y = () => new THREE.Vector3(0, 1, 0);
+
+    // dir() est évalué au clic : les axes du drone ne sont connus qu'après chargement.
+    const VIEW_KEYS = {
+      top:    { label: 'Dessus',  icon: () => viewCubeIcon(['top']),           dir: () => UP_Y(),                     up: () => droneFront.clone() },
+      bottom: { label: 'Dessous', icon: () => viewCubeIcon(['top'], true),     dir: () => UP_Y().negate(),            up: () => droneFront.clone() },
+      left:   { label: 'Gauche',  icon: () => viewCubeIcon(['left']),          dir: () => droneRight.clone().negate(), up: () => UP_Y() },
+      right:  { label: 'Droite',  icon: () => viewCubeIcon(['right']),         dir: () => droneRight.clone(),          up: () => UP_Y() },
+      isoL:   { label: 'Iso gauche', icon: () => viewCubeIcon(['top', 'left']),  dir: () => droneFront.clone().sub(droneRight).add(UP_Y()), up: () => UP_Y() },
+      isoR:   { label: 'Iso droite', icon: () => viewCubeIcon(['top', 'right']), dir: () => droneFront.clone().add(droneRight).add(UP_Y()), up: () => UP_Y() },
+      home:   { label: 'Recentrer',  icon: () => viewCubeIcon([]),               home: true }
+    };
+
+    const CROSS_LAYOUT = [null, 'top', null, 'left', 'home', 'right', null, 'bottom', null];
+
+    const viewPadName = document.getElementById('view-pad-name');
+    const dockBl = document.getElementById('dock-bl');
+
+    function buildViewPad() {
+      const keysHost = document.getElementById('view-pad-keys');
+      const isosHost = document.getElementById('view-pad-isos');
+      keysHost.innerHTML = '';
+      isosHost.innerHTML = '';
+
+      const makeKey = (id, extraClass = '') => {
+        const v = VIEW_KEYS[id];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `view-key ${extraClass}`.trim();
+        btn.dataset.viewKey = id;
+        btn.title = v.label;
+        btn.setAttribute('aria-label', v.label);
+        btn.setAttribute('aria-pressed', 'false');
+        btn.innerHTML = v.icon();
+        btn.addEventListener('click', () => selectView(id));
+        btn.addEventListener('mouseenter', () => { viewPadName.textContent = v.label; });
+        btn.addEventListener('mouseleave', () => { viewPadName.textContent = activeViewLabel; });
+        return btn;
+      };
+
+      CROSS_LAYOUT.forEach((id) => {
+        if (!id) {
+          const slot = document.createElement('span');
+          slot.className = 'view-key slot-empty';
+          keysHost.appendChild(slot);
+        } else {
+          keysHost.appendChild(makeKey(id, id === 'home' ? 'home' : ''));
+        }
+      });
+
+      ['isoL', 'isoR'].forEach(id => isosHost.appendChild(makeKey(id)));
+    }
+
+    let activeViewLabel = ' ';
+
+    function markActiveView(id) {
+      document.querySelectorAll('.view-key[data-view-key]').forEach(el => {
+        el.setAttribute('aria-pressed', String(el.dataset.viewKey === id));
+      });
+      activeViewLabel = id ? VIEW_KEYS[id].label : ' ';
+      viewPadName.textContent = activeViewLabel;
+    }
+
+    function selectView(id) {
+      const v = VIEW_KEYS[id];
+      if (!v) return;
+      markActiveView(id);
+      if (v.home) { resetCamera(true); return; }
+      applyViewDirection(v.dir(), v.up());
+    }
+
+    // Dès que l'utilisateur reprend la main à la souris, la vue n'est plus « pure ».
+    controls.addEventListener('start', () => markActiveView(null));
+
+    document.getElementById('btn-view-pad-collapse').addEventListener('click', () => {
+      dockBl.classList.add('pad-collapsed');
+      updateTreeClamping();
+    });
+    document.getElementById('btn-view-pad-reopen').addEventListener('click', () => {
+      dockBl.classList.remove('pad-collapsed');
+      updateTreeClamping();
+    });
+
+    buildViewPad();
 
     /* ============================================================
        COMMANDER / TÉLÉCHARGER — kits construits sur l'arbre d'assemblage
@@ -2109,13 +2300,20 @@
     const btnCloseCard = document.getElementById('btn-close-card');
     const btnShowCard = document.getElementById('btn-show-card');
 
+    let cardHideTimer = null;
+
     btnCloseCard.addEventListener('click', () => {
       stageCard.classList.add('hidden');
       btnShowCard.classList.add('visible');
+      // On laisse le fondu se jouer, puis on sort l'encart du flux.
+      clearTimeout(cardHideTimer);
+      cardHideTimer = setTimeout(() => stageCard.classList.add('gone'), 300);
       updateTreeClamping();
     });
     btnShowCard.addEventListener('click', () => {
-      stageCard.classList.remove('hidden');
+      clearTimeout(cardHideTimer);
+      stageCard.classList.remove('gone');
+      requestAnimationFrame(() => stageCard.classList.remove('hidden'));
       btnShowCard.classList.remove('visible');
       updateTreeClamping();
     });
@@ -2191,8 +2389,8 @@
     bindSlider('slider-exp', v => renderer.toneMappingExposure = v);
     bindSlider('slider-env', v => scene.environmentIntensity = v);
 
-    document.getElementById('btn-camera-reset').addEventListener('click', resetCamera);
-    document.getElementById('btn-reset-cam').addEventListener('click', resetCamera);
+    document.getElementById('btn-camera-reset').addEventListener('click', () => resetCamera(true));
+    document.getElementById('btn-reset-cam').addEventListener('click', () => resetCamera(true));
 
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
@@ -2277,10 +2475,7 @@
         else if (n.z < -0.9) dir = droneFront.clone().negate();           // Arrière
         if (!dir) return;
 
-        // On conserve le zoom courant, on ne fait que pivoter autour de la cible.
-        const targetPos = controls.target.clone();
-        const dist = Math.max(camera.position.distanceTo(targetPos), droneRadius * 1.2);
-        flyCameraTo(targetPos.clone().add(dir.multiplyScalar(dist)), targetPos, camUp, 0.6);
+        applyViewDirection(dir, camUp);
       }
     });
 
@@ -2430,6 +2625,7 @@
     animate();
 
     window.addEventListener('resize', () => {
+      updateTreeClamping();
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
