@@ -346,8 +346,6 @@
     }
     .btn-preset:hover { border-color: var(--border-focus); color: var(--text); background: rgba(255, 255, 255, 0.08); }
     .btn-preset.active { background: rgba(255, 183, 0, 0.2); border-color: #ffb700; color: #ffb700; }
-    .inspector-card { background: rgba(14, 18, 24, 0.95); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); line-height: 1.5; }
-    .inspector-card b { color: var(--text); font-size: 12px; display: block; margin-bottom: 2px; }
 
     #loading-overlay {
       position: absolute; inset: 0; z-index: 100; background: #090a0d; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.6s;
@@ -575,18 +573,6 @@
   </button>
 
   <div class="control-panel collapsed" id="control-panel">
-    <div class="panel-section">
-      <div class="panel-title">Inspection & Visibilité</div>
-      <div class="inspector-card" id="selected-part-info" style="margin-bottom: 8px;">
-        <b>Pièce active :</b> <span>Aucune (clic droit ou gauche)</span>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 6px;">
-        <button class="btn-pill" id="btn-solo" style="justify-content:center; font-size:10px; padding:6px 4px;">Isoler (Solo)</button>
-        <button class="btn-pill" id="btn-hide" style="justify-content:center; font-size:10px; padding:6px 4px;">Masquer</button>
-        <button class="btn-pill" id="btn-show-all" style="justify-content:center; font-size:10px; padding:6px 4px;">Tout Afficher</button>
-      </div>
-    </div>
-
     <div class="panel-section">
       <div class="panel-title">Profils d'Éclairage Studio</div>
       <div class="presets-grid">
@@ -1502,10 +1488,6 @@
       URL.revokeObjectURL(link.href);
     }
 
-    document.getElementById('btn-solo').addEventListener('click', () => isolateNode(selectedNode));
-    document.getElementById('btn-hide').addEventListener('click', () => hideNode(selectedNode));
-    document.getElementById('btn-show-all').addEventListener('click', showAllNodes);
-
     document.getElementById('ctx-solo').addEventListener('click', () => { isolateNode(selectedNode); contextMenu.style.display = 'none'; });
     document.getElementById('ctx-hide').addEventListener('click', () => { hideNode(selectedNode); contextMenu.style.display = 'none'; });
     document.getElementById('ctx-showall').addEventListener('click', () => { showAllNodes(); contextMenu.style.display = 'none'; });
@@ -1602,6 +1584,25 @@
       else document.exitFullscreen().catch(() => {});
     });
 
+    // Génération dynamique des textures de texte pour le ViewCube
+    function createFaceTexture(text) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#1b222c';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.strokeStyle = '#ffb700';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, 122, 122);
+      ctx.fillStyle = '#f0f2f5';
+      ctx.font = 'bold 20px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 64, 64);
+      return new THREE.CanvasTexture(canvas);
+    }
+
     const vcContainer = document.getElementById('viewcube-container');
     const vcScene = new THREE.Scene();
     const vcCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
@@ -1613,12 +1614,12 @@
 
     const cubeGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
     const cubeMat = [
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }),
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }),
-      new THREE.MeshBasicMaterial({ color: 0x303b4d }),
-      new THREE.MeshBasicMaterial({ color: 0x181e26 }),
-      new THREE.MeshBasicMaterial({ color: 0x222a35 }),
-      new THREE.MeshBasicMaterial({ color: 0x222a35 })
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Droite') }),  // 0: Right (+X)
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Gauche') }),  // 1: Left (-X)
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessus') }),  // 2: Top (+Y)
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessous') }), // 3: Bottom (-Y)
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Avant') }),   // 4: Front (+Z)
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Arrière') })  // 5: Back (-Z)
     ];
     const vcCube = new THREE.Mesh(cubeGeo, cubeMat);
     vcScene.add(vcCube);
@@ -1698,7 +1699,6 @@
 
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const partInfoSpan = document.querySelector('#selected-part-info span');
     const pickBox = new THREE.Box3Helper(new THREE.Box3(), 0xffb700);
     pickBox.visible = false;
     scene.add(pickBox);
@@ -1715,7 +1715,6 @@
       if (!hit) {
         pickBox.visible = false;
         selectedNode = null;
-        if (partInfoSpan) partInfoSpan.textContent = "Aucune (clic droit ou gauche)";
         if (isRightClick) contextMenu.style.display = 'none';
         return;
       }
@@ -1731,11 +1730,6 @@
       pickBox.visible = true;
 
       const name = topOcc.userData.customDisplayName || tidy(topOcc.name || obj.name);
-      const clsKey = classOf(obj.name || topOcc.name || '');
-      const clsProfile = PROFILES_MAP.get(clsKey);
-      const clsLabel = clsProfile ? clsProfile.label : clsKey;
-
-      if (partInfoSpan) partInfoSpan.innerHTML = `<b>${name}</b> (${clsLabel})`;
 
       const stageTag = document.getElementById('stage-tag');
       const stageTitle = document.getElementById('stage-title');
@@ -1744,8 +1738,8 @@
 
       if (stageTag) stageTag.textContent = "Sélection Pièce";
       if (stageTitle) stageTitle.textContent = name;
-      if (stageNote) stageNote.textContent = `Type : ${clsLabel}`;
-      if (stageCaption) stageCaption.textContent = `Composant actif du modèle ${currentModelKey.toUpperCase()}.`;
+      if (stageNote) stageNote.textContent = `Modèle : ${currentModelKey.toUpperCase()}`;
+      if (stageCaption) stageCaption.textContent = `Composant actif sélectionné.`;
 
       document.querySelectorAll('.tree-item').forEach(el => {
         el.classList.toggle('selected', el.textContent.includes(name));
