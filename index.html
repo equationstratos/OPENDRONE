@@ -247,9 +247,10 @@
     .tree-list { list-style: none; font-family: var(--font-mono); font-size: 11px; }
     
     .tree-category { margin-bottom: 8px; }
-    .tree-category-title {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #ffb700; background: rgba(255,183,0,0.08); padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; text-transform: uppercase;
+    .tree-category-header {
+      display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #ffb700; background: rgba(255,183,0,0.08); padding: 5px 8px; border-radius: 4px; margin-bottom: 4px; text-transform: uppercase; cursor: pointer;
     }
+    .tree-category-header input[type=checkbox] { accent-color: #ffb700; cursor: pointer; }
     .tree-sublist { list-style: none; padding-left: 10px; }
 
     .tree-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; border-radius: 4px; cursor: pointer; transition: background 0.15s; margin-bottom: 2px; }
@@ -1055,15 +1056,15 @@
       scene.updateMatrixWorld(true);
       allAssembleNodes = [];
       
-      // Collecte robuste de tous les noeuds principaux de premier niveau sous occRoot
       occRoot.traverse((node) => {
         if (node.parent === occRoot) {
           const rawName = node.name || '';
           const isSubPart = /soldermask|silkscreen|pad|smd|screw|nut|washer|pressnut|press nut/i.test(rawName);
           const isRedundantMotor = /^Admi/i.test(tidy(rawName));
           const isRedundantProp = /^prop-pivot/i.test(rawName);
+          const isFrameMinor = /^(mesh|occurrence)/i.test(rawName) && !/(Arm|Cross|Base|Top|Plate|Standoff)/i.test(rawName);
 
-          if (!isSubPart && !isRedundantMotor && !isRedundantProp) {
+          if (!isSubPart && !isRedundantMotor && !isRedundantProp && !isFrameMinor) {
             node.userData.origPos = node.position.clone();
             node.userData.origQuat = node.quaternion.clone();
             node.userData.origScale = node.scale.clone();
@@ -1073,7 +1074,6 @@
         }
       });
 
-      // Ajout explicite groupé et numéroté pour les moteurs et hélices
       let motorCount = 0;
       let propCount = 0;
       occRoot.traverse((node) => {
@@ -1229,8 +1229,29 @@
         catDiv.className = 'tree-category';
 
         const titleDiv = document.createElement('div');
-        titleDiv.className = 'tree-category-title';
-        titleDiv.textContent = catName;
+        titleDiv.className = 'tree-category-header';
+
+        const catChk = document.createElement('input');
+        catChk.type = 'checkbox';
+        catChk.checked = items.every(item => !item.node.userData.userHidden);
+        catChk.title = "Afficher / Masquer toute la catégorie";
+        catChk.addEventListener('click', (e) => e.stopPropagation());
+        catChk.addEventListener('change', (e) => {
+          const isChecked = e.target.checked;
+          items.forEach(({ node }) => {
+            node.userData.userHidden = !isChecked;
+            node.visible = isChecked;
+            node.traverse(sub => { sub.visible = isChecked; });
+          });
+          buildAssemblyTree(treeSearchInput.value);
+        });
+
+        const catSpan = document.createElement('span');
+        catSpan.textContent = catName;
+        catSpan.style.flex = '1';
+
+        titleDiv.appendChild(catChk);
+        titleDiv.appendChild(catSpan);
         catDiv.appendChild(titleDiv);
 
         const ul = document.createElement('ul');
@@ -1253,6 +1274,7 @@
             node.userData.userHidden = !isChecked;
             node.visible = isChecked;
             node.traverse(sub => { sub.visible = isChecked; });
+            catChk.checked = items.every(item => !item.node.userData.userHidden);
           });
 
           const span = document.createElement('span');
@@ -1777,3 +1799,4 @@
   </script>
 </body>
 </html>
+```[cite: 1]
