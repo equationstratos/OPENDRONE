@@ -301,7 +301,7 @@
     .context-menu-item:hover { background: rgba(255, 183, 0, 0.15); color: #ffb700; }
     .context-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
-    /* Stage Card (Panneau bulle info compact en bas à gauche) */
+    /* Stage Card */
     .stage-card {
       position: absolute; left: 24px; bottom: 24px; width: 300px; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s ease, opacity 0.3s ease;
     }
@@ -332,7 +332,7 @@
     }
     #viewcube-container canvas { width: 100%; height: 100%; border-radius: 10px; background: transparent; }
 
-    /* Right Control Panel (Studio) */
+    /* Right Control Panel */
     .control-panel {
       position: absolute; top: 200px; right: 24px; width: 340px; max-height: calc(100vh - 220px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
@@ -449,7 +449,7 @@
           </div>
           <input type="text" class="tree-search" id="tree-search-input" placeholder="Filtrer les pièces..." />
           <div class="tree-list" id="tree-list-container">
-            <!-- Rempli dynamiquement par catégorie -->
+            <!-- Rempli dynamiquement -->
           </div>
         </div>
       </div>
@@ -537,7 +537,7 @@
     </div>
   </header>
 
-  <!-- Stage Card (Panneau bulle info compact en bas à gauche) -->
+  <!-- Stage Card -->
   <div class="stage-card" id="stage-card">
     <div class="stage-card-header">
       <span class="stage-tag" id="stage-tag">Vue d'ensemble</span>
@@ -1074,11 +1074,19 @@
       allAssembleNodes = [];
       occRoot.traverse((node) => {
         if (node.parent === occRoot) {
-          node.userData.origPos = node.position.clone();
-          node.userData.origQuat = node.quaternion.clone();
-          node.userData.origScale = node.scale.clone();
-          node.userData.userHidden = false;
-          allAssembleNodes.push(node);
+          const rawName = node.name || '';
+          // Filtrage rigoureux pour exclure les sous-parties, vis, pièces SMD, doublons de moteurs et petits éléments inutiles de l'arbre
+          const isSubPart = /soldermask|silkscreen|pad|smd|screw|nut|washer|pressnut|press nut/i.test(rawName);
+          const isRedundantMotor = /^Admi/i.test(tidy(rawName)) && allAssembleNodes.some(n => getCustomCategory(n.name) === 'MOTEURS');
+          const isRedundantProp = /^prop-pivot/i.test(rawName) && allAssembleNodes.some(n => getCustomCategory(n.name) === 'HELICES');
+
+          if (!isSubPart && !isRedundantMotor && !isRedundantProp) {
+            node.userData.origPos = node.position.clone();
+            node.userData.origQuat = node.quaternion.clone();
+            node.userData.origScale = node.scale.clone();
+            node.userData.userHidden = false;
+            allAssembleNodes.push(node);
+          }
         }
       });
 
@@ -1115,7 +1123,7 @@
       });
     }
 
-    // Gestion de l'arbre d'assemblage et catégorisation personnalisée
+    // Gestion de l'arbre d'assemblage et catégorisation simplifiée
     const treeListContainer = document.getElementById('tree-list-container');
     const treePanel = document.getElementById('tree-panel');
     const btnToggleTree = document.getElementById('btn-toggle-tree');
@@ -1157,7 +1165,7 @@
     });
 
     function getCustomCategory(name) {
-      const n = name.toLowerCase();
+      const n = (name || '').toLowerCase();
       if (/screw|nut|washer|pressnut|press nut/i.test(n)) return 'VISSERIE';
       if (/arm|cross|base|top|plate|cage/i.test(n)) return 'FRAME';
       if (/bumper|mount|airtag|antenna|boot|tpu/i.test(n)) return 'TPU';
@@ -1192,12 +1200,15 @@
         if (filterText && !cleanName.toLowerCase().includes(filterText.toLowerCase())) return;
         const cat = getCustomCategory(rawName);
         if (categories[cat]) {
-          categories[cat].push({ node, cleanName });
+          // Pour regrouper et ne garder qu'une seule entrée par nom de pièce principale (ex: Moteurs uniques, Hélices uniques)
+          if (!categories[cat].some(item => item.cleanName.toLowerCase() === cleanName.toLowerCase())) {
+            categories[cat].push({ node, cleanName });
+          }
         }
       });
 
       for (const [catName, items] of Object.entries(categories)) {
-        if (items.length === 0 && !filterText) continue;
+        if (items.length === 0) continue;
 
         const catDiv = document.createElement('div');
         catDiv.className = 'tree-category';
@@ -1454,7 +1465,6 @@
       });
     });
 
-    // Sélecteur de couleur de fond
     document.querySelectorAll('.btn-theme[data-bg]').forEach(btn => {
       btn.addEventListener('click', () => {
         const bgColor = btn.dataset.bg;
@@ -1484,7 +1494,6 @@
       allMeshes.forEach(m => { if (m.material) m.material.wireframe = isWireframe; });
     });
 
-    // Bouton marche/arrêt de rotation des hélices
     const btnTogglePropSpin = document.getElementById('btn-toggle-prop-spin');
     btnTogglePropSpin.addEventListener('click', () => {
       isPropSpinning = !isPropSpinning;
@@ -1751,3 +1760,4 @@
   </script>
 </body>
 </html>
+```[cite: 1]
