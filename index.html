@@ -282,6 +282,10 @@
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
       display: none;
       z-index: 50;
+      /* Le menu Personnalisation dépasse la fenêtre : on le rend défilant. */
+      max-height: calc(100vh - 96px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
     .dropdown-container.open .dropdown-content { display: block; }
     .menu-group { margin-bottom: 10px; }
@@ -485,9 +489,9 @@
     .kit-note { font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 10px; min-height: 32px; }
     .modal-actions { display: flex; gap: 8px; margin-top: 12px; }
     .modal-actions .btn-pill { flex: 1; justify-content: center; }
-    .control-panel::-webkit-scrollbar, .tree-panel::-webkit-scrollbar { width: 5px; }
-    .control-panel::-webkit-scrollbar-track, .tree-panel::-webkit-scrollbar-track { background: transparent; }
-    .control-panel::-webkit-scrollbar-thumb, .tree-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
+    .control-panel::-webkit-scrollbar, .tree-panel::-webkit-scrollbar, .dropdown-content::-webkit-scrollbar { width: 5px; }
+    .control-panel::-webkit-scrollbar-track, .tree-panel::-webkit-scrollbar-track, .dropdown-content::-webkit-scrollbar-track { background: transparent; }
+    .control-panel::-webkit-scrollbar-thumb, .tree-panel::-webkit-scrollbar-thumb, .dropdown-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
 
     @media (max-width: 1200px) {
       #viewcube-container { right: 24px; top: 130px; }
@@ -602,6 +606,10 @@
               <button class="btn-pill" id="btn-wireframe" style="justify-content:center; width:100%;" title="Afficher le maillage filaire">
                 <span>Wireframe</span>
               </button>
+              <label class="toggle-wrap" style="width:100%; justify-content:space-between;">
+                <span>Arêtes surlignées</span>
+                <input type="checkbox" id="chk-edges">
+              </label>
               <label class="toggle-wrap" style="width:100%; justify-content:space-between;">
                 <span>Grille de Sol</span>
                 <input type="checkbox" id="chk-grid" checked>
@@ -1163,6 +1171,7 @@
         droneRoot = null;
         occRoot = null;
         allMeshes = [];
+        edgesBuilt = false;   // les contours suivent les maillages du modèle
         allAssembleNodes = [];
         assemblyGroups = [];
         nodeGroupMap = new Map();
@@ -1300,6 +1309,7 @@
       buildPalettes();
       buildAssemblyTree();
       updateStepHud();
+      if (showEdges) setEdgesVisible(true);
 
       applyCategoryColor('tpu', activeTpuHex);
       applyCategoryColor('motor', activeMotorHex);
@@ -1755,7 +1765,9 @@
       g._vis = vis;
       g.nodes.forEach(n => {
         n.visible = vis;
-        n.traverse(sub => { sub.visible = vis; });
+        // Les surlignages d'arêtes gardent leur propre état : ils sont enfants
+        // des maillages, donc masqués automatiquement avec eux.
+        n.traverse(sub => { if (!sub.userData.isEdgeOverlay) sub.visible = vis; });
       });
     }
 
@@ -2427,6 +2439,60 @@
     }
 
     sliderExplode.addEventListener('input', (e) => setExplode(e.target.value));
+
+    /* ---- Surlignage des arêtes (contours CAO) ---- */
+
+    let showEdges = false;
+    let edgesBuilt = false;
+    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xa8b4c4, transparent: true, opacity: 0.38 });
+
+    const EDGE_MAX_TRIS = 25000;  // au-delà : pièce courbe, arêtes bruitées et calcul lourd
+    let edgeBuildPending = false;
+
+    function edgeCandidate(m) {
+      // Pastilles, sérigraphies, vernis et composants CMS des cartes : ~93 % des
+      // triangles pour des contours qui ne seraient que du bruit.
+      if (/^(padgold|silk|mask|smd)$/.test(m.userData.matKey || '')) return false;
+      const geo = m.geometry;
+      if (!geo || !geo.attributes.position) return false;
+      const tris = (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+      return tris <= EDGE_MAX_TRIS;
+    }
+
+    // Construction étalée sur plusieurs images : extraire les arêtes de tout le
+    // drone d'un bloc gèle l'interface plusieurs secondes. Les contours
+    // apparaissent donc progressivement, sans à-coup.
+    function buildEdgeOverlays() {
+      if (edgesBuilt || edgeBuildPending) return;
+      const queue = allMeshes.filter(edgeCandidate);
+      let i = 0;
+      edgeBuildPending = true;
+
+      const step = () => {
+        if (!showEdges) { edgeBuildPending = false; return; }  // annulé entre-temps
+        const t0 = performance.now();
+        while (i < queue.length && performance.now() - t0 < 12) {
+          const m = queue[i++];
+          const line = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 35), edgeMaterial);
+          line.userData.isEdgeOverlay = true;
+          line.frustumCulled = false;
+          m.add(line);
+        }
+        if (i < queue.length) { requestAnimationFrame(step); return; }
+        edgeBuildPending = false;
+        edgesBuilt = true;
+      };
+      step();
+    }
+
+    function setEdgesVisible(on) {
+      showEdges = on;
+      if (on) buildEdgeOverlays();
+      if (!droneRoot) return;
+      droneRoot.traverse((o) => { if (o.userData.isEdgeOverlay) o.visible = on; });
+    }
+
+    document.getElementById('chk-edges').addEventListener('change', (e) => setEdgesVisible(e.target.checked));
 
     const btnWireframe = document.getElementById('btn-wireframe');
     btnWireframe.addEventListener('click', () => {
