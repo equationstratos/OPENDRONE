@@ -302,6 +302,7 @@
       font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; text-align: center; transition: all 0.2s ease;
     }
     .btn-theme:hover { border-color: var(--border-focus); color: var(--text); background: rgba(255, 255, 255, 0.08); }
+    .btn-theme.active { border-color: rgba(255, 183, 0, 0.6); color: #ffb700; background: rgba(255, 183, 0, 0.12); }
 
     #context-menu {
       position: absolute; display: none; z-index: 1000; background: rgba(18, 23, 30, 0.95); border: 1px solid var(--border-focus); border-radius: 10px; padding: 6px; backdrop-filter: blur(16px); box-shadow: 0 10px 30px rgba(0,0,0,0.7); min-width: 170px;
@@ -371,6 +372,19 @@
     .loader-status { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; }
 
     .bottom-hud { position: absolute; bottom: 24px; right: 24px; z-index: 10; display: flex; align-items: center; gap: 8px; pointer-events: auto; }
+    .step-hud {
+      position: absolute; bottom: 88px; left: 50%; transform: translateX(-50%) translateY(14px);
+      z-index: 11; display: flex; align-items: center; gap: 10px; pointer-events: auto;
+      background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 8px 12px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      opacity: 0; visibility: hidden; transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s;
+    }
+    .step-hud.visible { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+    .step-hud button { min-width: 40px; justify-content: center; }
+    .step-hud button:disabled { opacity: 0.35; cursor: default; }
+    .step-hud-label { text-align: center; min-width: 190px; line-height: 1.3; }
+    .step-hud-count { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; }
+    .step-hud-name { display: block; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
     .control-panel::-webkit-scrollbar, .tree-panel::-webkit-scrollbar { width: 5px; }
     .control-panel::-webkit-scrollbar-track, .tree-panel::-webkit-scrollbar-track { background: transparent; }
     .control-panel::-webkit-scrollbar-thumb, .tree-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
@@ -458,32 +472,14 @@
     </div>
 
     <div class="top-controls">
-      <!-- Menu ASSEMBLAGE -->
-      <div class="dropdown-container" id="assemblage-dropdown">
-        <button class="btn-pill" id="btn-assemblage-toggle">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span>Assemblage</span>
-        </button>
-        <div class="dropdown-content">
-          <div class="menu-group">
-            <div class="menu-group-header">Modes de Montage & Plateau</div>
-            <div style="display: flex; flex-direction: column; gap: 6px;">
-              <button class="btn-pill" id="btn-assemble" style="justify-content:center; width:100%;">Assembler</button>
-              <button class="btn-pill" id="btn-flatlay" style="justify-content:center; width:100%;" title="Pose toutes les pièces à plat sur le plateau z=0">Mise à plat</button>
-              <button class="btn-pill" id="btn-stepbymir" style="width:100%; justify-content:center;" title="Mode pièce par pièce séquentiel">Mode Pièce par Pièce</button>
-            </div>
-          </div>
-          <div class="menu-group" style="margin-top: 10px;">
-            <div class="menu-group-header">Vue Éclatée</div>
-            <div class="slider-row" style="margin-top: 4px;">
-              <label>Éclatement</label>
-              <input type="range" id="slider-explode" min="0" max="1" step="0.01" value="0">
-              <span class="val" id="val-explode">0%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      <!-- Menu STUDIO -->
+      <button class="btn-pill" id="btn-toggle-panel" title="Ouvrir le panneau de réglages Studio">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Studio</span>
+      </button>
       <!-- Menu AFFICHAGE -->
       <div class="dropdown-container" id="affichage-dropdown">
         <button class="btn-pill" id="btn-affichage-toggle">
@@ -494,6 +490,7 @@
           <div class="menu-group">
             <div class="menu-group-header">Fond du Plan de Travail</div>
             <div class="theme-grid">
+              <button class="btn-theme active" data-bg="#090a0d" title="Fond d'origine du site OpenDrone">Origine</button>
               <button class="btn-theme" data-bg="#0b1329">Bleu Foncé</button>
               <button class="btn-theme" data-bg="#2a2e35">Gris</button>
               <button class="btn-theme" data-bg="#f0f2f5" style="color:#000;">Blanc</button>
@@ -555,14 +552,32 @@
         </div>
       </div>
 
-      <!-- Menu STUDIO -->
-      <button class="btn-pill" id="btn-toggle-panel" title="Ouvrir le panneau de réglages Studio">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-        <span>Studio</span>
-      </button>
+      <!-- Menu ASSEMBLAGE -->
+      <div class="dropdown-container" id="assemblage-dropdown">
+        <button class="btn-pill" id="btn-assemblage-toggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Assemblage</span>
+        </button>
+        <div class="dropdown-content">
+          <div class="menu-group">
+            <div class="menu-group-header">Modes de Montage & Plateau</div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <button class="btn-pill" id="btn-assemble" style="justify-content:center; width:100%;">Assembler</button>
+              <button class="btn-pill" id="btn-flatlay" style="justify-content:center; width:100%;" title="Pose toutes les pièces à plat sur le plateau z=0">Mise à plat</button>
+              <button class="btn-pill" id="btn-stepbymir" style="width:100%; justify-content:center;" title="Mode pièce par pièce séquentiel">Mode Pièce par Pièce</button>
+            </div>
+          </div>
+          <div class="menu-group" style="margin-top: 10px;">
+            <div class="menu-group-header">Vue Éclatée</div>
+            <div class="slider-row" style="margin-top: 4px;">
+              <label>Éclatement</label>
+              <input type="range" id="slider-explode" min="0" max="1" step="0.01" value="0">
+              <span class="val" id="val-explode">0%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </header>
 
@@ -631,6 +646,19 @@
     <div class="panel-section">
       <button class="btn-nav" id="btn-reset-cam" style="width:100%; justify-content:center;">Recentrer & Grossir la vue</button>
     </div>
+  </div>
+
+  <div class="step-hud" id="step-hud">
+    <button class="btn-pill" id="btn-step-prev" title="Étape précédente">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="step-hud-label">
+      <span class="step-hud-count" id="step-hud-count">Étape 0 / 0</span>
+      <span class="step-hud-name" id="step-hud-name">Plateau vide</span>
+    </div>
+    <button class="btn-pill" id="btn-step-next" title="Étape suivante">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
   </div>
 
   <div class="bottom-hud">
@@ -867,6 +895,7 @@
     controls.rotateSpeed = 0.55;
     controls.zoomSpeed = 0.75;
     controls.panSpeed = 0.55;
+    controls.addEventListener('start', () => { camTween = null; });
     controls.minDistance = 0.08;
     controls.maxDistance = 3.0;
 
@@ -921,6 +950,9 @@
     let flatLayRadius = 0.4;
     const flatLayCentre = new THREE.Vector3();
     const groupTarget = new THREE.Vector3();
+    // Axes propres au drone (déduits de la position de la caméra FPV) : servent au ViewCube.
+    const droneFront = new THREE.Vector3(0, 0, 1);
+    const droneRight = new THREE.Vector3(1, 0, 0);
 
     const CHUNKS_DEF = {
       od3: [
@@ -1113,6 +1145,7 @@
       computeFlatLayPositions();
       buildPalettes();
       buildAssemblyTree();
+      updateStepHud();
 
       applyCategoryColor('tpu', activeTpuHex);
       applyCategoryColor('motor', activeMotorHex);
@@ -1190,8 +1223,97 @@
         explodeDir: new THREE.Vector3(),
         flatOffset: new THREE.Vector3(),
         _off: new THREE.Vector3(),
+        _offFrom: new THREE.Vector3(),
+        _offTo: new THREE.Vector3(),
+        _delay: 0,
         _vis: true
       };
+    }
+
+    /* ---- Animation des transitions (mise à plat <-> assemblé) ---- */
+
+    const MORPH_DUR = 1.1;      // durée du trajet d'une pièce
+    const MORPH_STAGGER = 0.85; // étalement des départs entre la 1re et la dernière pièce
+    let morphTime = -1;         // < 0 : aucune transition en cours
+
+    const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+    function groupOffsetTarget(g, out) {
+      if (stateMode === 'flatlay') return out.copy(g.flatOffset);
+      if (stateMode === 'assemble' && explodeAmount > 0.001) {
+        return out.copy(g.explodeDir).multiplyScalar(explodeAmount * droneRadius * 0.9 * worldToLocalUnit);
+      }
+      return out.set(0, 0, 0);
+    }
+
+    function applyGroupOffset(g) {
+      g.nodes.forEach(n => {
+        if (n.userData.origPos) n.position.copy(n.userData.origPos).add(g._off);
+      });
+    }
+
+    // Lance la transition : les pièces partent en cascade (structure d'abord au
+    // montage, pièces extérieures d'abord au démontage) au lieu de bouger en bloc.
+    function startMorph() {
+      if (!assemblyGroups.length) return;
+      const n = assemblyGroups.length;
+      assemblyGroups.forEach((g, i) => {
+        g._offFrom.copy(g._off);
+        groupOffsetTarget(g, g._offTo);
+        const rank = stateMode === 'flatlay' ? (n - 1 - i) : i;
+        g._delay = (rank / Math.max(1, n - 1)) * MORPH_STAGGER;
+      });
+      morphTime = 0;
+    }
+
+    function updateGroupMotion(dt) {
+      if (morphTime >= 0) {
+        morphTime += dt;
+        let done = true;
+        for (const g of assemblyGroups) {
+          const u = THREE.MathUtils.clamp((morphTime - g._delay) / MORPH_DUR, 0, 1);
+          if (u < 1) done = false;
+          g._off.lerpVectors(g._offFrom, g._offTo, easeInOutCubic(u));
+          applyGroupOffset(g);
+        }
+        if (done) morphTime = -1;
+        return;
+      }
+      // Hors transition : suivi souple (curseur d'éclatement, pièce qui se pose),
+      // amorti de façon indépendante du nombre d'images par seconde.
+      const k = 1 - Math.pow(0.002, dt);
+      for (const g of assemblyGroups) {
+        groupOffsetTarget(g, groupTarget);
+        if (g._off.distanceToSquared(groupTarget) < 1e-12) continue;
+        g._off.lerp(groupTarget, k);
+        if (g._off.distanceToSquared(groupTarget) < 1e-12) g._off.copy(groupTarget);
+        applyGroupOffset(g);
+      }
+    }
+
+    /* ---- Déplacements de caméra animés ---- */
+
+    let camTween = null;
+
+    function flyCameraTo(toPos, toTarget, toUp = null, dur = 0.8) {
+      camTween = {
+        t: 0, dur,
+        fromPos: camera.position.clone(), toPos: toPos.clone(),
+        fromTgt: controls.target.clone(), toTgt: toTarget.clone(),
+        fromUp: camera.up.clone(), toUp: (toUp || camera.up).clone().normalize()
+      };
+    }
+
+    function updateCameraTween(dt) {
+      if (!camTween) return;
+      camTween.t += dt;
+      const u = THREE.MathUtils.clamp(camTween.t / camTween.dur, 0, 1);
+      const e = easeInOutCubic(u);
+      camera.position.lerpVectors(camTween.fromPos, camTween.toPos, e);
+      controls.target.lerpVectors(camTween.fromTgt, camTween.toTgt, e);
+      camera.up.lerpVectors(camTween.fromUp, camTween.toUp, e).normalize();
+      camera.lookAt(controls.target);
+      if (u >= 1) camTween = null;
     }
 
     function buildAssemblyGroups() {
@@ -1229,6 +1351,8 @@
         front.normalize();
       }
       const right = new THREE.Vector3(0, 1, 0).cross(front).normalize();
+      droneFront.copy(front);
+      droneRight.copy(right);
 
       const orientOf = (c) => {
         const d = new THREE.Vector3(c.x - droneCentre.x, 0, c.z - droneCentre.z);
@@ -1596,17 +1720,30 @@
       controls.update();
     }
 
-    // Cadre la caméra sur une sphère (centre + rayon en unités monde), en gardant l'angle de vue courant.
-    function fitCamera(centre, radiusWorld, margin = 1.35) {
+    // Position de caméra qui cadre une sphère (centre + rayon en unités monde),
+    // en conservant l'angle de vue courant.
+    function cameraPosFor(centre, radiusWorld, margin) {
       const dist = (radiusWorld * margin) / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5));
       const dir = camera.position.clone().sub(controls.target);
       if (dir.lengthSq() < 1e-9) dir.set(0.9, 0.7, 1.0);
-      dir.normalize();
+      return { pos: dir.normalize().multiplyScalar(dist).add(centre), dist };
+    }
+
+    function fitCamera(centre, radiusWorld, margin = 1.35) {
+      const { pos, dist } = cameraPosFor(centre, radiusWorld, margin);
       controls.target.copy(centre);
-      camera.position.copy(centre).add(dir.multiplyScalar(dist));
+      camera.position.copy(pos);
       camera.far = Math.max(10, dist * 4);
       camera.updateProjectionMatrix();
       controls.update();
+    }
+
+    // Même cadrage, mais en vol animé.
+    function flyToFit(centre, radiusWorld, margin = 1.35, dur = 1.1) {
+      const { pos, dist } = cameraPosFor(centre, radiusWorld, margin);
+      camera.far = Math.max(10, dist * 4);
+      camera.updateProjectionMatrix();
+      flyCameraTo(pos, centre, new THREE.Vector3(0, 1, 0), dur);
     }
 
     function updateBeatUI() {
@@ -1676,18 +1813,85 @@
     const btnFlatLay = document.getElementById('btn-flatlay');
     const btnStepByStep = document.getElementById('btn-stepbymir');
 
+    const stepHud = document.getElementById('step-hud');
+    const stepHudCount = document.getElementById('step-hud-count');
+    const stepHudName = document.getElementById('step-hud-name');
+    const btnStepPrev = document.getElementById('btn-step-prev');
+    const btnStepNext = document.getElementById('btn-step-next');
+
+    function setMode(mode) {
+      if (stateMode === mode) return;
+      stateMode = mode;
+      btnAssemble.classList.toggle('active', mode === 'assemble');
+      btnFlatLay.classList.toggle('active', mode === 'flatlay');
+      btnStepByStep.classList.toggle('active', mode === 'stepbystep');
+      stepHud.classList.toggle('visible', mode === 'stepbystep');
+    }
+
+    function updateStepHud() {
+      const n = assemblyGroups.length;
+      const g = stepIndex > 0 ? assemblyGroups[stepIndex - 1] : null;
+      stepHudCount.textContent = `Étape ${stepIndex} / ${n}`;
+      stepHudName.textContent = g ? g.label : 'Plateau vide';
+      btnStepPrev.disabled = stepIndex <= 0;
+      btnStepNext.disabled = stepIndex >= n;
+
+      if (g) {
+        const stageTag = document.getElementById('stage-tag');
+        const stageIndexEl = document.getElementById('stage-index');
+        const stageTitle = document.getElementById('stage-title');
+        const stageNote = document.getElementById('stage-note');
+        const stageCaption = document.getElementById('stage-caption');
+        if (stageTag) stageTag.textContent = 'Montage pas à pas';
+        if (stageIndexEl) stageIndexEl.textContent = `${stepIndex} / ${n}`;
+        if (stageTitle) stageTitle.textContent = g.label;
+        if (stageNote) stageNote.textContent = CATEGORY_LABEL[g.cat] || g.cat;
+        if (stageCaption) stageCaption.textContent = `Pièce ${stepIndex} sur ${n} posée sur l'assemblage.`;
+      }
+    }
+
+    function gotoStep(i) {
+      const n = assemblyGroups.length;
+      const next = Math.max(0, Math.min(n, i));
+      const forward = next > stepIndex;
+      stepIndex = next;
+      // La pièce qui apparaît vient se poser depuis l'extérieur.
+      if (forward && stepIndex > 0) {
+        const g = assemblyGroups[stepIndex - 1];
+        morphTime = -1;
+        g._off.copy(g.explodeDir).multiplyScalar(droneRadius * 0.5 * worldToLocalUnit);
+        applyGroupOffset(g);
+      }
+      updateStepHud();
+    }
+
     btnAssemble.addEventListener('click', () => {
-      stateMode = 'assemble'; btnAssemble.classList.add('active'); btnFlatLay.classList.remove('active'); btnStepByStep.classList.remove('active');
-      resetCamera();
+      setMode('assemble');
+      startMorph();
+      flyToFit(droneCentre, droneRadius, 0.85, MORPH_DUR + MORPH_STAGGER);
     });
     btnFlatLay.addEventListener('click', () => {
-      stateMode = 'flatlay'; btnFlatLay.classList.add('active'); btnAssemble.classList.remove('active'); btnStepByStep.classList.remove('active');
-      fitCamera(flatLayCentre, flatLayRadius);
+      setMode('flatlay');
+      startMorph();
+      flyToFit(flatLayCentre, flatLayRadius, 1.35, MORPH_DUR + MORPH_STAGGER);
     });
     btnStepByStep.addEventListener('click', () => {
-      stateMode = 'stepbystep';
-      stepIndex = (stepIndex + 1) % (assemblyGroups.length + 1);
-      btnStepByStep.classList.add('active'); btnAssemble.classList.remove('active'); btnFlatLay.classList.remove('active');
+      if (stateMode === 'stepbystep') { gotoStep(stepIndex + 1); return; }
+      setMode('stepbystep');
+      morphTime = -1;
+      assemblyGroups.forEach(g => { g._off.set(0, 0, 0); applyGroupOffset(g); });
+      stepIndex = 0;
+      gotoStep(1);
+    });
+
+    btnStepPrev.addEventListener('click', () => gotoStep(stepIndex - 1));
+    btnStepNext.addEventListener('click', () => gotoStep(stepIndex + 1));
+
+    window.addEventListener('keydown', (e) => {
+      if (stateMode !== 'stepbystep') return;
+      if (document.activeElement === treeSearchInput) return;
+      if (e.key === 'ArrowRight') gotoStep(stepIndex + 1);
+      else if (e.key === 'ArrowLeft') gotoStep(stepIndex - 1);
     });
 
     function isolateGroup(g) {
@@ -1755,6 +1959,7 @@
       btn.addEventListener('click', () => {
         const bgColor = btn.dataset.bg;
         scene.background.set(bgColor);
+        document.querySelectorAll('.btn-theme[data-bg]').forEach(o => o.classList.toggle('active', o === btn));
       });
     });
 
@@ -1765,7 +1970,8 @@
       explodeAmount = parseFloat(val);
       sliderExplode.value = explodeAmount;
       valExplode.textContent = `${Math.round(explodeAmount * 100)}%`;
-      if (explodeAmount > 0) { stateMode = 'assemble'; btnAssemble.classList.add('active'); btnFlatLay.classList.remove('active'); btnStepByStep.classList.remove('active'); }
+      // Le curseur pilote les pièces en direct : on interrompt la transition en cours.
+      if (explodeAmount > 0) { setMode('assemble'); morphTime = -1; }
     }
 
     sliderExplode.addEventListener('input', (e) => setExplode(e.target.value));
@@ -1807,7 +2013,7 @@
       else document.exitFullscreen().catch(() => {});
     });
 
-    function createFaceTexture(text) {
+    function createFaceTexture(text, rotateDeg = 0) {
       const canvas = document.createElement('canvas');
       canvas.width = 128;
       canvas.height = 128;
@@ -1838,8 +2044,8 @@
     const cubeMat = [
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Droite') }),  // 0: +X
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Gauche') }),  // 1: -X
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessus') }),  // 2: +Y
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessous') }), // 3: -Y
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessus', 180) }),  // 2: +Y
+      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessous', 180) }), // 3: -Y
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Avant') }),   // 4: +Z
       new THREE.MeshBasicMaterial({ map: createFaceTexture('Arrière') })  // 5: -Z
     ];
@@ -1859,60 +2065,45 @@
       vcMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       vcMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       vcRaycaster.setFromCamera(vcMouse, vcCamera);
-      const hits = vcRaycaster.intersectObject(vcCube);
+      // Non récursif : sinon le rayon touche d'abord les arêtes (LineSegments,
+      // face nulle, seuil de 1 unité) et aucune face n'est jamais détectée.
+      const hits = vcRaycaster.intersectObject(vcCube, false);
       if (hits.length > 0 && hits[0].face) {
         // Utilisation robuste de la normale de la face touchée transformée dans l'espace du monde/objet
-        const normal = hits[0].face.normal.clone();
-        normal.transformDirection(vcCube.matrixWorld);
+        // La normale LOCALE de la face est déjà exprimée dans les axes du monde :
+        // le cube porte l'inverse de la rotation caméra, donc la transformer par
+        // sa matrice monde donnait une direction en espace caméra (d'où les vues
+        // fausses). On la garde telle quelle.
+        const n = hits[0].face.normal;
 
-        const dist = Math.max(droneRadius * 1.55, 0.17);
+        // Axes du drone plutôt que ceux de la scène : "Avant" vise vraiment l'avant.
+        const up = new THREE.Vector3(0, 1, 0);
+        let dir = null, camUp = up;
+        if (n.x > 0.9) dir = droneRight.clone();                          // Droite
+        else if (n.x < -0.9) dir = droneRight.clone().negate();           // Gauche
+        else if (n.y > 0.9) { dir = up.clone(); camUp = droneFront; }     // Dessus
+        else if (n.y < -0.9) { dir = up.clone().negate(); camUp = droneFront; } // Dessous
+        else if (n.z > 0.9) dir = droneFront.clone();                     // Avant
+        else if (n.z < -0.9) dir = droneFront.clone().negate();           // Arrière
+        if (!dir) return;
+
+        // On conserve le zoom courant, on ne fait que pivoter autour de la cible.
         const targetPos = controls.target.clone();
-
-        if (Math.abs(normal.x) > 0.9) {
-          if (normal.x > 0) {
-            // Droite (+X)
-            camera.position.set(targetPos.x + dist, targetPos.y, targetPos.z);
-            camera.up.set(0, 1, 0);
-          } else {
-            // Gauche (-X)
-            camera.position.set(targetPos.x - dist, targetPos.y, targetPos.z);
-            camera.up.set(0, 1, 0);
-          }
-        } else if (Math.abs(normal.y) > 0.9) {
-          if (normal.y > 0) {
-            // Dessus (+Y)
-            camera.position.set(targetPos.x, targetPos.y + dist, targetPos.z + 0.0001);
-            camera.up.set(0, 0, -1);
-          } else {
-            // Dessous (-Y)
-            camera.position.set(targetPos.x, targetPos.y - dist, targetPos.z + 0.0001);
-            camera.up.set(0, 0, 1);
-          }
-        } else if (Math.abs(normal.z) > 0.9) {
-          if (normal.z > 0) {
-            // Avant (+Z)
-            camera.position.set(targetPos.x, targetPos.y, targetPos.z + dist);
-            camera.up.set(0, 1, 0);
-          } else {
-            // Arrière (-Z)
-            camera.position.set(targetPos.x, targetPos.y, targetPos.z - dist);
-            camera.up.set(0, 1, 0);
-          }
-        }
-
-        camera.lookAt(targetPos);
-        controls.update();
+        const dist = Math.max(camera.position.distanceTo(targetPos), droneRadius * 1.2);
+        flyCameraTo(targetPos.clone().add(dir.multiplyScalar(dist)), targetPos, camUp, 0.6);
       }
     });
 
     let isDraggingViewCube = false;
     let hasMovedViewCube = false;
     let prevMousePos = { x: 0, y: 0 };
+    let downMousePos = { x: 0, y: 0 };
 
     vcContainer.addEventListener('pointerdown', (e) => {
       isDraggingViewCube = true;
       hasMovedViewCube = false;
       prevMousePos = { x: e.clientX, y: e.clientY };
+      downMousePos = { x: e.clientX, y: e.clientY };
       vcContainer.setPointerCapture(e.pointerId);
     });
 
@@ -1920,7 +2111,10 @@
       if (!isDraggingViewCube) return;
       const dx = e.clientX - prevMousePos.x;
       const dy = e.clientY - prevMousePos.y;
-      if (Math.hypot(dx, dy) > 2) hasMovedViewCube = true;
+      // Seuil mesuré depuis l'appui : un clic bref qui tremble de 1-2 px reste un clic.
+      if (Math.hypot(e.clientX - downMousePos.x, e.clientY - downMousePos.y) > 4) hasMovedViewCube = true;
+      if (!hasMovedViewCube) return;
+      camTween = null;
       prevMousePos = { x: e.clientX, y: e.clientY };
 
       const offset = camera.position.clone().sub(controls.target);
@@ -2023,29 +2217,14 @@
       }
 
       if (assemblyGroups.length > 0) {
-        const explodeDist = explodeAmount * droneRadius * 0.9 * worldToLocalUnit;
+        updateGroupMotion(dt);
         assemblyGroups.forEach((g, idx) => {
-          // Cible de déplacement : le groupe entier bouge d'un bloc.
-          if (stateMode === 'flatlay') {
-            groupTarget.copy(g.flatOffset);
-          } else if (stateMode === 'assemble' && explodeAmount > 0.001) {
-            groupTarget.copy(g.explodeDir).multiplyScalar(explodeDist);
-          } else {
-            groupTarget.set(0, 0, 0);
-          }
-
-          if (g._off.distanceToSquared(groupTarget) > 1e-12) {
-            g._off.lerp(groupTarget, 0.15);
-            if (g._off.distanceToSquared(groupTarget) < 1e-12) g._off.copy(groupTarget);
-            g.nodes.forEach(n => {
-              if (n.userData.origPos) n.position.copy(n.userData.origPos).add(g._off);
-            });
-          }
-
           const vis = groupIsVisible(g, idx);
           if (g._vis !== vis) applyGroupVisibility(g, vis);
         });
       }
+
+      updateCameraTween(dt);
 
       vcCube.quaternion.copy(camera.quaternion).invert();
       vcRenderer.render(vcScene, vcCamera);

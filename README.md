@@ -18,6 +18,10 @@ Ce projet autonome permet de visualiser en 3D temps réel le drone **OpenDrone 3
   6. Châssis carbone T700 et berceau vidéo VTX démontable
 - **Arbre d'assemblage simplifié** : 29 pièces principales seulement, regroupées en 6 catégories (Structure carbone, Propulsion, Électronique, Vidéo & FPV, Pièces TPU, Visserie & connectique). Chaque ligne regroupe la totalité des corps CAO de la pièce : masquer « Moteur avant droit » masque le moteur entier, masquer « OpenFC-Lite » masque les 700 corps de la carte. Cases à cocher par pièce et par catégorie, boutons Tout afficher / Tout masquer, filtre texte, et sélection synchronisée avec le clic dans la vue 3D.
 - **Vue éclatée interactive** : Slider pour écarter les pièces en 3D dans l'espace, chaque pièce restant solidaire.
+- **Transitions animées** : Le passage entre « Mise à plat » et « Assembler » se joue en cascade — les pièces partent en décalé (structure d'abord au montage, extérieur d'abord au démontage) avec une interpolation adoucie, pendant que la caméra vole jusqu'au nouveau cadrage.
+- **Montage pas à pas** : Le mode « Pièce par Pièce » affiche une barre en bas de l'écran avec flèches Précédent / Suivant (également pilotable aux flèches du clavier) ; chaque pièce ajoutée vient se poser depuis l'extérieur et son nom s'affiche dans l'encart.
+- **ViewCube CAO** : Un clic sur une face du cube en haut à droite oriente la vue sur l'axe correspondant du drone (Avant = côté caméra FPV), en vol animé et sans changer le zoom ; le cube reste orientable à la souris.
+- **Fond du plan de travail** : Origine (fond du site), Bleu foncé, Gris ou Blanc.
 - **Inspecteur de composants (Raycasting 3D)** : Cliquez sur n'importe quel composant pour afficher son nom, son type de matériau, son nombre de polygones et ses dimensions exactes en millimètres.
 - **Profils d'éclairage** : Studio, Dramatique, Doux, Technique.
 - **Contrôles d'animation** : Vitesse de rotation des hélices, auto-rotation de caméra, mode filaire (Wireframe), plein écran.
