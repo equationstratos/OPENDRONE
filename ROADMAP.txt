@@ -1,0 +1,77 @@
+ROADMAP
+-------
+
+
+WEBBUILDING:
+------------
+
+-Deplacer bouton commander
+
+
+CREER OU MODELISER:
+-------------------
+
+-créer covers lateraux
+
+-créer support rtx
+
+-créer support antennes rx
+
+-créer capacitor + mount
+
+-creer cable + protect
+
+-o4 unit lite and pro ready
+
+-batterie + cable
+
+-stick pad
+
+-protege antennes vtx
+
+STYLE
+-----
+MODELES COULEUR PREDEFINIS:
+---------------------------
+ 
+-bleu/jaune
+-bleu/blanc
+-bleu/noir
+-vert/violet
+-rose/violet/blanc
+-vert/orange/blanc
+-violet/noir/jaune
+-beige/
+-kaki
+-jaune/noir 
+-gris/blanc
+-rouge or 
+-noir rouge
+etc
+
+rajouter motifs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+UNE FOIS CONFIGURER LE DRONE RESTE CELUI SUR LE SITE
+
+
+
+
+
+
+
+
+
