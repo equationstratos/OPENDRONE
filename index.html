@@ -1380,49 +1380,6 @@
     const droneFront = new THREE.Vector3(0, 0, 1);
     const droneRight = new THREE.Vector3(1, 0, 0);
 
-    // L'antenne ELRS est fournie en STL — le format dans lequel elle se
-    // fabrique. Un STL binaire, c'est un en-tête de 84 octets puis 50 octets par
-    // triangle : normale, trois sommets, deux octets d'attribut. Rien à
-    // décompresser, une trentaine de lignes suffisent, et on garde le fichier
-    // que le projet distribue au lieu d'en dériver une copie.
-    const ANTENNA_STL = 'models/od3/antenna-immortal-t.stl';
-    let antennaGeo = null;
-
-    function parseBinaryStl(buf) {
-      const dv = new DataView(buf);
-      const n = dv.getUint32(80, true);
-      if (84 + n * 50 !== buf.byteLength) return null;      // ASCII ou tronqué
-      const pos = new Float32Array(n * 9);
-      const nor = new Float32Array(n * 9);
-      for (let i = 0; i < n; i++) {
-        const o = 84 + i * 50;
-        const nx = dv.getFloat32(o, true), ny = dv.getFloat32(o + 4, true), nz = dv.getFloat32(o + 8, true);
-        for (let k = 0; k < 3; k++) {
-          const p = o + 12 + k * 12, j = i * 9 + k * 3;
-          pos[j] = dv.getFloat32(p, true);
-          pos[j + 1] = dv.getFloat32(p + 4, true);
-          pos[j + 2] = dv.getFloat32(p + 8, true);
-          nor[j] = nx; nor[j + 1] = ny; nor[j + 2] = nz;
-        }
-      }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-      return g;
-    }
-
-    async function loadAntennaGeometry() {
-      if (antennaGeo) return antennaGeo;
-      try {
-        const r = await fetch(ANTENNA_STL);
-        if (!r.ok) return null;
-        antennaGeo = parseBinaryStl(await r.arrayBuffer());
-        // Le STL est coté en millimètres, la scène en mètres.
-        if (antennaGeo) antennaGeo.scale(0.001, 0.001, 0.001);
-      } catch (e) { antennaGeo = null; }
-      return antennaGeo;
-    }
-
     const CHUNKS_DEF = {
       od3: [
         { id: 'frame', label: 'Châssis & Visserie', file: 'models/od3/frame.glb', bytes: 383740 },
@@ -1527,7 +1484,6 @@
         if (loaderBar) loaderBar.style.width = `${Math.min(100, (bytesLoaded / totalBytes) * 100)}%`;
       }
       
-      await loadAntennaGeometry();
       paint(occRoot);
       onLoaded();
     }
@@ -3192,22 +3148,38 @@
           // côté et non par le dessus.
           const prise = uflBox.getCenter(new THREE.Vector3()).setY(uflBox.max.y - 0.0002);
           const a = makeAnchor(rx.nodes[0], prise, 'rx-ufl');
-          const pied = new THREE.Box3().setFromObject(antRx).getCenter(new THREE.Vector3());
+          // Le coaxial arrive sur l'embase moulée du brin — l'origine du repère
+          // de l'antenne —, pas au centre de sa boîte englobante : celui-ci
+          // tombe au milieu de la queue, donc à l'intérieur du fourreau.
+          antRx.updateMatrixWorld(true);
+          const pied = antRx.getWorldPosition(new THREE.Vector3());
           const b = makeAnchor(antRx, pied, 'antenne-elrs');
+          // Le coaxial ne traverse pas le stack : entre l'embase et le support
+          // il n'y a que de la matière — l'AirTag, la platine médiane, l'Air
+          // Unit. Il file donc vers l'arrière sous la plaque supérieure, la
+          // dépasse, puis redescend derrière le support pour rejoindre le brin.
+          const perc = antRx.userData.percage || null;
           const plaque = groupBox3(groupById('plate-top'));
-          const sousPlaque = plaque.isEmpty() ? prise.y : plaque.min.y - 0.0008;
-          const bordArriere = plaque.isEmpty() ? pied.clone()
+          // 2,2 mm sous la plaque : une Catmull-Rom déborde un peu au-dessus de
+          // ses points de passage, et 0,8 mm ne suffisait pas — elle la touchait.
+          const sousPlaque = plaque.isEmpty() ? prise.y : Math.min(prise.y, plaque.min.y - 0.0022);
+          const bordArriere = plaque.isEmpty() ? prise.z
             : plaque.getCenter(new THREE.Vector3())
-                .addScaledVector(droneFront, -(plaque.getSize(new THREE.Vector3()).z / 2 + 0.004));
+                .addScaledVector(droneFront, -(plaque.getSize(new THREE.Vector3()).z / 2 + 0.003));
           addCable(a, b, {
             id: 'coax-rx', color: WIRE_COLORS.coax, wires: 1, radius: 0.0004,
             sag: 0, plug: 'ufl',
             via: (pa, pb) => {
-              const p1 = new THREE.Vector3().lerpVectors(pa, pb, 0.35);
-              p1.y = Math.min(pa.y, sousPlaque);
-              const p2 = bordArriere.clone();
-              p2.y = Math.min(pa.y, sousPlaque);
-              return [p1, p2];
+              // pa = embase u.FL, pb = embase moulée du brin.
+              const p1 = new THREE.Vector3().lerpVectors(pa, pb, 0.32).setY(sousPlaque);
+              const p2 = plaque.isEmpty() ? new THREE.Vector3().lerpVectors(pa, pb, 0.62)
+                : bordArriere.clone().setX(pb.x).setY(sousPlaque);
+              // La descente se fait franchement derrière le support : sans ce
+              // recul la courbe bombait vers l'avant et venait raser le TPU au
+              // droit du fourreau.
+              const p3 = pb.clone().setY(pb.y + (sousPlaque - pb.y) * 0.45);
+              if (perc) p3.addScaledVector(perc.dir, -0.006);
+              return [p1, p2, p3];
             }
           });
         }
@@ -3376,62 +3348,127 @@
 
     let antennaGroup = null;
 
-    // Le maillage arrive dans son propre repère : le brin en T — deux bras de
-    // 72 mm en tube de 1,7 mm, embouts rétreints, embase moulée au milieu —
-    // occupe Y ≈ 0, et son coaxial part de là jusqu'à Y = 132 mm.
-    //
-    // Ce coaxial-là, on ne le garde pas. Il est droit, alors que le vrai est
-    // souple : posé tel quel depuis l'embase du récepteur, il traverse la
-    // plaque supérieure, qui passe 0,5 mm au-dessus. On ne conserve donc que le
-    // brin, posé à l'arrière, et le coaxial est tiré en souple comme ceux des
-    // antennes vidéo — il contourne la plaque au lieu de la percer.
-    const ANT_FIL_Y = 0.0125;      // au-delà, c'est le coaxial du STL
+    /* ---- Le brin en T, aux cotes d'une 2,4 GHz ----
+       Le modèle fourni était une T de 144 mm d'envergure : c'est une longueur
+       de 868/915 MHz. Sur une liaison ELRS 2,4 GHz les deux brins font le quart
+       d'onde, soit 31 mm chacun — 62 mm en tout, deux fois et demie moins. À
+       cette taille elle tient derrière la queue d'un 3 pouces au lieu de le
+       dépasser des deux côtés. Le reste suit la pièce réelle : tube gainé de
+       1,6 mm, embouts thermorétractables de 2,4, embase moulée au centre.  */
+    const ANT_BRAS = 0.031, ANT_TUBE = 0.0008, ANT_EMBOUT = 0.0012, ANT_QUEUE = 0.015;
 
-    function buildRxAntenna() {
-      if (!antennaGeo) return null;
-      const pos = antennaGeo.attributes.position;
-      const garde = [];
-      for (let i = 0; i < pos.count; i += 3) {
-        if (pos.getY(i) > ANT_FIL_Y || pos.getY(i + 1) > ANT_FIL_Y || pos.getY(i + 2) > ANT_FIL_Y) continue;
-        garde.push(i, i + 1, i + 2);
-      }
-      if (!garde.length) return null;
-      const nor = antennaGeo.attributes.normal;
-      const p2 = new Float32Array(garde.length * 3), n2 = new Float32Array(garde.length * 3);
-      garde.forEach((src, k) => {
-        p2[k * 3] = pos.getX(src); p2[k * 3 + 1] = pos.getY(src); p2[k * 3 + 2] = pos.getZ(src);
-        n2[k * 3] = nor.getX(src); n2[k * 3 + 1] = nor.getY(src); n2[k * 3 + 2] = nor.getZ(src);
-      });
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(p2, 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(n2, 3));
-      geo.computeBoundingBox();
-      geo.translate(0, -geo.boundingBox.getCenter(new THREE.Vector3()).y, 0);
-
+    function buildTAntenna() {
       const g = new THREE.Group();
       g.name = 'antenne-elrs';
-      g.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-        color: '#23262b', roughness: 0.55, metalness: 0.1
-      })));
+      const gaine = wireMaterial('#1c1e22', { roughness: 0.62, metalness: 0.05 });
+      const bout = wireMaterial('#2a2d33', { roughness: 0.5, metalness: 0.08 });
 
-      // Le brin est horizontal, bras dans l'axe gauche-droite, derrière la
-      // queue : c'est la pose courante d'une T, dégagée du carbone et des
-      // hélices. Il est posé en repère monde, occRoot portant sa propre
-      // rotation.
-      const plaque = groupBox3(groupById('plate-top'));
-      const arriere = new THREE.Vector3();
-      if (plaque.isEmpty()) arriere.copy(droneCentre);
-      else {
-        plaque.getCenter(arriere);
-        const demi = plaque.getSize(new THREE.Vector3()).z / 2;
-        arriere.addScaledVector(droneFront, -(demi + 0.014));
-        arriere.y = plaque.max.y + 0.004;
+      // Les deux brins, bout à bout dans l'axe X local.
+      const brin = new THREE.CylinderGeometry(ANT_TUBE, ANT_TUBE, ANT_BRAS * 2, 12);
+      brin.rotateZ(Math.PI / 2);
+      g.add(new THREE.Mesh(brin, gaine));
+      // Embouts rétreints, un à chaque extrémité.
+      [-1, 1].forEach((s) => {
+        const e = new THREE.Mesh(
+          new THREE.CylinderGeometry(ANT_EMBOUT, ANT_EMBOUT, 0.004, 12), bout);
+        e.rotation.z = Math.PI / 2;
+        e.position.x = s * (ANT_BRAS - 0.002);
+        g.add(e);
+        const c = new THREE.Mesh(new THREE.SphereGeometry(ANT_EMBOUT, 10, 8), bout);
+        c.position.x = s * ANT_BRAS;
+        g.add(c);
+      });
+      // L'embase moulée : c'est là que le coaxial rejoint les deux brins.
+      const boss = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.0035, 0.0035), bout);
+      g.add(boss);
+      // La queue gainée qui s'enfonce dans le fourreau du support : c'est elle
+      // qui tient l'antenne, le TPU la serre sur une quinzaine de millimètres.
+      const queue = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0016, 0.0016, ANT_QUEUE, 12), gaine);
+      queue.rotation.x = Math.PI / 2;
+      queue.position.z = ANT_QUEUE / 2;      // vers l'avant : elle entre dans le fourreau
+      queue.name = 'queue-antenne';
+      g.add(queue);
+      return g;
+    }
+
+    // Perçages du support arrière : le TPU porte deux fourreaux dans l'axe du
+    // drone. C'est là que passe la queue de l'antenne. On les relève au lancer
+    // de rayon plutôt que de les coter à la main.
+    function findAntennaBore(g) {
+      if (!g) return null;
+      const meshes = [];
+      g.nodes.forEach(n => n.traverse(o => { if (o.isMesh) meshes.push(o); }));
+      if (!meshes.length) return null;
+      const b = groupBox3(g);
+      const sz = b.getSize(new THREE.Vector3());
+      const dir = droneFront.clone().setY(0).normalize();
+      const depart = b.getCenter(new THREE.Vector3())
+        .addScaledVector(dir, -(Math.abs(sz.z * dir.z) + Math.abs(sz.x * dir.x)) / 2 - 0.005);
+      const rc = new THREE.Raycaster();
+      const lat = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+      const large = Math.abs(sz.x * lat.x) + Math.abs(sz.z * lat.z);
+      const pts = [];
+      const N = 44;
+      for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
+        const p = depart.clone()
+          .addScaledVector(lat, (i / N - 0.5) * large)
+          .setY(b.min.y + sz.y * j / N);
+        rc.set(p, dir);
+        if (rc.intersectObjects(meshes, true).length >= 4) pts.push(p);
       }
-      const ex = droneRight.clone().normalize();
+      const amas = [];
+      pts.forEach(p => {
+        let a = amas.find(x => x.pts.some(q => q.distanceTo(p) < 0.0016));
+        if (!a) { a = { pts: [] }; amas.push(a); }
+        a.pts.push(p);
+      });
+      const trous = amas.map(a => {
+        const bb = new THREE.Box3();
+        a.pts.forEach(p => bb.expandByPoint(p));
+        const s = bb.getSize(new THREE.Vector3());
+        return { c: bb.getCenter(new THREE.Vector3()), r: Math.max(s.x, s.y, s.z) / 2, n: a.pts.length };
+      }).filter(t => t.n > 12 && t.r > 0.002 && t.r < 0.007);
+      if (!trous.length) return null;
+      // Celui du côté du récepteur : la queue y arrive le plus droit.
+      const rx = groupById('rx');
+      const cible = rx ? groupBox3(rx).getCenter(new THREE.Vector3()) : b.getCenter(new THREE.Vector3());
+      trous.sort((x, y) => Math.abs(x.c.dot(lat) - cible.dot(lat)) - Math.abs(y.c.dot(lat) - cible.dot(lat)));
+      const t = trous[0];
+      return { centre: t.c.clone(), rayon: t.r, dir, avant: b.max.clone(), boite: b };
+    }
+
+    // L'antenne est posée derrière le support arrière, sa queue engagée dans le
+    // fourreau que le TPU porte pour elle. Faute de support reconnu, elle se
+    // range derrière la plaque supérieure.
+    function buildRxAntenna() {
+      const g = buildTAntenna();
+      const support = groupById('airtag-mount') || groupByLabel(/antenne/i);
+      const percage = findAntennaBore(support);
+
+      const ex = droneRight.clone().setY(0).normalize();
       const ey = new THREE.Vector3(0, 1, 0);
       const ez = new THREE.Vector3().crossVectors(ex, ey).normalize();
       g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(ex, ey, ez));
-      g.position.copy(arriere);
+
+      if (percage) {
+        // Le brin reste derrière le support, sa queue s'engage dans le fourreau
+        // par l'arrière sur les deux tiers de sa longueur. Le repère local a son
+        // -Z sur la queue, et ez pointe vers l'arrière du drone : le décalage se
+        // compte donc depuis la bouche arrière.
+        const bouche = percage.centre.clone().addScaledVector(percage.dir, 0.005);
+        g.position.copy(bouche).addScaledVector(percage.dir, -0.003);
+        g.userData.percage = percage;
+        g.userData.bouche = bouche;
+      } else {
+        const plaque = groupBox3(groupById('plate-top'));
+        const p = plaque.isEmpty() ? droneCentre.clone() : plaque.getCenter(new THREE.Vector3());
+        if (!plaque.isEmpty()) {
+          p.addScaledVector(droneFront, -(plaque.getSize(new THREE.Vector3()).z / 2 + 0.012));
+          p.y = plaque.max.y + 0.004;
+        }
+        g.position.copy(p);
+      }
 
       scene.add(g);
       scene.updateMatrixWorld(true);
