@@ -2282,6 +2282,11 @@
         pinnedEnd: opts.pinnedEnd ?? null,
         targetName: opts.targetName || null,   // ancrage visé, pour l'anneau
         solder: [],                       // billes d'étain, montrées une fois raccordé
+        tinned: false,                    // plot et fil étamés avant la soudure
+        soldered: false,                  // soudure validée au maintien
+        holding: false,                   // fer posé dessus en ce moment
+        clicky: !!opts.plug,              // une fiche fait un clic, un fil non
+        via: opts.via || null,            // point de passage imposé (bras, entre-cartes)
         inline: null,                     // connecteur porté par le câble (XT30)
         _curve: null,
         plug: null,                       // animation de clipsage en cours
@@ -2307,7 +2312,7 @@
         if (opts.plug === 'ufl') h = buildUfl();
         else if (typeof opts.plug === 'number') h = buildJstHousing(opts.plug, e === 0);
         else h = new THREE.Mesh(
-          new THREE.SphereGeometry(Math.max(c.radius * 3.4, 0.0022), 10, 8),
+          new THREE.SphereGeometry(Math.max(c.radius * 3.0, 0.0016), 10, 8),
           wireMaterial('#8f979f', { roughness: 0.3, metalness: 0.85 })
         );
         h.traverse((o) => {
@@ -2366,7 +2371,8 @@
         _mid.addVectors(a, b).multiplyScalar(0.5);
         _mid.y -= len * c.sag;
         _mid.add(c.midOffset);
-        const curve = new THREE.CatmullRomCurve3([a, _mid.clone(), b]);
+        const pts = c.via ? [a, ...c.via(a, b, i), b] : [a, _mid.clone(), b];
+        const curve = new THREE.CatmullRomCurve3(pts);
         if (i === 0) c._curve = curve;
         const geo = new THREE.TubeGeometry(curve, 10, c.radius, 5, false);
         m.geometry.dispose();
@@ -2380,9 +2386,15 @@
         c.inline.mesh.position.copy(p);
         if (isFinite(tg.x)) c.inline.mesh.quaternion.setFromUnitVectors(_UNIT_X, tg);
       }
+      // Un bout soudé n'a plus de ferrule : c'est la bille d'étain qui fait le
+      // joint. Tant qu'il reste à souder, l'embout demeure — c'est la poignée,
+      // et c'est aussi là qu'on pose le fer.
+      c.handles.forEach((h, e) => {
+        h.visible = e !== c.pinnedEnd && (c.clicky || !c.soldered);
+      });
       // L'étain n'apparaît qu'une fois le fil réellement posé sur son plot.
       if (c.solder.length) {
-        const shown = c.state === 'connected';
+        const shown = c.state === 'connected' || c.tinned || c.holding;
         for (const b of c.solder) b.visible = shown;
       }
 
@@ -2408,6 +2420,7 @@
         if (c.plug.t >= c.plug.dur) {
           c.plug = null;
           c.state = 'connected';
+          if (c.clicky) playClick();
           rebuildCable(c);
         }
       }
@@ -2543,13 +2556,30 @@
       const escNode = esc.nodes[0];
       Object.entries(ESC_PADS).forEach(([k, p]) => makeAnchor(escNode, p, `esc-${k}`));
 
-      // Plots batterie et condensateur, côté arrière de l'ESC — sur le cuivre
-      // eux aussi, pas au sommet de la boîte englobante.
-      const battPad = boardCentre.clone().addScaledVector(droneFront, -halfFront * 0.78);
-      battPad.y = boardTop;
+      // Plots batterie : les deux grosses pastilles de la carte (+BATT et GND,
+      // 6,8 × 2,8 mm au bord arrière), relevées dans le GLB comme les plots moteur.
+      function realBatteryPads() {
+        const found = [];
+        esc.nodes.forEach(n => n.traverse(o => {
+          if (!o.isMesh || !/pad/i.test(o.name || '')) return;
+          const b = new THREE.Box3().setFromObject(o);
+          if (b.max.y < boardTop - 0.0002) return;
+          const sz = b.getSize(new THREE.Vector3());
+          const area = sz.x * sz.z;
+          if (area < 1.2e-5) return;                 // seules les deux plus grandes
+          found.push({ c: b.getCenter(new THREE.Vector3()), top: b.max.y, area });
+        }));
+        found.sort((a, b) => b.area - a.area);
+        return found.length >= 2 ? found.slice(0, 2)
+          .sort((a, b) => a.c.clone().sub(boardCentre).dot(droneRight)
+                        - b.c.clone().sub(boardCentre).dot(droneRight)) : null;
+      }
+      const battPads = realBatteryPads();
+      const battPad = battPads
+        ? battPads[0].c.clone().lerp(battPads[1].c, 0.5).setY(battPads[0].top)
+        : boardCentre.clone().addScaledVector(droneFront, -halfFront * 0.78).setY(boardTop);
       makeAnchor(escNode, battPad, 'esc-batt');
-      const capPad = boardCentre.clone().addScaledVector(droneFront, -halfFront * 0.5);
-      capPad.y = boardTop;
+      const capPad = battPad.clone();
       makeAnchor(escNode, capPad, 'esc-cap');
 
       // Moteurs : sortie des fils sous la cloche, vers le bras. Chaque phase est
@@ -2586,11 +2616,11 @@
             // Une pastille réelle, une bille : le diamètre reste sous la taille
             // du cuivre pour qu'elle ne déborde jamais sur la voisine.
             padPos = pads[i].c.clone().setY(pads[i].top);
-            blobR = Math.min(0.0009, pads[i].w * 0.42);
+            blobR = Math.min(0.00055, pads[i].w * 0.28);
           } else {
             padPos = centrePad.clone().addScaledVector(droneFront, k * PAD_PITCH);
             padPos.y = boardTop;
-            blobR = 0.0008;
+            blobR = 0.00055;
             const disc = new THREE.Mesh(
               new THREE.CylinderGeometry(PAD_R, PAD_R, 0.00012, 14),
               wireMaterial('#c9a227', { roughness: 0.3, metalness: 0.9 })
@@ -2611,7 +2641,14 @@
           const a = makeAnchor(mg.nodes[0], outPos, `motor-${pad}-${i}`);
           const c = addCable(a, b, {
             id: `phases-${pad}-${i}`, color: WIRE_COLORS.phase, wires: 1,
-            radius: 0.0005, sag: 0.1, pinnedEnd: 0, targetName: `esc-${pad}-${i}`
+            radius: 0.0005, sag: 0.02, pinnedEnd: 0, targetName: `esc-${pad}-${i}`,
+            // Une fois soudé le fil est plaqué sur le bras : il court au ras de
+            // la structure puis remonte sur son plot, au lieu de pendre.
+            via: (pa, pb) => {
+              const m = new THREE.Vector3().lerpVectors(pa, pb, 0.55);
+              m.y = Math.min(pa.y, pb.y) + 0.001;
+              return [m];
+            }
           });
           if (!c) continue;
           const blob = buildSolderBlob(blobR);
@@ -2622,23 +2659,54 @@
         }
       });
 
+      // Une embase se prend par sa face d'accouplement, pas par son centre :
+      // ancrée au centroïde, la nappe démarre à l'intérieur du stratifié et
+      // ressort en traversant la carte.
+      function connectorFace(node, ownerGroup) {
+        const cb = new THREE.Box3().setFromObject(node);
+        const p = cb.getCenter(new THREE.Vector3());
+        const bb = boardBox(ownerGroup);
+        const boardMid = bb.isEmpty() ? p.y : (bb.min.y + bb.max.y) / 2;
+        p.y = p.y >= boardMid ? cb.max.y + 0.0004 : cb.min.y - 0.0004;
+        return p;
+      }
+
       // Nappe ESC -> FC : les deux embases 8 broches existent dans les GLB.
       const escConn = findConnectorNode(esc, /^CONN-SMD.*8P$/i);
       const fcConn8 = findConnectorNode(fc, /^CONN-SMD.*8P$/i);
       if (escConn && fcConn8) {
-        const escConnPos = new THREE.Box3().setFromObject(escConn).getCenter(new THREE.Vector3());
-        const fcConnPos = new THREE.Box3().setFromObject(fcConn8).getCenter(new THREE.Vector3());
+        const escConnPos = connectorFace(escConn, esc);
+        const fcConnPos = connectorFace(fcConn8, fc);
         const a = makeAnchor(escConn, escConnPos, 'esc-jst8');
         const b = makeAnchor(fcConn8, fcConnPos, 'fc-jst8');
-        addCable(a, b, { id: 'nappe-esc-fc', color: WIRE_COLORS.signal, wires: 8, radius: 0.00028, sag: 0.1, spread: 0.001, plug: 8 });
+        // Les deux embases pendent sous leur carte (ESC 13,98-16,89 mm, FC
+        // 21,74-24,65 mm) : en ligne droite la nappe traverse le stratifié de
+        // l'ESC. Elle contourne donc par le bord le plus proche, ce qui est
+        // aussi le chemin qu'elle prend pour de vrai.
+        const gapVia = (pa, pb) => {
+          const m = new THREE.Vector3().lerpVectors(pa, pb, 0.5).sub(boardCentre).setY(0);
+          const aF = m.dot(droneFront), aR = m.dot(droneRight);
+          const front = Math.abs(aF) / (halfFront || 1) >= Math.abs(aR) / (halfRight || 1);
+          const p = boardCentre.clone();
+          if (front) {
+            p.addScaledVector(droneFront, Math.sign(aF || 1) * (halfFront + 0.009))
+             .addScaledVector(droneRight, aR);
+          } else {
+            p.addScaledVector(droneRight, Math.sign(aR || 1) * (halfRight + 0.009))
+             .addScaledVector(droneFront, aF);
+          }
+          p.y = (pa.y + pb.y) / 2;
+          return [p];
+        };
+        addCable(a, b, { id: 'nappe-esc-fc', color: WIRE_COLORS.signal, wires: 8, radius: 0.00028, sag: 0, spread: 0.0012, plug: 8, via: gapVia });
       }
 
       // FC -> VTX : embase 6 broches côté FC, connecteur board-to-board côté module.
       const fcConn6 = findConnectorNode(fc, /^CONN-SMD.*6P$/i);
       const vtxConn = vtx ? findConnectorNode(vtx, /^BM6B/i) : null;
       if (fcConn6 && vtxConn) {
-        const p1 = new THREE.Box3().setFromObject(fcConn6).getCenter(new THREE.Vector3());
-        const p2 = new THREE.Box3().setFromObject(vtxConn).getCenter(new THREE.Vector3());
+        const p1 = connectorFace(fcConn6, fc);
+        const p2 = connectorFace(vtxConn, vtx);
         const a = makeAnchor(fcConn6, p1, 'fc-jst6');
         const b = makeAnchor(vtxConn, p2, 'vtx-jst6');
         addCable(a, b, { id: 'nappe-fc-vtx', color: WIRE_COLORS.signal, wires: 6, radius: 0.0003, sag: 0.14, spread: 0.001, plug: 6 });
@@ -2685,17 +2753,49 @@
         addCable(a, b, { id: 'nappe-camera', color: WIRE_COLORS.signal, wires: 4, radius: 0.0003, sag: 0.12, spread: 0.0011, plug: 4 });
       }
 
-      // Condensateur low-ESR sur les plots batterie, ses deux pattes soudées.
+      // Condensateur réservoir : il était placé avec un décalage sur l'axe Y
+      // *local*, or escNode porte la rotation d'occRoot — le cylindre partait de
+      // travers et s'enfonçait dans le stratifié. Tout est refait en repère monde,
+      // et il est couché derrière le bord arrière : debout il traverserait le FC
+      // qui passe 6 mm au-dessus, et l'arrière est de toute façon sa vraie place.
+      const CAP_R = 0.0045, CAP_L = 0.011;
+      escNode.updateMatrixWorld(true);
+      const invEsc = new THREE.Matrix4().copy(escNode.matrixWorld).invert();
+      // Placer une pièce sur l'ESC se fait en repère monde puis se convertit :
+      // escNode porte la rotation d'occRoot, un simple « +6 mm en Y » local part
+      // de travers et enfonce le cylindre dans le stratifié.
+      const toEsc = (obj, worldPos, worldQuat) => {
+        obj.position.copy(worldPos.clone().applyMatrix4(invEsc));
+        if (worldQuat) {
+          obj.quaternion.copy(escNode.getWorldQuaternion(new THREE.Quaternion())
+            .invert().multiply(worldQuat));
+        }
+        return addExtra(escNode, obj);
+      };
+
+      const capWorld = boardCentre.clone()
+        .addScaledVector(droneFront, -(halfFront + CAP_R + 0.003));
+      capWorld.y = boardTop - 0.0005;
       const cap = buildCapacitor();
-      cap.position.copy(wiringAnchors['esc-cap'].position);
-      cap.position.y += 0.006;
-      addExtra(escNode, cap);
-      [-1, 1].forEach((s) => {
-        const blob = buildSolderBlob(0.001);
-        blob.position.copy(wiringAnchors['esc-cap'].position);
-        blob.position.x += s * 0.0022;
-        addExtra(escNode, blob);
-      });
+      // Couché suivant l'axe gauche/droite du drone : le cylindre est bâti sur Y.
+      toEsc(cap, capWorld, new THREE.Quaternion()
+        .setFromUnitVectors(new THREE.Vector3(0, 1, 0), droneRight));
+
+      // Ses deux pattes remontent sur les plots batterie, chacune sa soudure.
+      if (battPads) {
+        battPads.forEach((p, i) => {
+          const pad = p.c.clone().setY(p.top);
+          const leg = capWorld.clone().addScaledVector(droneRight, (i ? 1 : -1) * CAP_L * 0.42);
+          const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+            leg, leg.clone().setY(boardTop + 0.004),
+            pad.clone().setY(p.top + 0.004), pad
+          ]), 16, 0.0006, 6, false);
+          geo.applyMatrix4(invEsc);
+          addExtra(escNode, new THREE.Mesh(geo,
+            wireMaterial('#9aa0a6', { roughness: 0.35, metalness: 0.8 })));
+          toEsc(buildSolderBlob(0.0006), pad, null);
+        });
+      }
 
       // Batterie + queue XT30 : deux fils rouge/noir vers les plots batterie.
       // Le XT30 est enfilé sur le câble, pas posé sur la carte — sur l'ESC il n'y
@@ -2729,9 +2829,10 @@
         // Les deux soudures d'arrivée sur +BATT et GND.
         [plus, minus].forEach((c, i) => {
           if (!c) return;
-          const blob = buildSolderBlob(0.0011);
-          blob.position.copy(b.position);
-          blob.position.x += (i ? 1 : -1) * 0.0017;
+          const blob = buildSolderBlob(0.0008);
+          blob.position.copy(battPads
+            ? escNode.worldToLocal(battPads[i].c.clone().setY(battPads[i].top))
+            : b.position);
           addExtra(escNode, blob);
           blob.visible = false;
           c.solder.push(blob);
@@ -2800,9 +2901,11 @@
       const size = stack.getSize(new THREE.Vector3());
 
       const free = cables.filter(c => c.pinnedEnd === null);
-      const n = Math.max(1, free.length);
-      const rowGap = 0.008;
-      const width = (n - 1) * rowGap + 0.022;   // suivant droneRight
+      // Une voie par câble, large comme le faisceau : les deux nappes font 8 et 6
+      // brins, à pas fixe elles se touchaient et on n'en voyait qu'une.
+      const laneOf = (c) => Math.max(0.010, (c.wires - 1) * c.spread + 0.009);
+      const lanes = free.map(laneOf);
+      const width = lanes.reduce((a, b) => a + b, 0) + 0.012;
       const length = 0.078;                      // suivant droneFront
 
       benchGroup = new THREE.Group();
@@ -2835,8 +2938,10 @@
       benchGroup.updateMatrixWorld(true);
 
       // Une voie par câble libre, dans l'ordre des étapes.
+      let lanePos = -width / 2 + 0.006;
       free.forEach((c, i) => {
-        const x = -width / 2 + 0.011 + i * rowGap;
+        const x = lanePos + lanes[i] / 2;
+        lanePos += lanes[i];
         const a = new THREE.Object3D();
         a.position.set(x, 0.0015, -length * 0.42);
         const b = new THREE.Object3D();
@@ -3340,8 +3445,14 @@
         hint: "Props-in est le défaut Betaflight. Props-out projette les débris vers l'extérieur et se pilote pareil : c'est surtout une habitude de pilote."
       },
       {
+        id: 'etamage', kind: 'solder', title: 'Étamage des douze plots',
+        targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
+        text: "Avant toute soudure : dépose une goutte d'étain sur chacun des douze plots. Maintiens le clic sur un plot jusqu'à ce que l'étain mouille, puis passe au suivant.",
+        hint: "Un plot étamé et un fil étamé se marient d'un coup de fer, sans apport. C'est ce qui évite la soudure froide — et le pont entre deux plots voisins, parce qu'on ne rajoute plus d'étain au moment de l'assemblage."
+      },
+      {
         id: 'phases', kind: 'solder', title: 'Phases moteur', targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
-        text: "Les 12 fils sortent déjà soudés aux moteurs. Attrape chaque bout libre et pose-le sur son plot : M1 arrière droit, M2 avant droit, M3 arrière gauche, M4 avant gauche.",
+        text: "Les 12 fils sortent déjà soudés aux moteurs. Attrape chaque bout libre, pose-le sur son plot étamé, puis maintiens le clic dessus : l'étain refond et la soudure se forme.",
         hint: "L'ordre des trois phases décide du sens de rotation. Interverti, le moteur tourne à l'envers — AM32 sait le corriger en logiciel, mais autant souder juste. Le bouton soude les douze d'un coup."
       },
       {
@@ -3411,6 +3522,7 @@
 
     // Câbles concernés par chaque étape : ce sont eux qui se clipsent.
     const STEP_CABLES = {
+      etamage: ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
       phases: ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
       nappe: ['nappe-esc-fc'],
       xt30: ['batt-plus', 'batt-minus'],
@@ -3421,6 +3533,80 @@
     };
 
     const cableById = (id) => cables.find(c => c.id === id) || null;
+
+    /* ---- Étain : goutte posée, film d'étamage, soudure faite ---- */
+
+    const SOLDER_BEAD = new THREE.Vector3(1, 0.62, 1);        // goutte déposée
+    const SOLDER_TIN = new THREE.Vector3(1.25, 0.2, 1.25);    // film d'étamage
+    const SOLDER_JOINT = new THREE.Vector3(1.4, 0.28, 1.4);   // soudure formée
+
+    function setSolderShape(c, target, animate) {
+      c.solder.forEach(b => {
+        b.userData.to = target;
+        if (animate) {
+          b.userData.from = b.scale.clone();
+          b.userData.melt = { t: 0, dur: 0.45 };
+        } else {
+          b.scale.copy(target);
+          b.userData.melt = null;
+        }
+      });
+    }
+
+    // L'étain fond : la bille s'écrase et s'étale sur la pastille.
+    function updateSolderMelt(dt) {
+      for (const c of cables) {
+        for (const b of c.solder) {
+          const m = b.userData.melt;
+          if (!m) continue;
+          m.t += dt;
+          const u = Math.min(1, m.t / m.dur);
+          b.scale.lerpVectors(b.userData.from, b.userData.to, easeInOutCubic(u));
+          if (u >= 1) b.userData.melt = null;
+        }
+      }
+    }
+
+    function tinJoint(c) {
+      if (!c || c.tinned) return false;
+      c.tinned = true;
+      c.solder.forEach(b => { b.visible = true; });
+      setSolderShape(c, SOLDER_TIN, true);
+      return true;
+    }
+
+    function solderJoint(c) {
+      if (!c || c.soldered) return false;
+      plugCable(c);
+      c.soldered = true;
+      c.solder.forEach(b => { b.visible = true; });
+      setSolderShape(c, SOLDER_JOINT, true);
+      c.handles.forEach(h => { h.visible = false; });
+      return true;
+    }
+
+    // Petit clic d'encliquetage — volontairement discret, et silencieux si le
+    // navigateur refuse l'audio tant que l'utilisateur n'a rien cliqué.
+    let clickCtx = null;
+    function playClick() {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        clickCtx = clickCtx || new AC();
+        if (clickCtx.state === 'suspended') clickCtx.resume();
+        const t = clickCtx.currentTime;
+        const o = clickCtx.createOscillator();
+        const g = clickCtx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(2400, t);
+        o.frequency.exponentialRampToValueAtTime(720, t + 0.028);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.05, t + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+        o.connect(g).connect(clickCtx.destination);
+        o.start(t); o.stop(t + 0.06);
+      } catch (e) { /* pas d'audio : on continue en silence */ }
+    }
 
     // Clipsage : le câble rejoint ses ancrages, puis le boîtier fait un à-coup.
     function plugCable(c) {
@@ -3436,6 +3622,25 @@
       const ids = STEP_CABLES[stepId];
       if (!ids) return 0;
       return ids.reduce((n, id) => n + (plugCable(cableById(id)) ? 1 : 0), 0);
+    }
+
+    // Le bouton fait d'un coup ce que le maintien fait point par point.
+    function applyStepJoints(stepId) {
+      const ids = STEP_CABLES[stepId];
+      if (!ids) return 0;
+      const tin = stepId === 'etamage';
+      return ids.reduce((n, id) => {
+        const c = cableById(id);
+        return n + ((tin ? tinJoint(c) : solderJoint(c)) ? 1 : 0);
+      }, 0);
+    }
+
+    // Une étape de points est finie quand ses douze points le sont.
+    function stepJointsLeft(stepId) {
+      const ids = STEP_CABLES[stepId];
+      if (!ids) return 0;
+      const tin = stepId === 'etamage';
+      return ids.map(cableById).filter(c => c && (tin ? !c.tinned : !c.soldered)).length;
     }
 
     // Un fil posé à la main peut suffire à terminer son étape : on la valide
@@ -3507,9 +3712,13 @@
     function stepTargetAnchor(s) {
       const ids = STEP_CABLES[s.id];
       if (ids) {
+        const tin = s.id === 'etamage';
         for (const id of ids) {
           const c = cableById(id);
-          if (c && c.targetName && c.state !== 'connected' && !c.plug) return c.targetName;
+          if (!c || !c.targetName) continue;
+          const pending = tin ? !c.tinned
+            : (s.kind === 'solder' ? !c.soldered : c.state !== 'connected' && !c.plug);
+          if (pending) return c.targetName;
         }
       }
       return s.targets && s.targets.length ? s.targets[0] : null;
@@ -3541,7 +3750,10 @@
       if (s.kind === 'choice') {
         wiringAction.textContent = 'Valider le sens';
       } else if (s.kind === 'solder') {
-        wiringAction.textContent = done ? 'Soudé ✓' : 'Maintenir pour souder';
+        const all = STEP_CABLES[s.id] ? ' les douze' : '';
+        wiringAction.textContent = done
+          ? (s.id === 'etamage' ? 'Étamé ✓' : 'Soudé ✓')
+          : (s.id === 'etamage' ? `Étamer${all} d'un coup` : `Souder${all} d'un coup`);
       } else if (s.kind === 'test') {
         wiringAction.textContent = 'Brancher et tester';
       } else {
@@ -3607,9 +3819,10 @@
         return;
       }
       if (!complete) { wiringSay('Maintiens un peu plus longtemps.', 'warn'); return; }
+      applyStepJoints(s.id);
+      connectStepCables(s.id);
       wiringState.done[s.id] = true;
       wiringState.faults = wiringState.faults.filter(f => f.step !== s.id);
-      connectStepCables(s.id);
       // renderWiringStep() remet le retour à zéro : on écrit le message après.
       renderWiringStep();
       wiringSay('Soudure propre, brillante et bien formée.', 'good');
@@ -4430,6 +4643,9 @@
       dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), hit.point);
       raycaster.ray.intersectPlane(dragPlane, dragStart);
 
+      // Sur une étape de soudure, appuyer sur le point c'est poser le fer.
+      beginJointHold(c, e);
+
       dragging = {
         cable: c, mode, end,
         startA: c.park ? c.park.a.position.clone() : null,
@@ -4443,6 +4659,14 @@
 
     function moveCableDrag(e) {
       if (!dragging) return;
+      // Bouger, c'est déplacer le fil, pas souder : le fer est retiré.
+      if (jointHold && Math.hypot(e.clientX - jointHold.x, e.clientY - jointHold.y) > 5) {
+        const c = jointHold.cable;
+        c.holding = false;
+        c.solder.forEach(b => { b.visible = c.state === 'connected' || c.tinned; });
+        jointHold = null;
+        targetRing.material.color.setHex(0xffb700);
+      }
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -4471,6 +4695,75 @@
       rebuildCable(c);
     }
 
+    /* ---- Soudure point par point : on maintient le clic sur le point ----
+       Le bouton du panneau fait la même chose pour les douze d'un coup, mais
+       c'est ici que le geste se joue : on tient le fer, l'étain monte en
+       température, puis il fond et s'étale sur la pastille. ---- */
+
+    const JOINT_MS = 850;
+    let jointHold = null;   // { cable, kind, t0, x, y }
+
+    function stepJointKind() {
+      const s = WIRING_STEPS[wiringStep];
+      if (!wiringActive || !s || s.kind !== 'solder' || !STEP_CABLES[s.id]) return null;
+      return s.id === 'etamage' ? 'tin' : 'solder';
+    }
+
+    function beginJointHold(c, e) {
+      const kind = stepJointKind();
+      if (!kind) return false;
+      const s = WIRING_STEPS[wiringStep];
+      if (!STEP_CABLES[s.id].includes(c.id)) return false;
+      if (kind === 'tin' ? c.tinned : c.soldered) return false;
+      jointHold = { cable: c, kind, t0: performance.now(), x: e.clientX, y: e.clientY };
+      c.holding = true;
+      c.solder.forEach(b => { b.visible = true; b.userData.melt = null; });
+      return true;
+    }
+
+    // Le point chauffe : la goutte grossit tant qu'on tient le fer dessus.
+    function updateJointHold() {
+      if (!jointHold) return;
+      const u = Math.min(1, (performance.now() - jointHold.t0) / JOINT_MS);
+      const k = 0.35 + u * 0.65;
+      jointHold.cable.solder.forEach(b => b.scale.set(k, SOLDER_BEAD.y * k, k));
+      targetRing.material.color.setHex(u >= 1 ? 0x8fe3a0 : 0xffb700);
+    }
+
+    function endJointHold() {
+      const h = jointHold;
+      jointHold = null;
+      if (!h) return false;
+      const c = h.cable;
+      c.holding = false;
+      targetRing.material.color.setHex(0xffb700);
+      const held = performance.now() - h.t0;
+      const s = WIRING_STEPS[wiringStep];
+      if (held < JOINT_MS) {
+        c.solder.forEach(b => { b.visible = c.state === 'connected' || c.tinned; });
+        wiringSay("Soudure froide : l'étain n'a pas mouillé le plot. Maintiens jusqu'au bout.", 'bad');
+        if (!wiringState.faults.some(f => f.step === s.id && f.why === 'soudure froide')) {
+          wiringState.faults.push({ step: s.id, why: 'soudure froide' });
+        }
+        return true;
+      }
+      if (h.kind === 'tin') tinJoint(c); else solderJoint(c);
+      wiringState.faults = wiringState.faults.filter(f => f.step !== s.id);
+      const left = stepJointsLeft(s.id);
+      if (left === 0) {
+        wiringState.done[s.id] = true;
+        renderWiringStep();
+        wiringSay(h.kind === 'tin'
+          ? 'Les douze plots sont étamés, tu peux souder.'
+          : 'Soudure propre, brillante et bien formée.', 'good');
+      } else {
+        pointTargetRing(stepTargetAnchor(s));
+        wiringSay(`${h.kind === 'tin' ? 'Étamé' : 'Soudé'}. Encore ${left} point(s).`, '');
+        updateWiringProgress();
+      }
+      return true;
+    }
+
     // Distance à laquelle un bout lâché près de son plot vient s'y poser.
     const SNAP_DIST = 0.007;
 
@@ -4482,17 +4775,25 @@
       const goal = (end === 0 ? c.from : c.to).getWorldPosition(_epA);
       if (here.distanceTo(goal) > SNAP_DIST) return false;
       if (!plugCable(c)) return false;
-      noteCableConnected(c);
+      const s = WIRING_STEPS[wiringStep];
+      if (s && s.kind === 'solder' && (STEP_CABLES[s.id] || []).includes(c.id)) {
+        // Posé, pas encore soudé : le fer, c'est le maintien.
+        pointTargetRing(stepTargetAnchor(s));
+        wiringSay('Fil posé sur son plot. Maintiens le clic dessus pour souder.', '');
+      } else {
+        noteCableConnected(c);
+      }
       return true;
     }
 
     function endCableDrag() {
-      if (!dragging) return;
+      if (!dragging) { endJointHold(); return; }
       const { cable, mode, end } = dragging;
       dragging = null;
       controls.enabled = true;
       renderer.domElement.style.cursor = '';
       if (mode === 'end') trySnapCable(cable, end);
+      endJointHold();
     }
 
     renderer.domElement.addEventListener('pointermove', (e) => {
@@ -4550,6 +4851,8 @@
       updateCables(dt);
       updateTargetRing(dt);
       updatePlugPop(dt);
+      updateSolderMelt(dt);
+      updateJointHold();
       updateSmoke(dt);
       updateCameraTween(dt);
 
