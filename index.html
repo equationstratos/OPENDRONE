@@ -2527,6 +2527,7 @@
         soldered: false,                  // soudure validée au maintien
         holding: false,                   // fer posé dessus en ce moment
         clicky: !!opts.plug,              // une fiche fait un clic, un fil non
+        surTapis: false,                  // rangé sur l'établi même si un bout est fixe
         via: opts.via || null,            // point de passage imposé (bras, entre-cartes)
         inline: null,                     // connecteur porté par le câble (XT30)
         _curve: null,
@@ -2624,7 +2625,11 @@
         _mid.addVectors(a, b).multiplyScalar(0.5);
         _mid.y -= len * c.sag;
         _mid.add(c.midOffset);
-        const pts = c.via ? [a, ...c.via(a, b, i), b] : [a, _mid.clone(), b];
+        // Sur le tapis, les points de passage n'ont plus de sens : ils servent
+        // à contourner des pièces dont le câble est justement éloigné. Gardés,
+        // ils le tordaient — la nappe FC arrivait vrillée au lieu d'être à plat.
+        const range = c.state === 'parked' && !c.plug;
+        const pts = (c.via && !range) ? [a, ...c.via(a, b, i), b] : [a, _mid.clone(), b];
         const curve = new THREE.CatmullRomCurve3(pts);
         if (i === 0) c._curve = curve;
         const geo = new THREE.TubeGeometry(curve, 10, c.radius, 5, false);
@@ -2994,16 +2999,21 @@
           const c = addCable(a, b, {
             id: `phases-${pad}-${i}`, color: WIRE_COLORS.phase, wires: 1,
             radius: 0.0005, sag: 0.02, pinnedEnd: 0, targetName: `esc-${pad}-${i}`,
-            // Le fil est plaqué sur le bras : il court à la hauteur du carbone
-            // jusqu'aux deux tiers, puis remonte au-dessus de la platine
-            // médiane pour arriver sur son plot. Les points sont pris sur les
-            // extrémités courantes, donc le trajet suit les pièces quand elles
-            // s'écartent ou que le drone s'éclate.
+            // Le fil est plaqué sur le bras : il court à plat, à la hauteur du
+            // carbone, jusqu'aux deux tiers, puis remonte au-dessus de la
+            // platine médiane pour arriver sur son plot. Les trois phases d'un
+            // même moteur gardent le même écart latéral d'un bout à l'autre —
+            // sans cela elles se rapprochaient en chemin et le faisceau partait
+            // en éventail. Les points sont pris sur les extrémités courantes,
+            // donc le trajet suit les pièces à l'éclatement comme à plat.
             via: (pa, pb) => {
-              const p1 = new THREE.Vector3().lerpVectors(pa, pb, 0.30);
-              p1.y = pa.y;
-              const p2 = new THREE.Vector3().lerpVectors(pa, pb, 0.72);
-              p2.y = pb.y - 0.0011;
+              const axe = new THREE.Vector3().subVectors(pb, pa).setY(0);
+              const cote = axe.lengthSq() < 1e-9 ? outAxis.clone()
+                : axe.normalize().cross(_upY).normalize();
+              const ecart = cote.multiplyScalar(k * 0.0013);
+              const p1 = new THREE.Vector3().lerpVectors(pa, pb, 0.34).setY(pa.y).add(ecart);
+              const p2 = new THREE.Vector3().lerpVectors(pa, pb, 0.74)
+                .setY(pa.y + (pb.y - pa.y) * 0.22).add(ecart);
               return [p1, p2];
             }
           });
@@ -3083,11 +3093,18 @@
       if (rx && fc) {
         const rxNode = rx.nodes[0];
         const rxPads = rxCrsfPads(rx);
-        const fb = groupBox3(fc);
-        const fcTop = boardBox(fc).max.y;
-        const fp = fb.getCenter(new THREE.Vector3());
+        // Les quatre fils ne traversent plus la carte : ils arrivent sur une
+        // fiche 4 broches posée sur le FLANC du FC, côté dessus. Le flanc
+        // choisi est celui de l'établi : rangé sur le tapis, le faisceau part
+        // droit sans repasser au-dessus de la carte. Avant, l'ancrage était au
+        // centre du stratifié et les fils le coupaient en deux.
+        const fcPcb = boardBox(fc);
+        const fcTop = fcPcb.max.y;
+        const fcSz = fcPcb.getSize(new THREE.Vector3());
+        const fp = fcPcb.getCenter(new THREE.Vector3());
         fp.y = fcTop;
-        fp.addScaledVector(droneRight, -fb.getSize(new THREE.Vector3()).x * 0.3);
+        fp.addScaledVector(droneRight, (Math.abs(fcSz.x * droneRight.x)
+                                      + Math.abs(fcSz.z * droneRight.z)) / 2 - 0.0032);
 
         if (rxPads) {
           // Les plots du récepteur sont petits : 1,9 mm de large. La bille reste
@@ -3095,16 +3112,39 @@
           const pasRx = rxPads[0].c.distanceTo(rxPads[1].c);
           const blobR = Math.min(0.0005, pasRx * 0.19);
           const padR = Math.max(0.0006, Math.min(rxPads[0].size.x, rxPads[0].size.z) * 0.46);
-          const cotes = new THREE.Vector3().subVectors(rxPads[3].c, rxPads[0].c).setY(0).normalize();
+          // La fiche est couchée le long du bord, rangée de contacts dans
+          // l'axe avant-arrière et face d'accouplement vers le bas.
+          const fiche = buildJstHousing(4, true);
+          fiche.name = 'JST-SH-4P-CRSF';
+          // Posée en repère monde puis ramenée dans celui de la carte : le nœud
+          // du FC porte la transformation d'occRoot, un placement direct en
+          // coordonnées monde expédiait la fiche à 17 cm de là.
+          const hote = fc.nodes[0];
+          hote.updateMatrixWorld(true);
+          const qMonde = new THREE.Quaternion().setFromRotationMatrix(
+            new THREE.Matrix4().makeBasis(
+              droneFront.clone().normalize(),
+              new THREE.Vector3(0, 1, 0),
+              new THREE.Vector3().crossVectors(droneFront, new THREE.Vector3(0, 1, 0)).normalize()));
+          fiche.position.copy(hote.worldToLocal(fp.clone().setY(fcTop + 0.0013)));
+          fiche.quaternion.copy(hote.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(qMonde));
+          addExtra(hote, fiche);
+
           rxPads.forEach((p, i) => {
             const j = makeJoint(p.c.clone().setY(p.top), p.top, padR, blobR,
                                 `rx-crsf-${i}`, rxNode);
-            const bout = fp.clone().addScaledVector(cotes, (i - 1.5) * 0.0016);
+            const bout = fp.clone()
+              .addScaledVector(droneFront, (i - 1.5) * 0.001)
+              .setY(fcTop + 0.0024);
             const b = makeAnchor(fc.nodes[0], bout, `fc-crsf-${i}`);
             const c = addCable(j.anchor, b, {
               id: `rx-fc-${i}`, color: RX_CRSF[i].couleur, wires: 1,
               radius: 0.00032, sag: 0.16, pinnedEnd: 1, targetName: `rx-crsf-${i}`
             });
+            // Ce faisceau attend sur le tapis comme les nappes, pas à côté de
+            // son plot : c'est un câble qu'on prend en main, pas une phase déjà
+            // soudée au moteur.
+            c.surTapis = true;
             bindJoint(c, j);
           });
         } else {
@@ -3117,16 +3157,45 @@
         }
       }
 
-      // Antennes VTX : coaxiaux vers le module.
+      // Antennes VTX : un coaxial par antenne, et surtout un point de
+      // branchement par antenne. Les deux partaient du centre du capot, ce qui
+      // les faisait converger au milieu du module au lieu d'aller chacune sur
+      // sa prise. On les place sur le dessus, au bord arrière — celui qui fait
+      // face aux antennes —, écartés de part et d'autre de l'axe.
       if (ant && vtx) {
         const vb = groupBox3(vtx);
-        const vp = vb.getCenter(new THREE.Vector3());
-        vp.y = vb.max.y;
-        const vAnchor = makeAnchor(vtx.nodes[0], vp, 'vtx-ufl');
+        const vc = vb.getCenter(new THREE.Vector3());
+        const vs = vb.getSize(new THREE.Vector3());
+        const demiLat = (Math.abs(vs.x * droneRight.x) + Math.abs(vs.z * droneRight.z)) / 2;
+        const demiLong = (Math.abs(vs.z * droneFront.z) + Math.abs(vs.x * droneFront.x)) / 2;
+        const bordArr = vc.clone().addScaledVector(droneFront, -(demiLong - 0.004));
+        bordArr.y = vb.max.y;
+
+        // Le coaxial se prend par son extrémité de fiche, pas par le milieu de
+        // l'antenne : c'est le bout le plus proche du module, la tête bombée
+        // étant à l'autre. On le relève sur les sommets réels du maillage.
+        const boutFiche = (n, cible) => {
+          let best = null, bestD = Infinity;
+          const v = new THREE.Vector3();
+          n.updateMatrixWorld(true);
+          n.traverse((o) => {
+            if (!o.isMesh || !o.geometry.attributes.position) return;
+            const pos = o.geometry.attributes.position;
+            const pas = Math.max(1, Math.floor(pos.count / 900));
+            for (let i = 0; i < pos.count; i += pas) {
+              v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+              const d = v.distanceToSquared(cible);
+              if (d < bestD) { bestD = d; best = v.clone(); }
+            }
+          });
+          return best || new THREE.Box3().setFromObject(n).getCenter(new THREE.Vector3());
+        };
+
         ant.nodes.forEach((n, i) => {
-          const ab = new THREE.Box3().setFromObject(n);
-          const ap = ab.getCenter(new THREE.Vector3());
-          const a = makeAnchor(n, ap, `antenne-${i}`);
+          const cote = (i === 0 ? 1 : -1) * demiLat * 0.45;
+          const vp = bordArr.clone().addScaledVector(droneRight, cote);
+          const vAnchor = makeAnchor(vtx.nodes[0], vp, `vtx-ufl-${i}`);
+          const a = makeAnchor(n, boutFiche(n, vp), `antenne-${i}`);
           addCable(a, vAnchor, { id: `coax-${i}`, color: WIRE_COLORS.coax, wires: 1, radius: 0.0006, sag: 0.1, plug: 'ufl' });
         });
       }
@@ -3340,6 +3409,9 @@
 
       registerAntennaGroup();
       registerBatteryGroup();
+      // Les courbes d'abord : le tapis se règle en hauteur sur les fils moteur,
+      // et tant qu'aucun câble n'a été calculé il n'y a pas de courbe à mesurer.
+      cables.forEach(rebuildCable);
       buildWorkbench();
       cables.forEach(rebuildCable);
     }
@@ -3557,7 +3629,7 @@
       const centre = stack.getCenter(new THREE.Vector3());
       const size = stack.getSize(new THREE.Vector3());
 
-      const free = cables.filter(c => c.pinnedEnd === null);
+      const free = cables.filter(c => c.pinnedEnd === null || c.surTapis);
       // Une voie par câble, large comme le faisceau : les deux nappes font 8 et 6
       // brins, à pas fixe elles se touchaient et on n'en voyait qu'une.
       const laneOf = (c) => Math.max(0.010, (c.wires - 1) * c.spread + 0.009);
@@ -3570,7 +3642,15 @@
       // Repère local : X = droite du drone, Z = avant du drone.
       benchGroup.position.copy(centre)
         .addScaledVector(droneRight, size.x / 2 + width / 2 + 0.009);
-      benchGroup.position.y = stack.min.y;
+      // Le tapis se pose au-dessus des fils moteur : à la hauteur du stack il
+      // les coupait, les bras s'étendant justement sous son emprise. On relève
+      // le plateau plutôt que de déplacer quoi que ce soit du drone.
+      let hautFils = stack.min.y;
+      cables.forEach(c => {
+        if (!/^phases-/.test(c.id) || !c._curve) return;
+        for (let i = 0; i <= 12; i++) hautFils = Math.max(hautFils, c._curve.getPoint(i / 12).y);
+      });
+      benchGroup.position.y = hautFils + 0.004;
       benchGroup.rotateY(Math.atan2(droneFront.x, droneFront.z));
 
       const mat = new THREE.Mesh(
@@ -3609,7 +3689,7 @@
 
       // Les phases restent soudées au moteur : leur bout libre attend juste à
       // côté de son plot, pointé dessus, plutôt que sur le tapis à l'autre bout.
-      cables.filter(c => c.pinnedEnd !== null).forEach((c) => {
+      cables.filter(c => c.pinnedEnd !== null && !c.surTapis).forEach((c) => {
         const goal = (c.pinnedEnd === 0 ? c.to : c.from).getWorldPosition(new THREE.Vector3());
         const away = goal.clone().sub(centre).setY(0);
         if (away.lengthSq() < 1e-9) away.copy(droneRight);
@@ -3759,6 +3839,16 @@
       const clsLabel = clsProfile ? clsProfile.label : clsKey;
       const size = pickBox.box.getSize(new THREE.Vector3());
       const mm = (v) => (v * 1000).toFixed(1);
+      // Sur une carte, la boîte englobante n'est pas la carte : elle enferme
+      // aussi les embases qui débordent — l'ESC mesurait 45 mm de fond pour un
+      // stratifié de 33. On annonce donc le PCB, l'encombrement en second.
+      let pcb = null;
+      g.nodes.forEach(n => n.traverse(o => {
+        if (!o.isMesh || !/_pcb\b|_board\b/i.test(o.name || '')) return;
+        const b = new THREE.Box3().setFromObject(o);
+        const s = b.getSize(new THREE.Vector3());
+        if (!pcb || s.x * s.z > pcb.x * pcb.z) pcb = s;
+      }));
 
       const stageTag = document.getElementById('stage-tag');
       const stageTitle = document.getElementById('stage-title');
@@ -3768,7 +3858,12 @@
       if (stageTag) stageTag.textContent = CATEGORY_LABEL[g.cat] || 'Pièce';
       if (stageTitle) stageTitle.textContent = g.label + (g.qty > 1 ? ` (x${g.qty})` : '');
       if (stageNote) stageNote.textContent = `Matériau : ${clsLabel}`;
-      if (stageCaption) stageCaption.textContent = `${mm(size.x)} x ${mm(size.y)} x ${mm(size.z)} mm — ${g.nodes.length} corps CAO.`;
+      if (stageCaption) {
+        const encombrement = `${mm(size.x)} x ${mm(size.y)} x ${mm(size.z)} mm`;
+        stageCaption.textContent = pcb
+          ? `PCB ${mm(pcb.x)} x ${mm(pcb.z)} mm, ép. ${mm(pcb.y)} — hors-tout ${encombrement}.`
+          : `${encombrement} — ${g.nodes.length} corps CAO.`;
+      }
     }
 
     /* ---- Construction de l'arbre (une ligne = une pièce principale) ---- */
@@ -4768,7 +4863,7 @@
         if (!stack.isEmpty()) {
           const size = stack.getSize(new THREE.Vector3());
           const target = stack.getCenter(new THREE.Vector3())
-            .addScaledVector(droneRight, -(size.x / 2 + BATTERY_SIZE.w / 2 + 0.024));
+            .addScaledVector(droneRight, -(size.x / 2 + BATTERY_SIZE.w / 2 + 0.055));
           target.y = stack.min.y + BATTERY_SIZE.h / 2;
           occRoot.updateMatrixWorld(true);
           batteryGroup.position.copy(occRoot.worldToLocal(target));
