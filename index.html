@@ -2107,9 +2107,18 @@
     }
 
     // Cherche l'embase réelle dans les nœuds du groupe (les GLB les contiennent).
+    // On retient le PLUS GROS des nœuds qui répondent : le BM6B de l'Air Unit
+    // est éclaté en une dizaine de pattes de 0,2 mm autour d'un corps de 8 mm,
+    // et s'ancrer sur une patte fausse tout ce qu'on mesure ensuite.
     function findConnectorNode(g, re) {
       if (!g) return null;
-      return g.nodes.find(n => re.test(tidy(n.name || ''))) || null;
+      let best = null, bestV = -1;
+      findConnectorNodes(g, re).forEach(n => {
+        const s = new THREE.Box3().setFromObject(n).getSize(new THREE.Vector3());
+        const v = s.x * s.y * s.z;
+        if (v > bestV) { bestV = v; best = n; }
+      });
+      return best || g.nodes.find(n => re.test(tidy(n.name || ''))) || null;
     }
 
     // Une embase peut être éclatée en plusieurs nœuds — le BM6B du VTX en est un :
@@ -3024,26 +3033,31 @@
       // Une embase se prend par sa face d'accouplement, pas par son centre :
       // ancrée au centroïde, la nappe démarre à l'intérieur du stratifié et
       // ressort en traversant la carte.
-      // Elle donne aussi le repère d'accouplement : la normale de la face libre
-      // — l'embase pend souvent sous sa carte — et le grand axe, celui de la
-      // rangée de contacts. La fiche s'y présentera dans le bon sens.
+      // Elle donne aussi le repère d'accouplement. Une embase JST-SH montée en
+      // surface s'accouple À L'HORIZONTALE : la fiche entre par le côté,
+      // parallèlement au stratifié, et non par le dessous. Les deux axes se
+      // lisent sur ses cotes — le grand axe horizontal porte la rangée de
+      // contacts (10 mm pour huit broches), l'autre, plus court (4,95 mm),
+      // donne le sens d'enfichage. Ce dernier est tourné vers l'extérieur de la
+      // carte, du côté où l'embase est la plus proche du bord.
       function connectorFrame(nodes, ownerGroup) {
         const list = Array.isArray(nodes) ? nodes : [nodes];
         const cb = new THREE.Box3();
         list.forEach(n => cb.expandByObject(n));
         const p = cb.getCenter(new THREE.Vector3());
-        const bb = boardBox(ownerGroup);
-        const boardMid = bb.isEmpty() ? p.y : (bb.min.y + bb.max.y) / 2;
-        const dessus = p.y >= boardMid;
-        // Le point de contact est pris légèrement DANS l'embase : une fiche
-        // s'enfonce, elle ne flotte pas au-dessus de son réceptacle.
-        p.y = dessus ? cb.max.y - 0.0003 : cb.min.y + 0.0003;
         const sz = cb.getSize(new THREE.Vector3());
-        return {
-          pos: p,
-          dir: new THREE.Vector3(0, dessus ? 1 : -1, 0),
-          axis: sz.x >= sz.z ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)
-        };
+        const bb = boardBox(ownerGroup);
+        const bc = bb.isEmpty() ? p.clone() : bb.getCenter(new THREE.Vector3());
+
+        const surX = sz.x >= sz.z;
+        const axis = surX ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+        const signe = Math.sign(surX ? p.z - bc.z : p.x - bc.x) || 1;
+        const dir = (surX ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0))
+          .multiplyScalar(signe);
+        // Le point de contact est la bouche de l'embase, prise légèrement à
+        // l'intérieur : une fiche s'enfonce, elle ne flotte pas devant.
+        const demi = (surX ? sz.z : sz.x) / 2;
+        return { pos: p.clone().addScaledVector(dir, demi - 0.0004), dir, axis };
       }
 
       // Nappe ESC -> FC : les deux embases 8 broches existent dans les GLB.
@@ -3073,7 +3087,18 @@
           p.y = (pa.y + pb.y) / 2;
           return [p];
         };
-        addCable(a, b, { id: 'nappe-esc-fc', color: WIRE_COLORS.signal, wires: 8, radius: 0.00028, sag: 0, spread: 0.0012, plug: 8, via: gapVia });
+        // Les deux fiches sortent maintenant par le bord de leur carte, face à
+        // face : la nappe passe entre elles sans rien traverser, le détour par
+        // le bord n'a plus lieu d'être. Il reste en secours si les deux embases
+        // se retrouvaient du même côté.
+        // En ligne droite entre deux fiches décalées de 8 mm en hauteur, la
+        // nappe rasait le bord de l'ESC et mordait dans le stratifié. Elle bombe
+        // donc de 6 mm vers l'avant, dans le prolongement des deux fiches.
+        const memeCote = escFrame.dir.dot(fcFrame8.dir) > 0.5;
+        const bombe = (pa, pb) => [pa.clone().lerp(pb, 0.5).addScaledVector(escFrame.dir, 0.006)];
+        addCable(a, b, { id: 'nappe-esc-fc', color: WIRE_COLORS.signal, wires: 8,
+                         radius: 0.00028, sag: 0, spread: 0.0012, plug: 8,
+                         via: memeCote ? bombe : gapVia });
       }
 
       // FC -> VTX : embase 6 broches côté FC, connecteur board-to-board côté module.
@@ -3254,7 +3279,9 @@
         }
       }
 
-      // Caméra -> module vidéo.
+      // Caméra -> module vidéo. Aucune des deux ne porte d'embase modélisée :
+      // la nappe reste ancrée sur les faces en regard, sans repère
+      // d'accouplement — les fiches s'orientent alors sur la tangente du câble.
       if (cam && vtx) {
         const cb = groupBox3(cam);
         const cp = cb.getCenter(new THREE.Vector3());
