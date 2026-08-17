@@ -1668,11 +1668,17 @@
 
     const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+    // Verticale du monde exprimée dans le repère des pièces : occRoot porte une
+    // rotation, un simple (0,1,0) partirait de travers.
+    const localUp = new THREE.Vector3(0, 1, 0);
+    const localFront = new THREE.Vector3(0, 0, 1);
+
     function groupOffsetTarget(g, out) {
       if (stateMode === 'flatlay') return out.copy(g.flatOffset);
       if (stateMode === 'assemble' && explodeAmount > 0.001) {
         return out.copy(g.explodeDir).multiplyScalar(explodeAmount * droneRadius * 0.9 * worldToLocalUnit);
       }
+      if (wiringLiftFor(g, out)) return out;
       return out.set(0, 0, 0);
     }
 
@@ -1900,6 +1906,9 @@
       occRoot.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), scl);
       const unit = Math.abs(scl.x) > 1e-6 ? Math.abs(scl.x) : 1;
       worldToLocalUnit = 1 / unit;
+      const invOccDir = new THREE.Matrix4().copy(occRoot.matrixWorld).invert();
+      localUp.set(0, 1, 0).transformDirection(invOccDir).normalize();
+      localFront.copy(droneFront).transformDirection(invOccDir).normalize();
       const spacing = droneRadius * 0.8 * worldToLocalUnit;
 
       // 1. Regrouper les entrées consécutives de même famille (l'arbre est déjà trié par catégorie).
@@ -2271,6 +2280,7 @@
         // Extrémité déjà solidaire de sa pièce : les phases moteur sortent
         // soudées côté moteur, seul le bout ESC attend d'être posé.
         pinnedEnd: opts.pinnedEnd ?? null,
+        targetName: opts.targetName || null,   // ancrage visé, pour l'anneau
         solder: [],                       // billes d'étain, montrées une fois raccordé
         inline: null,                     // connecteur porté par le câble (XT30)
         _curve: null,
@@ -2454,16 +2464,74 @@
       const escSize = escBox.getSize(new THREE.Vector3());
       const escTop = escBox.max.y;
 
-      // Les 745 pastilles de l'ESC portent toutes le même nom : les plots moteur
-      // sont donc ancrés aux quatre coins de la carte, leur emplacement réel.
-      const halfR = Math.max(escSize.x, escSize.z) * 0.36;
-      const padOf = (fwdSign, rightSign) => {
-        const p = escCentre.clone()
-          .addScaledVector(droneFront, fwdSign * halfR)
-          .addScaledVector(droneRight, rightSign * halfR);
-        p.y = escTop;
-        return p;
-      };
+      // Le plan de pose, c'est la face cuivrée de la carte — pas le sommet de la
+      // boîte englobante, qui inclut les connecteurs et les gros composants et
+      // se trouve 6 mm plus haut. Sans ça les fils arrivent à côté du cuivre.
+      function boardBox(g) {
+        let best = null;
+        g.nodes.forEach(n => n.traverse(o => {
+          if (!o.isMesh || !/pcb|board/i.test(o.name || '')) return;
+          const b = new THREE.Box3().setFromObject(o);
+          const sz = b.getSize(new THREE.Vector3());
+          const area = sz.x * sz.z;
+          if (!best || area > best.area) best = { box: b, area };
+        }));
+        return best ? best.box : groupBox3(g);
+      }
+      const escBoard = boardBox(esc);
+      const boardTop = escBoard.max.y;
+      const boardCentre = escBoard.getCenter(new THREE.Vector3());
+      const boardSize = escBoard.getSize(new THREE.Vector3());
+      // Demi-cotes de la carte projetées sur les axes du drone : la carte n'est
+      // pas forcément alignée sur X/Z monde.
+      const halfRight = Math.abs(boardSize.x * droneRight.x + boardSize.z * droneRight.z) / 2;
+      const halfFront = Math.abs(boardSize.x * droneFront.x + boardSize.z * droneFront.z) / 2;
+
+      const PAD_PITCH = 0.0035;   // entraxe des trois plots d'un moteur (secours)
+      const PAD_INSET = 0.0018;   // retrait depuis le bord de la carte (secours)
+      const PAD_R = 0.00085;      // rayon du plot dessiné (secours)
+
+      // Les plots de cuivre existent dans le GLB : on s'y accroche au lieu
+      // d'inventer des positions. Le long de chaque flanc il y a six pastilles
+      // carrées doublées ; une par paire donne six par flanc, douze en tout —
+      // une par fil, une bille d'étain par pastille, jamais à cheval sur deux.
+      function realMotorPads() {
+        const cands = [];
+        esc.nodes.forEach(n => n.traverse(o => {
+          if (!o.isMesh || !/pad/i.test(o.name || '')) return;
+          const b = new THREE.Box3().setFromObject(o);
+          if (b.max.y < boardTop - 0.0002) return;          // face cuivrée du dessus
+          const sz = b.getSize(new THREE.Vector3());
+          const area = sz.x * sz.z;
+          if (area < 2.2e-6 || area > 6e-6) return;         // ni vias, ni plots batterie
+          const c = b.getCenter(new THREE.Vector3());
+          const d = c.clone().sub(boardCentre);
+          const right = d.dot(droneRight);
+          if (Math.abs(right) < halfRight - 0.0025) return; // seulement le long du bord
+          cands.push({ c, top: b.max.y, w: Math.min(sz.x, sz.z), right, front: d.dot(droneFront) });
+        }));
+        const out = {};
+        for (const sgn of [1, -1]) {
+          const row = cands.filter(p => (p.right > 0) === (sgn > 0))
+            .sort((a, b) => a.front - b.front);
+          const kept = [];
+          row.forEach(p => {
+            const last = kept[kept.length - 1];
+            if (!last || p.front - last.front > 0.0018) kept.push(p);
+          });
+          if (kept.length < 6) return null;
+          out[sgn > 0 ? 'M1' : 'M3'] = kept.slice(0, 3);     // arrière
+          out[sgn > 0 ? 'M2' : 'M4'] = kept.slice(-3);       // avant
+        }
+        return out;
+      }
+
+      // Les plots moteur sont sur les deux bords latéraux, en colonne de trois :
+      // M1/M2 à droite, M3/M4 à gauche, exactement comme sur la carte réelle.
+      const padOf = (fwdSign, rightSign) => boardCentre.clone()
+        .addScaledVector(droneRight, rightSign * (halfRight - PAD_INSET))
+        .addScaledVector(droneFront, fwdSign * halfFront * 0.52)
+        .setY(boardTop);
 
       // Numérotation Betaflight vue de dessus.
       const ESC_PADS = {
@@ -2475,12 +2543,13 @@
       const escNode = esc.nodes[0];
       Object.entries(ESC_PADS).forEach(([k, p]) => makeAnchor(escNode, p, `esc-${k}`));
 
-      // Plots batterie et condensateur, côté arrière de l'ESC.
-      const battPad = escCentre.clone().addScaledVector(droneFront, -halfR * 1.15);
-      battPad.y = escTop;
+      // Plots batterie et condensateur, côté arrière de l'ESC — sur le cuivre
+      // eux aussi, pas au sommet de la boîte englobante.
+      const battPad = boardCentre.clone().addScaledVector(droneFront, -halfFront * 0.78);
+      battPad.y = boardTop;
       makeAnchor(escNode, battPad, 'esc-batt');
-      const capPad = escCentre.clone().addScaledVector(droneFront, -halfR * 0.7);
-      capPad.y = escTop;
+      const capPad = boardCentre.clone().addScaledVector(droneFront, -halfFront * 0.5);
+      capPad.y = boardTop;
       makeAnchor(escNode, capPad, 'esc-cap');
 
       // Moteurs : sortie des fils sous la cloche, vers le bras. Chaque phase est
@@ -2491,6 +2560,7 @@
         [/arrière droit/i, 'M1'], [/avant droit/i, 'M2'],
         [/arrière gauche/i, 'M3'], [/avant gauche/i, 'M4']
       ];
+      const realPads = realMotorPads();
       const _upY = new THREE.Vector3(0, 1, 0);
       const tangentAt = (from, to, fallback) => {
         const t = new THREE.Vector3().subVectors(to, from).setY(0);
@@ -2505,25 +2575,46 @@
         out.y = mb.min.y;
 
         const centrePad = ESC_PADS[pad];
-        // Rangée de trois plots tangente au bord de la carte : ils restent tous
-        // les trois sur le cuivre, à égale distance du centre.
-        const padAxis = tangentAt(escCentre, centrePad, droneRight);
+        // La colonne des trois plots court le long du bord de la carte.
         const outAxis = tangentAt(out, centrePad, droneRight);
+        const pads = realPads ? realPads[pad] : null;
 
         for (let i = 0; i < 3; i++) {
           const k = i - 1;
-          const padPos = centrePad.clone().addScaledVector(padAxis, k * 0.0017);
-          const b = makeAnchor(escNode, padPos, `esc-${pad}-${i}`);
+          let padPos, blobR;
+          if (pads) {
+            // Une pastille réelle, une bille : le diamètre reste sous la taille
+            // du cuivre pour qu'elle ne déborde jamais sur la voisine.
+            padPos = pads[i].c.clone().setY(pads[i].top);
+            blobR = Math.min(0.0009, pads[i].w * 0.42);
+          } else {
+            padPos = centrePad.clone().addScaledVector(droneFront, k * PAD_PITCH);
+            padPos.y = boardTop;
+            blobR = 0.0008;
+            const disc = new THREE.Mesh(
+              new THREE.CylinderGeometry(PAD_R, PAD_R, 0.00012, 14),
+              wireMaterial('#c9a227', { roughness: 0.3, metalness: 0.9 })
+            );
+            disc.name = `plot-${pad}-${i}`;
+            disc.position.copy(escNode.worldToLocal(padPos.clone()));
+            disc.position.y += 0.00007;
+            addExtra(escNode, disc);
+          }
+
+          // Le fil arrive au centre de la bille, et la bille repose SUR le plot :
+          // sa base touche le cuivre, elle ne traverse pas la carte.
+          const BLOB_LIFT = blobR * 0.62;   // la bille est aplatie : demi-hauteur
+          const tip = padPos.clone();
+          tip.y += BLOB_LIFT;
+          const b = makeAnchor(escNode, tip, `esc-${pad}-${i}`);
           const outPos = out.clone().addScaledVector(outAxis, k * 0.0013);
           const a = makeAnchor(mg.nodes[0], outPos, `motor-${pad}-${i}`);
           const c = addCable(a, b, {
             id: `phases-${pad}-${i}`, color: WIRE_COLORS.phase, wires: 1,
-            radius: 0.0005, sag: 0.16, pinnedEnd: 0
+            radius: 0.0005, sag: 0.1, pinnedEnd: 0, targetName: `esc-${pad}-${i}`
           });
           if (!c) continue;
-          // La bille d'étain est posée sur le plot, exactement là où le fil
-          // arrive : les deux sont au même point, le contact se voit.
-          const blob = buildSolderBlob(0.0008);
+          const blob = buildSolderBlob(blobR);
           blob.position.copy(b.position);
           addExtra(escNode, blob);
           blob.visible = false;
@@ -2761,7 +2852,9 @@
         const away = goal.clone().sub(centre).setY(0);
         if (away.lengthSq() < 1e-9) away.copy(droneRight);
         const rest = goal.clone().addScaledVector(away.normalize(), 0.011);
-        rest.y = stack.min.y + 0.0015;
+        // À la hauteur de son plot : posé au ras du plateau, le fil arriverait
+        // sous la carte au lieu d'arriver dessus.
+        rest.y = goal.y;
         const a = new THREE.Object3D();
         const b = new THREE.Object3D();
         const local = benchGroup.worldToLocal(rest.clone());
@@ -3294,6 +3387,25 @@
     ];
 
     let wiringActive = false;
+    // Les plots moteur, batterie et condensateur sont sur la face cuivrée de
+    // l'ESC, c'est-à-dire sous le FC une fois le stack empilé. Le temps de ces
+    // étapes on écarte les cartes du dessus — c'est aussi l'ordre de montage
+    // réel : on soude l'ESC à nu, puis on empile.
+    const ESC_STEPS = new Set(['phases', 'cap', 'xt30']);
+    // On les écarte en hauteur ET vers l'avant : monter seul ne suffit pas,
+    // vu de dessus le FC continuerait de masquer la face cuivrée de l'ESC.
+    const BOARD_LIFT = { fc: { up: 0.020, fwd: 0.050 }, rx: { up: 0.030, fwd: 0.082 } };
+
+    function wiringLiftFor(g, out) {
+      const lift = wiringActive ? BOARD_LIFT[g.id] : null;
+      if (!lift) return false;
+      const s = WIRING_STEPS[wiringStep];
+      if (!s || !ESC_STEPS.has(s.id)) return false;
+      out.copy(localUp).multiplyScalar(lift.up * worldToLocalUnit)
+         .addScaledVector(localFront, lift.fwd * worldToLocalUnit);
+      return true;
+    }
+
     const WIRING_KEEP_CATS = new Set(['ELECTRONIQUE', 'VIDEO', 'BATTERIE']);
     const isWiringPart = (g) => WIRING_KEEP_CATS.has(g.cat) || /^motor-\d+$/.test(g.id);
 
@@ -3340,6 +3452,7 @@
         if (current) { renderWiringStep(); wiringSay('Contact établi, étape terminée.', 'good'); }
         else updateWiringProgress();
       } else if (current) {
+        pointTargetRing(stepTargetAnchor(WIRING_STEPS[wiringStep]));
         wiringSay(`Contact établi. Encore ${left} fil(s) à poser.`, '');
       }
     }
@@ -3350,7 +3463,7 @@
     /* ---- Repères 3D : anneau pulsant sur la cible ---- */
 
     const targetRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.006, 0.0009, 8, 28),
+      new THREE.TorusGeometry(0.0035, 0.0006, 8, 24),
       new THREE.MeshBasicMaterial({ color: 0xffb700, transparent: true, opacity: 0.9 })
     );
     targetRing.rotation.x = Math.PI / 2;
@@ -3382,10 +3495,24 @@
     }
 
     function pointTargetRing(anchorName) {
-      const a = wiringAnchors[anchorName];
+      const a = anchorName ? wiringAnchors[anchorName] : null;
       if (!a) { targetRing.visible = false; return; }
       targetRing.position.copy(a.getWorldPosition(new THREE.Vector3()));
+      targetRing.position.y += 0.0006;
       targetRing.visible = true;
+    }
+
+    // L'anneau doit désigner le prochain fil à poser, pas éternellement le
+    // premier plot de l'étape : sur les douze phases c'est ce qui guide.
+    function stepTargetAnchor(s) {
+      const ids = STEP_CABLES[s.id];
+      if (ids) {
+        for (const id of ids) {
+          const c = cableById(id);
+          if (c && c.targetName && c.state !== 'connected' && !c.plug) return c.targetName;
+        }
+      }
+      return s.targets && s.targets.length ? s.targets[0] : null;
     }
 
     /* ---- Panneau d'étapes ---- */
@@ -3422,8 +3549,7 @@
       }
       wiringAction.classList.toggle('done', done);
 
-      if (s.targets && s.targets.length) pointTargetRing(s.targets[0]);
-      else targetRing.visible = false;
+      pointTargetRing(stepTargetAnchor(s));
 
       document.getElementById('wiring-prev').disabled = wiringStep === 0;
       document.getElementById('wiring-next').disabled = wiringStep >= WIRING_STEPS.length - 1;
