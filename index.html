@@ -2619,6 +2619,12 @@
         [/arrière gauche/i, 'M3'], [/avant gauche/i, 'M4']
       ];
       const realPads = realMotorPads();
+      // Face supérieure des bras : les fils moteur s'y posent au lieu de la
+      // traverser. Les bras montent à 11,9 mm, la platine médiane à 14,4 : le
+      // trajet doit rester au-dessus des deux.
+      const armsGroup = groupById('arms') || groupByLabel(/bras/i);
+      const armsBox = groupBox3(armsGroup);
+      const armTop = armsBox.isEmpty() ? null : armsBox.max.y;
       const _upY = new THREE.Vector3(0, 1, 0);
       const tangentAt = (from, to, fallback) => {
         const t = new THREE.Vector3().subVectors(to, from).setY(0);
@@ -2630,7 +2636,8 @@
         if (!mg) return;
         const mb = groupBox3(mg);
         const out = mb.getCenter(new THREE.Vector3());
-        out.y = mb.min.y;
+        // Le fil sort sous la cloche et se pose SUR le bras, au ras du carbone.
+        out.y = armTop === null ? mb.min.y : Math.max(mb.min.y, armTop + 0.0009);
 
         const centrePad = ESC_PADS[pad];
         // La colonne des trois plots court le long du bord de la carte.
@@ -2670,12 +2677,17 @@
           const c = addCable(a, b, {
             id: `phases-${pad}-${i}`, color: WIRE_COLORS.phase, wires: 1,
             radius: 0.0005, sag: 0.02, pinnedEnd: 0, targetName: `esc-${pad}-${i}`,
-            // Une fois soudé le fil est plaqué sur le bras : il court au ras de
-            // la structure puis remonte sur son plot, au lieu de pendre.
+            // Le fil est plaqué sur le bras : il court à la hauteur du carbone
+            // jusqu'aux deux tiers, puis remonte au-dessus de la platine
+            // médiane pour arriver sur son plot. Les points sont pris sur les
+            // extrémités courantes, donc le trajet suit les pièces quand elles
+            // s'écartent ou que le drone s'éclate.
             via: (pa, pb) => {
-              const m = new THREE.Vector3().lerpVectors(pa, pb, 0.55);
-              m.y = Math.min(pa.y, pb.y) + 0.001;
-              return [m];
+              const p1 = new THREE.Vector3().lerpVectors(pa, pb, 0.30);
+              p1.y = pa.y;
+              const p2 = new THREE.Vector3().lerpVectors(pa, pb, 0.72);
+              p2.y = pb.y - 0.0011;
+              return [p1, p2];
             }
           });
           if (!c) continue;
