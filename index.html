@@ -2178,6 +2178,12 @@
         wires: opts.wires ?? 1,
         spread: opts.spread ?? 0.0016,
         meshes: [],
+        handles: [],
+        // Un câble est soit branché sur ses ancrages, soit rangé sur le tapis.
+        state: 'connected',
+        park: null,
+        plug: null,                       // animation de clipsage en cours
+        midOffset: new THREE.Vector3(),   // point de mou tiré à la souris
         _lastA: new THREE.Vector3(NaN, NaN, NaN),
         _lastB: new THREE.Vector3(NaN, NaN, NaN),
         id: opts.id || `cable-${cables.length}`
@@ -2186,16 +2192,48 @@
         const m = new THREE.Mesh(new THREE.BufferGeometry(), wireMaterial(c.color, { roughness: 0.5 }));
         m.frustumCulled = false;
         m.userData.isCable = true;
+        m.userData.cable = c;
         wiringRoot.add(m);
         c.meshes.push(m);
+      }
+      // Ferrules d'extrémité : un tube de 0,45 mm est une cible trop fine à la
+      // souris, ces embouts servent de repère visuel et de zone de saisie.
+      for (let e = 0; e < 2; e++) {
+        const h = new THREE.Mesh(
+          new THREE.SphereGeometry(Math.max(c.radius * 3.4, 0.0022), 10, 8),
+          wireMaterial('#8f979f', { roughness: 0.3, metalness: 0.85 })
+        );
+        h.frustumCulled = false;
+        h.userData.isCable = true;
+        h.userData.cable = c;
+        h.userData.cableEnd = e;
+        wiringRoot.add(h);
+        c.handles.push(h);
       }
       cables.push(c);
       return c;
     }
 
+    // Extrémités effectives : les ancrages réels une fois branché, ceux du tapis
+    // tant que le câble est rangé. Pendant le clipsage on interpole entre les deux.
+    const _epA = new THREE.Vector3(), _epB = new THREE.Vector3();
+    function endpointsOf(c, outA, outB) {
+      const parked = c.state === 'parked' && c.park;
+      if (parked) { c.park.a.getWorldPosition(outA); c.park.b.getWorldPosition(outB); }
+      else { c.from.getWorldPosition(outA); c.to.getWorldPosition(outB); }
+      if (c.plug) {
+        c.park.a.getWorldPosition(_epA); c.park.b.getWorldPosition(_epB);
+        const t = easeInOutCubic(Math.min(1, c.plug.t / c.plug.dur));
+        c.from.getWorldPosition(outA); c.to.getWorldPosition(outB);
+        outA.lerpVectors(_epA, outA, t);
+        outB.lerpVectors(_epB, outB, t);
+      }
+    }
+
     function rebuildCable(c) {
-      c.from.getWorldPosition(_pa);
-      c.to.getWorldPosition(_pb);
+      endpointsOf(c, _pa, _pb);
+      c.handles[0].position.copy(_pa);
+      c.handles[1].position.copy(_pb);
       _dir.subVectors(_pb, _pa);
       const len = _dir.length();
       if (len < 1e-6) return;
@@ -2209,6 +2247,7 @@
         const b = _pb.clone().addScaledVector(_side, off);
         _mid.addVectors(a, b).multiplyScalar(0.5);
         _mid.y -= len * c.sag;
+        _mid.add(c.midOffset);
         const curve = new THREE.CatmullRomCurve3([a, _mid.clone(), b]);
         const geo = new THREE.TubeGeometry(curve, 10, c.radius, 5, false);
         m.geometry.dispose();
@@ -2224,13 +2263,27 @@
     const CABLE_BUDGET = 4;
     let cableCursor = 0;
 
-    function updateCables() {
+    function updateCables(dt = 0) {
       if (!wiringRoot.visible || !cables.length) return;
+
+      // Les câbles en cours de clipsage sont hors quota : les brider rendrait
+      // leur trajet saccadé.
+      for (const c of cables) {
+        if (!c.plug) continue;
+        c.plug.t += dt;
+        rebuildCable(c);
+        if (c.plug.t >= c.plug.dur) {
+          c.plug = null;
+          c.state = 'connected';
+          rebuildCable(c);
+        }
+      }
+
       let done = 0;
       for (let i = 0; i < cables.length && done < CABLE_BUDGET; i++) {
         const c = cables[(cableCursor + i) % cables.length];
-        c.from.getWorldPosition(_pa);
-        c.to.getWorldPosition(_pb);
+        if (c.plug) continue;
+        endpointsOf(c, _pa, _pb);
         if (_pa.distanceToSquared(c._lastA) > 1e-10 || _pb.distanceToSquared(c._lastB) > 1e-10) {
           rebuildCable(c);
           done++;
@@ -2251,7 +2304,7 @@
 
     function buildHarness() {
       if (!occRoot || !assemblyGroups.length) return;
-      if (!wiringRoot.parent) droneRoot.add(wiringRoot);
+      if (!wiringRoot.parent) scene.add(wiringRoot);
       clearWiring();
 
       const esc = groupById('esc');
@@ -2426,6 +2479,7 @@
       }
 
       registerBatteryGroup();
+      buildWorkbench();
       cables.forEach(rebuildCable);
     }
 
@@ -2461,6 +2515,87 @@
       computeFlatLayPositions();
       buildAssemblyTree(treeSearchInput ? treeSearchInput.value : '');
       updateStepHud();
+    }
+
+    /* ---- Tapis d'établi : les câbles non branchés y sont rangés à plat ---- */
+
+    let benchGroup = null;
+
+    function stackBox() {
+      const box = new THREE.Box3();
+      ['fc', 'esc', 'rx'].forEach(id => {
+        const g = groupById(id);
+        if (g) g.nodes.forEach(n => box.expandByObject(n));
+      });
+      return box;
+    }
+
+    function buildWorkbench() {
+      if (benchGroup) { scene.remove(benchGroup); benchGroup = null; }
+      if (!cables.length) return;
+
+      const stack = stackBox();
+      if (stack.isEmpty()) return;
+      const centre = stack.getCenter(new THREE.Vector3());
+      const size = stack.getSize(new THREE.Vector3());
+
+      const n = cables.length;
+      const rowGap = 0.009;
+      const width = (n - 1) * rowGap + 0.022;   // suivant droneRight
+      const length = 0.078;                      // suivant droneFront
+
+      benchGroup = new THREE.Group();
+      benchGroup.name = 'etabli';
+      // Repère local : X = droite du drone, Z = avant du drone.
+      benchGroup.position.copy(centre)
+        .addScaledVector(droneRight, size.x / 2 + width / 2 + 0.016);
+      benchGroup.position.y = stack.min.y;
+      benchGroup.rotateY(Math.atan2(droneFront.x, droneFront.z));
+
+      const mat = new THREE.Mesh(
+        new THREE.PlaneGeometry(width + 0.012, length + 0.012),
+        new THREE.MeshStandardMaterial({
+          color: 0x232b35, roughness: 0.9, metalness: 0,
+          transparent: true, opacity: 0.95
+        })
+      );
+      mat.rotation.x = -Math.PI / 2;
+      mat.name = 'tapis';
+      benchGroup.add(mat);
+
+      const edge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.PlaneGeometry(width + 0.012, length + 0.012)),
+        new THREE.LineBasicMaterial({ color: 0xffb700, transparent: true, opacity: 0.7 })
+      );
+      edge.rotation.x = -Math.PI / 2;
+      edge.position.y = 0.0002;
+      benchGroup.add(edge);
+
+      // Une ligne par câble, dans l'ordre des étapes.
+      cables.forEach((c, i) => {
+        const x = -width / 2 + 0.011 + i * rowGap;
+        const a = new THREE.Object3D();
+        a.position.set(x, 0.0015, -length * 0.42);
+        const b = new THREE.Object3D();
+        b.position.set(x, 0.0015, length * 0.42);
+        benchGroup.add(a, b);
+        c.park = { a, b };
+      });
+
+      benchGroup.visible = false;
+      scene.add(benchGroup);
+    }
+
+    // Rangé : posé bien droit sur le tapis. Branché : reprend son affaissement.
+    const CABLE_SAG = new Map();
+    function setCableState(c, state) {
+      if (!c.park) return;
+      if (!CABLE_SAG.has(c.id)) CABLE_SAG.set(c.id, c.sag);
+      c.state = state;
+      c.plug = null;
+      c.midOffset.set(0, 0, 0);
+      c.sag = state === 'parked' ? 0.02 : CABLE_SAG.get(c.id);
+      rebuildCable(c);
     }
 
     let showWiring = true;
@@ -2517,6 +2652,9 @@
     /* ---- Visibilité / sélection pilotées par groupe ---- */
 
     function groupIsVisible(g, idx) {
+      // En mode câblage seule l'électronique reste : les moteurs y sont conservés,
+      // les 12 soudures de phases s'y rattachent.
+      if (wiringActive && !isWiringPart(g)) return false;
       if (g.hidden) return false;
       if (soloGroup && soloGroup !== g) return false;
       if (stateMode === 'stepbystep' && idx >= stepIndex) return false;
@@ -2966,6 +3104,39 @@
       }
     ];
 
+    let wiringActive = false;
+    const WIRING_KEEP_CATS = new Set(['ELECTRONIQUE', 'VIDEO', 'BATTERIE']);
+    const isWiringPart = (g) => WIRING_KEEP_CATS.has(g.cat) || /^motor-\d+$/.test(g.id);
+
+    // Câbles concernés par chaque étape : ce sont eux qui se clipsent.
+    const STEP_CABLES = {
+      phases: ['phases-M1', 'phases-M2', 'phases-M3', 'phases-M4'],
+      nappe: ['nappe-esc-fc'],
+      xt30: ['batt-plus', 'batt-minus'],
+      rx: ['rx-fc'],
+      vtx: ['nappe-fc-vtx'],
+      antennes: ['coax-0', 'coax-1'],
+      camera: ['nappe-camera']
+    };
+
+    const cableById = (id) => cables.find(c => c.id === id) || null;
+
+    // Clipsage : le câble rejoint ses ancrages, puis le boîtier fait un à-coup.
+    function connectStepCables(stepId) {
+      const ids = STEP_CABLES[stepId];
+      if (!ids) return 0;
+      let n = 0;
+      ids.forEach(id => {
+        const c = cableById(id);
+        if (!c || c.state === 'connected' || !c.park) return;
+        c.plug = { t: 0, dur: 0.7 };
+        c.sag = CABLE_SAG.has(c.id) ? CABLE_SAG.get(c.id) : c.sag;
+        c.handles.forEach(h => { h.userData.pop = 0; });
+        n++;
+      });
+      return n;
+    }
+
     let wiringStep = 0;
     const wiringState = { done: {}, faults: [], phaseOrder: {}, xt30Reversed: false, capReversed: false };
 
@@ -2978,6 +3149,21 @@
     targetRing.rotation.x = Math.PI / 2;
     targetRing.visible = false;
     scene.add(targetRing);
+
+    // Petit à-coup d'échelle au moment où la fiche entre : c'est ce qu'on voit
+    // du « clic » de clipsage.
+    function updatePlugPop(dt) {
+      for (const c of cables) {
+        for (const h of c.handles) {
+          if (h.userData.pop === undefined) continue;
+          h.userData.pop += dt;
+          const t = h.userData.pop;
+          if (t > 0.55) { h.scale.setScalar(1); delete h.userData.pop; continue; }
+          const k = t < 0.4 ? 1 : 1 + Math.sin((t - 0.4) / 0.15 * Math.PI) * 0.35;
+          h.scale.setScalar(k);
+        }
+      }
+    }
 
     let ringPulse = 0;
     function updateTargetRing(dt) {
@@ -3086,6 +3272,7 @@
       if (!complete) { wiringSay('Maintiens un peu plus longtemps.', 'warn'); return; }
       wiringState.done[s.id] = true;
       wiringState.faults = wiringState.faults.filter(f => f.step !== s.id);
+      connectStepCables(s.id);
       // renderWiringStep() remet le retour à zéro : on écrit le message après.
       renderWiringStep();
       wiringSay('Soudure propre, brillante et bien formée.', 'good');
@@ -3095,9 +3282,10 @@
 
     function doPlug() {
       const s = WIRING_STEPS[wiringStep];
+      const n = connectStepCables(s.id);
       wiringState.done[s.id] = true;
       renderWiringStep();
-      wiringSay('Connecteur en place, détrompeur respecté.', 'good');
+      wiringSay(n ? 'Le connecteur vient se clipser en place.' : 'Connecteur en place, détrompeur respecté.', 'good');
     }
 
     /* ---- Test final : cotillons ou fumée ---- */
@@ -3177,19 +3365,38 @@
     /* ---- Entrée / sortie du mode ---- */
 
     function setWiringMode(on) {
+      wiringActive = on;
       wiringPanel.classList.toggle('open', on);
       document.body.classList.toggle('wiring-on', on);
       document.getElementById('btn-wiring').classList.toggle('active', on);
       targetRing.visible = false;
-      if (on) {
-        setMode('assemble');
-        if (!showWiring) {
-          document.getElementById('chk-wiring').checked = true;
-          setWiringVisible(true);
-        }
-        renderWiringStep();
-        flyToFit(droneCentre, droneRadius, 0.75, 0.9);
+      if (benchGroup) benchGroup.visible = on;
+
+      if (!on) {
+        // On rebranche tout : hors du mode, le drone se montre câblé.
+        cables.forEach(c => { if (c.park) setCableState(c, 'connected'); });
+        return;
       }
+
+      setMode('assemble');
+      if (!showWiring) {
+        document.getElementById('chk-wiring').checked = true;
+        setWiringVisible(true);
+      }
+      // Tout ce qui n'a pas encore été branché dans la session part sur le tapis.
+      cables.forEach(c => {
+        if (!c.park) return;
+        const stepId = Object.keys(STEP_CABLES).find(k => STEP_CABLES[k].includes(c.id));
+        if (!stepId || !wiringState.done[stepId]) setCableState(c, 'parked');
+      });
+
+      renderWiringStep();
+
+      // Cadrage sur le stack et son tapis, pas sur le drone entier.
+      const box = stackBox();
+      if (benchGroup) box.expandByObject(benchGroup);
+      const sphere = box.getBoundingSphere(new THREE.Sphere());
+      flyToFit(sphere.center, sphere.radius, 1.25, 0.9);
     }
 
     document.getElementById('btn-wiring').addEventListener('click', () => {
@@ -3820,8 +4027,103 @@
       }
     }
 
+    /* ---- Saisie et déplacement des câbles (mode câblage seulement) ---- */
+
+    const dragPlane = new THREE.Plane();
+    const dragPoint = new THREE.Vector3();
+    const dragStart = new THREE.Vector3();
+    let dragging = null;   // { cable, mode: 'end'|'whole'|'slack', end, startA, startB, startMid }
+
+    function pickCable(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(wiringRoot.children, false);
+      const hit = hits.find(h => h.object.visible && h.object.userData.cable);
+      return hit || null;
+    }
+
+    function beginCableDrag(e) {
+      const hit = pickCable(e);
+      if (!hit) return false;
+      const c = hit.object.userData.cable;
+      endpointsOf(c, _pa, _pb);
+
+      // Une ferrule saisit son extrémité ; sinon on regarde où le tube a été touché.
+      let mode = 'slack', end = 0;
+      if (hit.object.userData.cableEnd !== undefined) {
+        mode = 'end'; end = hit.object.userData.cableEnd;
+      } else {
+        const dA = hit.point.distanceTo(_pa), dB = hit.point.distanceTo(_pb);
+        const len = _pa.distanceTo(_pb) || 1;
+        if (Math.min(dA, dB) / len < 0.25) { mode = 'end'; end = dA < dB ? 0 : 1; }
+        else mode = c.state === 'parked' ? 'whole' : 'slack';
+      }
+
+      dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), hit.point);
+      raycaster.ray.intersectPlane(dragPlane, dragStart);
+
+      dragging = {
+        cable: c, mode, end,
+        startA: c.park ? c.park.a.position.clone() : null,
+        startB: c.park ? c.park.b.position.clone() : null,
+        startMid: c.midOffset.clone()
+      };
+      controls.enabled = false;
+      renderer.domElement.style.cursor = 'grabbing';
+      return true;
+    }
+
+    function moveCableDrag(e) {
+      if (!dragging) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      if (!raycaster.ray.intersectPlane(dragPlane, dragPoint)) return;
+
+      const d = dragPoint.clone().sub(dragStart);
+      const c = dragging.cable;
+
+      if (dragging.mode === 'slack') {
+        c.midOffset.copy(dragging.startMid).add(d);
+      } else if (c.park) {
+        // Le tapis a sa propre orientation : on repasse le déplacement en local.
+        const local = benchGroup ? benchGroup.worldToLocal(dragPoint.clone())
+          .sub(benchGroup.worldToLocal(dragStart.clone())) : d;
+        if (dragging.mode === 'whole') {
+          c.park.a.position.copy(dragging.startA).add(local);
+          c.park.b.position.copy(dragging.startB).add(local);
+        } else {
+          const t = dragging.end === 0 ? c.park.a : c.park.b;
+          t.position.copy(dragging.end === 0 ? dragging.startA : dragging.startB).add(local);
+        }
+      }
+      rebuildCable(c);
+    }
+
+    function endCableDrag() {
+      if (!dragging) return;
+      dragging = null;
+      controls.enabled = true;
+      renderer.domElement.style.cursor = '';
+    }
+
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (dragging) { moveCableDrag(e); return; }
+      if (!wiringActive) return;
+      renderer.domElement.style.cursor = pickCable(e) ? 'grab' : '';
+    });
+    renderer.domElement.addEventListener('pointerup', endCableDrag);
+    renderer.domElement.addEventListener('pointerleave', endCableDrag);
+
     renderer.domElement.addEventListener('pointerdown', (e) => {
-      if (e.button === 0) { contextMenu.style.display = 'none'; handleSelection(e, false); }
+      if (e.button !== 0) return;
+      contextMenu.style.display = 'none';
+      // En mode câblage, saisir un fil prime sur la sélection de pièce.
+      if (wiringActive && beginCableDrag(e)) return;
+      handleSelection(e, false);
     });
 
     renderer.domElement.addEventListener('contextmenu', (e) => {
@@ -3860,8 +4162,9 @@
         });
       }
 
-      updateCables();
+      updateCables(dt);
       updateTargetRing(dt);
+      updatePlugPop(dt);
       updateSmoke(dt);
       updateCameraTween(dt);
 
