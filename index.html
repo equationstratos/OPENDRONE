@@ -303,6 +303,20 @@
     }
     .btn-theme:hover { border-color: var(--border-focus); color: var(--text); background: rgba(255, 255, 255, 0.08); }
     .btn-theme.active { border-color: rgba(255, 183, 0, 0.6); color: #ffb700; background: rgba(255, 183, 0, 0.12); }
+    /* Option volontairement inactive : visible pour annoncer ce qui arrive, non cliquable. */
+    .btn-theme[disabled] { opacity: 0.4; cursor: not-allowed; background: rgba(255, 255, 255, 0.02); }
+    .btn-theme[disabled]:hover { border-color: var(--border); color: var(--text-muted); background: rgba(255, 255, 255, 0.02); }
+    .btn-theme[disabled]::after { content: ' • WIP'; font-size: 8px; letter-spacing: 0.08em; opacity: 0.7; }
+
+    .menu-group-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .prop-mode-switch { display: inline-flex; gap: 3px; }
+    .btn-mini {
+      font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.04em; padding: 2px 7px;
+      border-radius: 4px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border);
+      color: var(--text-muted); cursor: pointer; transition: all 0.15s ease;
+    }
+    .btn-mini:hover { color: var(--text); border-color: var(--border-focus); }
+    .btn-mini.active { color: #ffb700; border-color: rgba(255, 183, 0, 0.6); background: rgba(255, 183, 0, 0.12); }
 
     #context-menu {
       position: absolute; display: none; z-index: 1000; background: rgba(18, 23, 30, 0.95); border: 1px solid var(--border-focus); border-radius: 10px; padding: 6px; backdrop-filter: blur(16px); box-shadow: 0 10px 30px rgba(0,0,0,0.7); min-width: 170px;
@@ -399,6 +413,8 @@
       position: absolute; top: 74px; right: 24px; width: 115px; height: 115px; z-index: 10; pointer-events: auto; cursor: pointer; transition: opacity 0.3s;
     }
     #viewcube-container canvas { width: 100%; height: 100%; border-radius: 10px; background: transparent; }
+    /* Le ViewCube s'efface tant qu'un menu est déroulé : les menus le survolent. */
+    body.menu-open #viewcube-container { opacity: 0; pointer-events: none; }
 
     .control-panel {
       position: absolute; top: 200px; right: 24px; width: 340px; max-height: calc(100vh - 220px); overflow-y: auto; z-index: 10; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); pointer-events: auto; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
@@ -628,12 +644,28 @@
     <span>Personnalisation</span>
   </button>
   <div class="dropdown-content">
-      <div class="menu-group-header">Signatures</div>
+      <div class="menu-group-header">Bicolores OpenDrone</div>
       <div class="theme-grid">
-        <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
-        <button class="btn-theme" data-theme="sunset">Sunset FPV</button>
-        <button class="btn-theme" data-theme="stealth">Ghost Stealth</button>
-        <button class="btn-theme" data-theme="gold">Steampunk Gold</button>
+        <button class="btn-theme" data-theme="bleu-jaune">Bleu / Jaune</button>
+        <button class="btn-theme" data-theme="bleu-blanc">Bleu / Blanc</button>
+        <button class="btn-theme" data-theme="bleu-noir">Bleu / Noir</button>
+        <button class="btn-theme" data-theme="vert-violet">Vert / Violet</button>
+      </div>
+      <div class="menu-group" style="margin-top: 8px;">
+        <div class="menu-group-header">Signatures</div>
+        <div class="theme-grid">
+          <button class="btn-theme" data-theme="cyberpunk">Cyberpunk Vert</button>
+          <button class="btn-theme" data-theme="sunset">Sunset FPV</button>
+          <button class="btn-theme" data-theme="stealth">Ghost Stealth</button>
+          <button class="btn-theme" data-theme="gold">Steampunk Gold</button>
+        </div>
+      </div>
+      <div class="menu-group">
+        <div class="menu-group-header">Configuration Châssis</div>
+        <div class="theme-grid">
+          <button class="btn-theme active" data-frame="standard">Standard</button>
+          <button class="btn-theme" data-frame="deadcat" disabled aria-disabled="true" title="Configuration Dead Cat — en cours de modélisation">Dead Cat (DC)</button>
+        </div>
       </div>
       <div class="menu-group" style="margin-top: 8px;">
         <div class="menu-group-header">Pièces TPU</div>
@@ -644,7 +676,13 @@
         <div class="palette-grid" id="palette-motor"></div>
       </div>
       <div class="menu-group">
-        <div class="menu-group-header">Hélices FPV</div>
+        <div class="menu-group-header">
+          <span>Hélices FPV</span>
+          <span class="prop-mode-switch">
+            <button class="btn-mini" id="btn-prop-2" title="Colorer seulement les 2 hélices avant, pour repérer la marche avant">x2</button>
+            <button class="btn-mini active" id="btn-prop-4" title="Colorer les 4 hélices">x4</button>
+          </span>
+        </div>
         <div class="palette-grid" id="palette-prop"></div>
       </div>
       <div class="menu-group">
@@ -924,6 +962,19 @@
       if (!contextMenu.contains(e.target)) contextMenu.style.display = 'none';
     });
 
+    // Un menu ouvert est en z-index 50 : il passerait par-dessus le ViewCube et le
+    // panneau Studio. On les efface tant qu'un menu est déroulé.
+    const menuObserver = new MutationObserver(() => {
+      const open = [assemblageDropdown, affichageDropdown, dropdownContainer].some(d => d.classList.contains('open'));
+      document.body.classList.toggle('menu-open', open);
+      if (open) {
+        document.getElementById('control-panel').classList.add('collapsed');
+        document.getElementById('btn-toggle-panel').classList.remove('active');
+      }
+    });
+    [assemblageDropdown, affichageDropdown, dropdownContainer].forEach(d =>
+      menuObserver.observe(d, { attributes: true, attributeFilter: ['class'] }));
+
     function buildPalettes() {
       const createPalette = (hostId, activeHex, callback) => {
         const host = document.getElementById(hostId);
@@ -945,7 +996,7 @@
 
       createPalette('palette-tpu', activeTpuHex, (hex) => { activeTpuHex = hex; applyCategoryColor('tpu', hex); });
       createPalette('palette-motor', activeMotorHex, (hex) => { activeMotorHex = hex; applyCategoryColor('motor', hex); });
-      createPalette('palette-prop', activePropHex, (hex) => { activePropHex = hex; applyCategoryColor('prop', hex); });
+      createPalette('palette-prop', activePropHex, (hex) => { activePropHex = hex; applyPropColors(); });
       createPalette('palette-standoff', activeStandoffHex, (hex) => { activeStandoffHex = hex; applyCategoryColor('alu', hex); });
       createPalette('palette-screw', activeScrewHex, (hex) => { activeScrewHex = hex; applyCategoryColor('steel', hex); });
     }
@@ -1015,6 +1066,77 @@
       mat.userData.baseColor = mat.color.clone();
       mat.userData.baseEnv = mat.envMapIntensity ?? 1;
     }
+
+    /* ---- Couleur des hélices : les 4, ou seulement les 2 avant ---- */
+
+    // En x2 seules les hélices avant portent la couleur choisie, les arrière passent
+    // en gris foncé translucide : c'est le repère visuel de la marche avant.
+    const PROP_REAR_HEX = '#2a2f36';
+    const PROP_REAR_OPACITY = 0.35;
+    let propColorMode = 4;
+    let rearPropMaterial = null;
+
+    function propGroupsByHalf() {
+      const front = [], rear = [];
+      assemblyGroups.forEach(g => {
+        if (!/^prop-\d+$/.test(g.id)) return;
+        (/avant/i.test(g.label) ? front : rear).push(g);
+      });
+      return { front, rear };
+    }
+
+    function propMeshesOf(groups) {
+      const out = [];
+      groups.forEach(g => g.nodes.forEach(n => n.traverse(o => {
+        if (o.isMesh && o.userData.matKey === 'prop') out.push(o);
+      })));
+      return out;
+    }
+
+    function applyPropColors() {
+      const { front, rear } = propGroupsByHalf();
+      if (!front.length && !rear.length) { applyCategoryColor('prop', activePropHex); return; }
+
+      const frontMeshes = propMeshesOf(front);
+      const rearMeshes = propMeshesOf(rear);
+
+      // Les 4 hélices partagent un seul matériau (cache de paint()) : il faut un
+      // second matériau pour pouvoir traiter l'avant et l'arrière séparément.
+      if (propColorMode === 2 && rearMeshes.length) {
+        if (!rearPropMaterial && rearMeshes[0].material) {
+          rearPropMaterial = rearMeshes[0].material.clone();
+          rearPropMaterial.userData = { ...rearMeshes[0].material.userData };
+        }
+        if (rearPropMaterial) {
+          rearPropMaterial.color.set(PROP_REAR_HEX);
+          rearPropMaterial.opacity = PROP_REAR_OPACITY;
+          rearPropMaterial.transparent = true;
+          rearPropMaterial.userData.baseColor = rearPropMaterial.color.clone();
+          rearMeshes.forEach(m => { m.material = rearPropMaterial; });
+        }
+      } else if (rearMeshes.length && frontMeshes.length && frontMeshes[0].material) {
+        rearMeshes.forEach(m => { m.material = frontMeshes[0].material; });
+      }
+
+      // (nom local distinct de la fonction paint() du chargement des GLB)
+      const tint = (meshes, hex) => meshes.forEach(m => {
+        if (!m.material) return;
+        m.material.color.set(hex);
+        if (m.material.userData) m.material.userData.baseColor = m.material.color.clone();
+      });
+      tint(frontMeshes, activePropHex);
+      if (propColorMode === 4) tint(rearMeshes, activePropHex);
+    }
+
+    function setPropColorMode(mode) {
+      propColorMode = mode;
+      document.getElementById('btn-prop-2').classList.toggle('active', mode === 2);
+      document.getElementById('btn-prop-4').classList.toggle('active', mode === 4);
+      applyPropColors();
+    }
+
+    document.getElementById('btn-prop-2').addEventListener('click', () => setPropColorMode(2));
+    document.getElementById('btn-prop-4').addEventListener('click', () => setPropColorMode(4));
 
     function applyCategoryColor(catKey, hex) {
       allMeshes.forEach(m => {
@@ -1313,7 +1435,7 @@
 
       applyCategoryColor('tpu', activeTpuHex);
       applyCategoryColor('motor', activeMotorHex);
-      applyCategoryColor('prop', activePropHex);
+      applyPropColors();
       applyCategoryColor('alu', activeStandoffHex);
       applyCategoryColor('steel', activeScrewHex);
 
@@ -2412,7 +2534,7 @@
         activeTpuHex = theme.tpu; activeMotorHex = theme.motor; activePropHex = theme.prop; activeStandoffHex = theme.standoff; activeScrewHex = theme.screw;
         applyCategoryColor('tpu', activeTpuHex);
         applyCategoryColor('motor', activeMotorHex);
-        applyCategoryColor('prop', activePropHex);
+        applyPropColors();
         applyCategoryColor('alu', activeStandoffHex);
         applyCategoryColor('steel', activeScrewHex);
         buildPalettes();
