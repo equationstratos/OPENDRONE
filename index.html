@@ -2536,8 +2536,8 @@
         soldered: false,                  // soudure validée au maintien
         holding: false,                   // fer posé dessus en ce moment
         clicky: !!opts.plug,              // une fiche fait un clic, un fil non
-        surTapis: false,                  // rangé sur l'établi même si un bout est fixe
         via: opts.via || null,            // point de passage imposé (bras, entre-cartes)
+        lane: opts.lane || null,          // largeur de voie imposée sur l'établi
         inline: null,                     // connecteur porté par le câble (XT30)
         _curve: null,
         plug: null,                       // animation de clipsage en cours
@@ -3139,8 +3139,8 @@
           const padR = Math.max(0.0006, Math.min(rxPads[0].size.x, rxPads[0].size.z) * 0.46);
           // La fiche est couchée le long du bord, rangée de contacts dans
           // l'axe avant-arrière et face d'accouplement vers le bas.
-          const fiche = buildJstHousing(4, true);
-          fiche.name = 'JST-SH-4P-CRSF';
+          const fiche = buildJstHousing(4, false);
+          fiche.name = 'PORT-CRSF-4P';
           // Posée en repère monde puis ramenée dans celui de la carte : le nœud
           // du FC porte la transformation d'occRoot, un placement direct en
           // coordonnées monde expédiait la fiche à 17 cm de là.
@@ -3164,12 +3164,15 @@
             const b = makeAnchor(fc.nodes[0], bout, `fc-crsf-${i}`);
             const c = addCable(j.anchor, b, {
               id: `rx-fc-${i}`, color: RX_CRSF[i].couleur, wires: 1,
-              radius: 0.00032, sag: 0.16, pinnedEnd: 1, targetName: `rx-crsf-${i}`
+              radius: 0.00032, sag: 0.16, targetName: `rx-crsf-${i}`,
+              // Quatre fils fins côte à côte : à la voie standard de 10 mm ils
+              // s'étalaient sur 4 cm de tapis. Au pas de 3,5 ils se lisent comme
+              // le faisceau qu'ils forment.
+              lane: 0.0035
             });
-            // Ce faisceau attend sur le tapis comme les nappes, pas à côté de
-            // son plot : c'est un câble qu'on prend en main, pas une phase déjà
-            // soudée au moteur.
-            c.surTapis = true;
+            // Aucun bout n'est fixe : le faisceau attend en entier sur le tapis,
+            // bien droit, comme les nappes. Il ne rejoint la carte et ses plots
+            // qu'à la soudure.
             bindJoint(c, j);
           });
         } else {
@@ -3656,10 +3659,10 @@
       const centre = stack.getCenter(new THREE.Vector3());
       const size = stack.getSize(new THREE.Vector3());
 
-      const free = cables.filter(c => c.pinnedEnd === null || c.surTapis);
+      const free = cables.filter(c => c.pinnedEnd === null);
       // Une voie par câble, large comme le faisceau : les deux nappes font 8 et 6
       // brins, à pas fixe elles se touchaient et on n'en voyait qu'une.
-      const laneOf = (c) => Math.max(0.010, (c.wires - 1) * c.spread + 0.009);
+      const laneOf = (c) => c.lane || Math.max(0.010, (c.wires - 1) * c.spread + 0.009);
       const lanes = free.map(laneOf);
       const width = lanes.reduce((a, b) => a + b, 0) + 0.012;
       const length = 0.078;                      // suivant droneFront
@@ -3716,7 +3719,7 @@
 
       // Les phases restent soudées au moteur : leur bout libre attend juste à
       // côté de son plot, pointé dessus, plutôt que sur le tapis à l'autre bout.
-      cables.filter(c => c.pinnedEnd !== null && !c.surTapis).forEach((c) => {
+      cables.filter(c => c.pinnedEnd !== null).forEach((c) => {
         const goal = (c.pinnedEnd === 0 ? c.to : c.from).getWorldPosition(new THREE.Vector3());
         const away = goal.clone().sub(centre).setY(0);
         if (away.lengthSq() < 1e-9) away.copy(droneRight);
