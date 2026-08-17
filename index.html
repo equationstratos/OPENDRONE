@@ -2603,12 +2603,44 @@
                         - b.c.clone().sub(boardCentre).dot(droneRight)) : null;
       }
       const battPads = realBatteryPads();
+      // La sérigraphie de l'OpenESC porte « − » du côté gauche et « + » du côté
+      // droit : la pastille de plus petit X est GND, l'autre +BATT.
+      const padGnd = battPads ? battPads[0] : null;
+      const padPlus = battPads ? battPads[1] : null;
       const battPad = battPads
         ? battPads[0].c.clone().lerp(battPads[1].c, 0.5).setY(battPads[0].top)
         : boardCentre.clone().addScaledVector(droneFront, -halfFront * 0.78).setY(boardTop);
       makeAnchor(escNode, battPad, 'esc-batt');
-      const capPad = battPad.clone();
-      makeAnchor(escNode, capPad, 'esc-cap');
+      makeAnchor(escNode, battPad, 'esc-cap');
+
+      // Un point de soudure, c'est trois choses au même endroit : la pastille de
+      // cuivre — cliquable, elle vire à l'étain une fois soudée —, la bille
+      // d'étain, et l'ancrage du fil au centre de la bille.
+      function makeJoint(worldPos, padTop, padR, blobR, name) {
+        const anchor = makeAnchor(escNode, worldPos.clone().setY(padTop + blobR * 0.62), name);
+        const disc = new THREE.Mesh(
+          new THREE.CylinderGeometry(padR, padR, 0.00014, 16),
+          new THREE.MeshStandardMaterial({ color: COPPER_COLOR, roughness: 0.34, metalness: 0.9 })
+        );
+        disc.name = 'plot-' + name;
+        disc.position.copy(worldPos).setY(padTop + 0.00008);
+        disc.frustumCulled = false;
+        wiringRoot.add(disc);
+        const blob = buildSolderBlob(blobR);
+        blob.position.copy(anchor.position);
+        blob.visible = false;
+        addExtra(escNode, blob);
+        return { anchor, disc, blob };
+      }
+
+      function bindJoint(c, j) {
+        if (!c) return;
+        c.pad = j.disc;
+        j.disc.userData.isCable = true;
+        j.disc.userData.cable = c;
+        j.disc.userData.padTarget = true;
+        c.solder.push(j.blob);
+      }
 
       // Moteurs : sortie des fils sous la cloche, vers le bras. Chaque phase est
       // un câble à part entière — trois plots, trois brins, trois billes d'étain,
@@ -2646,32 +2678,21 @@
 
         for (let i = 0; i < 3; i++) {
           const k = i - 1;
-          let padPos, blobR;
+          let padPos, blobR, padR;
           if (pads) {
             // Une pastille réelle, une bille : le diamètre reste sous la taille
             // du cuivre pour qu'elle ne déborde jamais sur la voisine.
             padPos = pads[i].c.clone().setY(pads[i].top);
             blobR = Math.min(0.00055, pads[i].w * 0.28);
+            padR = Math.max(0.0007, pads[i].w * 0.48);
           } else {
             padPos = centrePad.clone().addScaledVector(droneFront, k * PAD_PITCH);
             padPos.y = boardTop;
             blobR = 0.00055;
-            const disc = new THREE.Mesh(
-              new THREE.CylinderGeometry(PAD_R, PAD_R, 0.00012, 14),
-              wireMaterial('#c9a227', { roughness: 0.3, metalness: 0.9 })
-            );
-            disc.name = `plot-${pad}-${i}`;
-            disc.position.copy(escNode.worldToLocal(padPos.clone()));
-            disc.position.y += 0.00007;
-            addExtra(escNode, disc);
+            padR = PAD_R;
           }
-
-          // Le fil arrive au centre de la bille, et la bille repose SUR le plot :
-          // sa base touche le cuivre, elle ne traverse pas la carte.
-          const BLOB_LIFT = blobR * 0.62;   // la bille est aplatie : demi-hauteur
-          const tip = padPos.clone();
-          tip.y += BLOB_LIFT;
-          const b = makeAnchor(escNode, tip, `esc-${pad}-${i}`);
+          const j = makeJoint(padPos, padPos.y, padR, blobR, `esc-${pad}-${i}`);
+          const b = j.anchor;
           const outPos = out.clone().addScaledVector(outAxis, k * 0.0013);
           const a = makeAnchor(mg.nodes[0], outPos, `motor-${pad}-${i}`);
           const c = addCable(a, b, {
@@ -2690,32 +2711,7 @@
               return [p1, p2];
             }
           });
-          if (!c) continue;
-
-          // La pastille est une cible à part entière : c'est elle qu'on étame,
-          // sans le fil. Elle vit dans le repère monde pour rester cliquable
-          // (le raycast ne descend que dans wiringRoot).
-          const padR = pads ? Math.max(0.0007, pads[i].w * 0.48) : PAD_R;
-          const disc = new THREE.Mesh(
-            new THREE.CylinderGeometry(padR, padR, 0.00014, 16),
-            new THREE.MeshStandardMaterial({ color: COPPER_COLOR, roughness: 0.34, metalness: 0.9 })
-          );
-          disc.name = `plot-${pad}-${i}`;
-          disc.position.copy(padPos).setY(padPos.y + 0.00008);
-          disc.userData.isCable = true;
-          disc.userData.cable = c;
-          disc.userData.padTarget = true;
-          disc.frustumCulled = false;
-          wiringRoot.add(disc);
-          c.pad = disc;
-
-          // La bille déposée à l'étamage : volontairement plus petite que celle
-          // qui vient du fil.
-          const blob = buildSolderBlob(blobR * 0.72);
-          blob.position.copy(b.position);
-          addExtra(escNode, blob);
-          blob.visible = false;
-          c.solder.push(blob);
+          bindJoint(c, j);
         }
       });
 
@@ -2813,17 +2809,13 @@
         addCable(a, b, { id: 'nappe-camera', color: WIRE_COLORS.signal, wires: 4, radius: 0.0003, sag: 0.12, spread: 0.0011, plug: 4 });
       }
 
-      // Condensateur réservoir : il était placé avec un décalage sur l'axe Y
-      // *local*, or escNode porte la rotation d'occRoot — le cylindre partait de
-      // travers et s'enfonçait dans le stratifié. Tout est refait en repère monde,
-      // et il est couché derrière le bord arrière : debout il traverserait le FC
-      // qui passe 6 mm au-dessus, et l'arrière est de toute façon sa vraie place.
+      // Condensateur réservoir. Il est couché derrière le bord arrière : debout
+      // il traverserait le FC qui passe 6 mm au-dessus. Tout est posé en repère
+      // monde puis converti — escNode porte la rotation d'occRoot, un simple
+      // « +6 mm en Y » local part de travers et enfonce le cylindre.
       const CAP_R = 0.0045, CAP_L = 0.011;
       escNode.updateMatrixWorld(true);
       const invEsc = new THREE.Matrix4().copy(escNode.matrixWorld).invert();
-      // Placer une pièce sur l'ESC se fait en repère monde puis se convertit :
-      // escNode porte la rotation d'occRoot, un simple « +6 mm en Y » local part
-      // de travers et enfonce le cylindre dans le stratifié.
       const toEsc = (obj, worldPos, worldQuat) => {
         obj.position.copy(worldPos.clone().applyMatrix4(invEsc));
         if (worldQuat) {
@@ -2837,29 +2829,48 @@
         .addScaledVector(droneFront, -(halfFront + CAP_R + 0.003));
       capWorld.y = boardTop - 0.0005;
       const cap = buildCapacitor();
-      // Couché suivant l'axe gauche/droite du drone : le cylindre est bâti sur Y.
       toEsc(cap, capWorld, new THREE.Quaternion()
         .setFromUnitVectors(new THREE.Vector3(0, 1, 0), droneRight));
 
-      // Ses deux pattes remontent sur les plots batterie, chacune sa soudure.
-      if (battPads) {
-        battPads.forEach((p, i) => {
-          const pad = p.c.clone().setY(p.top);
-          const leg = capWorld.clone().addScaledVector(droneRight, (i ? 1 : -1) * CAP_L * 0.42);
-          const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
-            leg, leg.clone().setY(boardTop + 0.004),
-            pad.clone().setY(p.top + 0.004), pad
-          ]), 16, 0.0006, 6, false);
-          geo.applyMatrix4(invEsc);
-          addExtra(escNode, new THREE.Mesh(geo,
-            wireMaterial('#9aa0a6', { roughness: 0.35, metalness: 0.8 })));
-          toEsc(buildSolderBlob(0.0006), pad, null);
-        });
-      }
+      // Les deux grosses pastilles portent chacune DEUX points de soudure : le
+      // fil de batterie d'un côté, la patte du condensateur de l'autre. Elles
+      // font 6,8 mm de long, il y a la place — et c'est bien ainsi qu'on câble.
+      const BATT_PAD_R = 0.00115, BATT_BLOB_R = 0.00075, PAD_SPLIT = 0.0017;
+      const jointOn = (p, side, name) => makeJoint(
+        p.c.clone().addScaledVector(droneRight, side * PAD_SPLIT),
+        p.top, BATT_PAD_R, BATT_BLOB_R, name);
 
-      // Batterie + queue XT30 : deux fils rouge/noir vers les plots batterie.
-      // Le XT30 est enfilé sur le câble, pas posé sur la carte — sur l'ESC il n'y
-      // a que deux plots soudés, exactement comme sur le montage réel.
+      const jBatPlus = padPlus ? jointOn(padPlus, -1, 'esc-bat-plus') : null;
+      const jBatGnd = padGnd ? jointOn(padGnd, -1, 'esc-bat-gnd') : null;
+      const jCapPlus = padPlus ? jointOn(padPlus, 1, 'esc-cap-plus') : null;
+      const jCapGnd = padGnd ? jointOn(padGnd, 1, 'esc-cap-gnd') : null;
+
+      // Les deux pattes du condensateur deviennent des câbles à part entière :
+      // elles ont donc leur pastille, leur bille et leur anneau de visée, et le
+      // cuivre vire à l'étain quand on les soude.
+      [[jCapPlus, 1, 'cap-plus'], [jCapGnd, -1, 'cap-minus']].forEach(([j, side, id]) => {
+        if (!j) return;
+        const legWorld = capWorld.clone().addScaledVector(droneRight, side * CAP_L * 0.42);
+        const legAnchor = makeAnchor(escNode, legWorld, `cap-leg-${id}`);
+        const c = addCable(legAnchor, j.anchor, {
+          id, color: '#9aa0a6', wires: 1, radius: 0.0006, sag: 0.02,
+          pinnedEnd: 0, targetName: j.anchor.name.replace(/^anchor-/, ''),
+          // La patte sort du corps, passe par-dessus le bord de la carte et
+          // redescend sur la pastille.
+          via: (pa, pb) => {
+            const m = new THREE.Vector3().lerpVectors(pa, pb, 0.5);
+            m.y = Math.max(pa.y, pb.y) + 0.004;
+            return [m];
+          }
+        });
+        bindJoint(c, j);
+        // La patte d'un condensateur arrive étamée d'usine, et sa pastille l'a
+        // été à l'étape du XT30 : il ne reste qu'à refondre.
+        if (c) { c.padTinned = true; c.wireTinned = true; c.tinned = true; }
+      });
+
+      // Batterie + queue XT30 : deux fils rouge/noir, chacun sur SA pastille.
+      // Le XT30 est enfilé sur le câble, pas posé sur la carte.
       const batt = buildBattery();
       if (batt) {
         const bb = new THREE.Box3().setFromObject(batt);
@@ -2867,10 +2878,33 @@
         outPos.addScaledVector(droneFront, -BATTERY_SIZE.l * 0.45);
         outPos.y = bb.min.y;
         const a = makeAnchor(batt, outPos, 'batt-out');
-        const b = wiringAnchors['esc-batt'];
 
-        const plus = addCable(a, b, { id: 'batt-plus', color: WIRE_COLORS.plus, wires: 1, radius: 0.0011, sag: 0.2 });
-        const minus = addCable(a, b, { id: 'batt-minus', color: WIRE_COLORS.minus, wires: 1, radius: 0.0011, sag: 0.24 });
+        // Boucle de service reprise du visualiseur TinyHoop MK1 : un fil silicone
+        // épais ne colle pas au pack, il bombe vers l'arrière, culmine, puis
+        // redescend vers les plots.
+        const loopVia = (side) => (pa, pb) => {
+          const back = droneFront.clone().negate();
+          const p1 = pa.clone().addScaledVector(back, 0.008)
+            .addScaledVector(droneRight, side * 0.0016);
+          p1.y = pa.y - 0.0012;
+          const p2 = pa.clone().addScaledVector(back, 0.0135)
+            .addScaledVector(droneRight, side * 0.0016);
+          p2.y = pa.y - 0.0075;
+          const p3 = new THREE.Vector3().lerpVectors(pa, pb, 0.7);
+          p3.y = pb.y + 0.009;
+          return [p1, p2, p3];
+        };
+
+        const plus = jBatPlus && addCable(a, jBatPlus.anchor, {
+          id: 'batt-plus', color: WIRE_COLORS.plus, wires: 1, radius: 0.00125,
+          sag: 0.02, targetName: 'esc-bat-plus', via: loopVia(1)
+        });
+        const minus = jBatGnd && addCable(a, jBatGnd.anchor, {
+          id: 'batt-minus', color: WIRE_COLORS.minus, wires: 1, radius: 0.00125,
+          sag: 0.02, targetName: 'esc-bat-gnd', via: loopVia(-1)
+        });
+        bindJoint(plus, jBatPlus);
+        bindJoint(minus, jBatGnd);
 
         // Paire XT30 mâle/femelle accouplée, portée par le fil rouge.
         const pair = new THREE.Group();
@@ -2884,19 +2918,35 @@
         pair.add(female);
         pair.traverse((o) => { o.userData.isCable = true; o.userData.cable = plus; });
         wiringRoot.add(pair);
-        if (plus) plus.inline = { mesh: pair, t: 0.36 };
+        if (plus) plus.inline = { mesh: pair, t: 0.45 };
 
-        // Les deux soudures d'arrivée sur +BATT et GND.
-        [plus, minus].forEach((c, i) => {
-          if (!c) return;
-          const blob = buildSolderBlob(0.0008);
-          blob.position.copy(battPads
-            ? escNode.worldToLocal(battPads[i].c.clone().setY(battPads[i].top))
-            : b.position);
-          addExtra(escNode, blob);
-          blob.visible = false;
-          c.solder.push(blob);
-        });
+        // Prise d'équilibrage JST-XH et ses fils fins : un 4S en a cinq broches.
+        batt.updateMatrixWorld(true);
+        const invBatt = new THREE.Matrix4().copy(batt.matrixWorld).invert();
+        const balWorld = outPos.clone()
+          .addScaledVector(droneRight, 0.012)
+          .addScaledVector(droneFront, -0.005);
+        balWorld.y = outPos.y + 0.0015;
+        const bal = new THREE.Mesh(
+          new THREE.BoxGeometry(0.0098, 0.0042, 0.0034),
+          wireMaterial('#ededf0', { roughness: 0.7, metalness: 0 })
+        );
+        bal.name = 'JST-XH-5P';
+        bal.position.copy(balWorld.clone().applyMatrix4(invBatt));
+        bal.quaternion.copy(batt.getWorldQuaternion(new THREE.Quaternion()).invert());
+        batt.add(bal);
+
+        const balCols = ['#141619', '#c0392b', '#e0a828', '#2b8a2b', '#f0f2f5'];
+        for (let i = 0; i < 5; i++) {
+          const from = outPos.clone().addScaledVector(droneRight, 0.0035 + i * 0.0007);
+          const to = balWorld.clone().addScaledVector(droneRight, (i - 2) * 0.0017);
+          const mid = from.clone().lerp(to, 0.5);
+          mid.y += 0.0028 + i * 0.0004;
+          const geo = new THREE.TubeGeometry(
+            new THREE.CatmullRomCurve3([from, mid, to]), 14, 0.00035, 6, false);
+          geo.applyMatrix4(invBatt);
+          batt.add(new THREE.Mesh(geo, wireMaterial(balCols[i], { roughness: 0.5 })));
+        }
       }
 
       registerBatteryGroup();
@@ -3530,14 +3580,20 @@
         hint: "L'ordre des trois phases décide du sens de rotation. Interverti, le moteur tourne à l'envers — AM32 sait le corriger en logiciel, mais autant souder juste. Le bouton soude les douze d'un coup."
       },
       {
-        id: 'cap', kind: 'solder', title: 'Condensateur low-ESR', focus: 'esc', targets: ['esc-cap'],
-        text: "Soude le condensateur sur les plots +BATT et GND, au plus près de l'entrée batterie.",
-        hint: "La bague marque le négatif, elle va sur GND. L'OpenESC embarque déjà 49 condensateurs de réserve : celui-ci reste utile sur une longue nappe d'alimentation."
+        id: 'etamage-batt', kind: 'solder', title: 'Étamage des plots batterie', focus: 'esc',
+        targets: ['esc-batt'],
+        text: "Les deux pastilles d'alimentation font 6,8 mm de long : il faut y tenir le fer nettement plus longtemps que sur un plot moteur avant que l'étain mouille. Maintiens sur chacune.",
+        hint: "Une grande pastille dissipe la chaleur dans tout le plan de masse. Si on n'attend pas, l'étain fait une boule qui ne mouille pas : c'est la soudure froide classique sur une entrée batterie."
       },
       {
-        id: 'xt30', kind: 'solder', title: 'Câble batterie XT30', focus: 'esc', targets: ['esc-batt'],
-        text: "Soude le rouge sur +BATT et le noir sur GND, puis gaine les soudures. Le XT30 reste sur le câble, jamais sur la carte.",
-        hint: "Inverser rouge et noir détruit l'ESC à la première mise sous tension. Vérifie deux fois avant de brancher. L'ESC est fini : on passe au contrôleur de vol."
+        id: 'xt30', kind: 'solder', title: 'Câble batterie XT30', focus: 'esc', targets: ['esc-bat-plus'],
+        text: "Le rouge sur la pastille marquée +, le noir sur celle marquée −. Chacun sur la sienne : maintiens le clic sur le point que l'anneau désigne, puis sur l'autre.",
+        hint: "Inverser rouge et noir détruit l'étage de puissance à la première mise sous tension. Vérifie deux fois. Le XT30 reste sur le câble, jamais sur la carte."
+      },
+      {
+        id: 'cap', kind: 'solder', title: 'Condensateur low-ESR', focus: 'esc', targets: ['esc-cap-plus'],
+        text: "Les deux pattes se soudent sur les mêmes pastilles, à côté des fils de batterie. Un point, puis l'autre.",
+        hint: "La bague marque le négatif, elle va sur GND. Les pastilles sont déjà étamées et les pattes le sont d'usine : il n'y a plus qu'à refondre. L'OpenESC embarque déjà 49 condensateurs de réserve, celui-ci reste utile sur une longue nappe d'alimentation."
       },
 
       /* ---- Le contrôleur de vol ---- */
@@ -3636,7 +3692,9 @@
       'etamage-fils': ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
       phases: ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
       nappe: ['nappe-esc-fc'],
+      'etamage-batt': ['batt-plus', 'batt-minus'],
       xt30: ['batt-plus', 'batt-minus'],
+      cap: ['cap-plus', 'cap-minus'],
       rx: ['rx-fc'],
       vtx: ['nappe-fc-vtx'],
       antennes: ['coax-0', 'coax-1'],
@@ -3763,7 +3821,15 @@
     const JOINT_GESTURE = {
       'etamage-plots': { kind: 'tin-pad', apply: tinPad, pending: (c) => !c.padTinned },
       'etamage-fils': { kind: 'tin-wire', apply: tinWire, pending: (c) => !c.wireTinned },
-      phases: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered }
+      phases: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered },
+      // Les pastilles d'alimentation sont larges : le fer doit y rester plus
+      // longtemps. Le même geste étame la pastille et le bout de fil.
+      'etamage-batt': {
+        kind: 'tin-pad', holdMs: 1600, pending: (c) => !c.padTinned,
+        apply: (c) => { const fait = tinPad(c); tinWire(c); return fait; }
+      },
+      xt30: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered },
+      cap: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered }
     };
 
     // Le bouton fait d'un coup ce que le maintien fait point par point.
@@ -3891,8 +3957,9 @@
         const g = JOINT_GESTURE[s.id];
         const verbe = g && g.kind !== 'solder' ? 'Étamer' : 'Souder';
         const fait = g && g.kind !== 'solder' ? 'Étamé ✓' : 'Soudé ✓';
+        const n = STEP_CABLES[s.id] ? STEP_CABLES[s.id].length : 0;
         wiringAction.textContent = done ? fait
-          : (STEP_CABLES[s.id] ? `${verbe} les douze d'un coup` : 'Maintenir pour souder');
+          : (n ? `${verbe} les ${n === 12 ? 'douze' : n} d'un coup` : 'Maintenir pour souder');
       } else if (s.kind === 'test') {
         wiringAction.textContent = 'Brancher et tester';
       } else {
@@ -4923,7 +4990,8 @@
         wiringSay("C'est le bout dénudé du fil qu'on étame, pas la pastille.", 'warn');
         return false;
       }
-      jointHold = { cable: c, kind: g.kind, t0: performance.now(), x: e.clientX, y: e.clientY };
+      jointHold = { cable: c, kind: g.kind, ms: g.holdMs || JOINT_MS,
+                    t0: performance.now(), x: e.clientX, y: e.clientY };
       c.holding = true;
       if (g.kind !== 'tin-wire') {
         c.solder.forEach(b => { b.visible = true; b.userData.melt = null; });
@@ -4934,7 +5002,7 @@
     // Le point chauffe : la goutte grossit tant qu'on tient le fer dessus.
     function updateJointHold() {
       if (!jointHold) return;
-      const u = Math.min(1, (performance.now() - jointHold.t0) / JOINT_MS);
+      const u = Math.min(1, (performance.now() - jointHold.t0) / jointHold.ms);
       const c = jointHold.cable;
       if (jointHold.kind === 'tin-wire') {
         const k = 1 + u * 0.35;
@@ -4956,7 +5024,7 @@
       const held = performance.now() - h.t0;
       const s = WIRING_STEPS[wiringStep];
       const g = JOINT_GESTURE[s.id];
-      if (held < JOINT_MS) {
+      if (held < h.ms) {
         c.solder.forEach(b => { b.visible = c.state === 'connected' || c.padTinned; });
         c.handles.forEach(x => { if (x.userData.strip) x.scale.set(1, 1, 1); });
         wiringSay(h.kind === 'solder'
@@ -4981,10 +5049,14 @@
         wiringState.done[s.id] = true;
         renderWiringStep();
         wiringSay({
-          'tin-pad': 'Les douze plots sont étamés. Au tour des fils.',
-          'tin-wire': 'Les douze fils sont étamés, tu peux souder.',
-          solder: 'Soudure propre, brillante et bien formée.'
-        }[h.kind], 'good');
+          'etamage-plots': 'Les douze plots sont étamés. Au tour des fils.',
+          'etamage-fils': 'Les douze fils sont étamés, tu peux souder.',
+          'etamage-batt': "Les deux pastilles d'alimentation sont étamées.",
+          xt30: 'Rouge et noir en place, chacun sur sa pastille.',
+          cap: 'Les deux pattes du condensateur sont soudées.'
+        }[s.id] || (h.kind === 'solder'
+          ? 'Soudure propre, brillante et bien formée.'
+          : 'Étamage terminé.'), 'good');
       } else {
         pointTargetRing(stepTargetAnchor(s));
         wiringSay(`${mot}. Encore ${left} point(s).`, '');
