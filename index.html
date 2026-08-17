@@ -2008,7 +2008,7 @@
     };
 
     // Un bout de fil dénudé sur 5 mm : cuivre nu tant qu'il n'est pas étamé.
-    const STRIP_LEN = 0.005;
+    const STRIP_LEN = 0.0035;
     const copperMaterial = () => new THREE.MeshStandardMaterial({
       color: '#b06a3c', roughness: 0.38, metalness: 0.85
     });
@@ -2322,7 +2322,7 @@
         if (opts.plug === 'ufl') h = buildUfl();
         else if (typeof opts.plug === 'number') h = buildJstHousing(opts.plug, e === 0);
         else {
-          const rr = Math.max(c.radius * 1.35, 0.0006);
+          const rr = Math.max(c.radius * 1.15, 0.00052);
           const geo = new THREE.CylinderGeometry(rr, rr, STRIP_LEN, 10);
           geo.rotateZ(Math.PI / 2);   // axe sur X : plus simple à orienter ensuite
           h = new THREE.Mesh(geo, copperMaterial());
@@ -2374,15 +2374,6 @@
       const len = _dir.length();
       if (len < 1e-6) return;
 
-      // Le bout dénudé se couche dans l'axe du fil, juste en retrait de la pointe.
-      _side.copy(_dir).normalize();
-      c.handles.forEach((h, e) => {
-        if (!h.userData.strip) return;
-        const tip = e === 0 ? _pa : _pb;
-        const inward = e === 0 ? _side : _side.clone().negate();
-        h.position.copy(tip).addScaledVector(inward, STRIP_LEN / 2);
-        h.quaternion.setFromUnitVectors(_UNIT_X, inward.clone().normalize());
-      });
       // Décalage latéral pour écarter les brins d'un même faisceau.
       _side.set(_dir.z, 0, -_dir.x).normalize();
       if (!isFinite(_side.x)) _side.set(1, 0, 0);
@@ -2401,6 +2392,20 @@
         m.geometry.dispose();
         m.geometry = geo;
       });
+
+      // Le bout dénudé se couche dans l'axe du fil. On prend la tangente réelle
+      // de la courbe à son extrémité, pas la corde : avec un point de passage
+      // imposé les deux diffèrent, et le morceau partait de travers.
+      if (c._curve) {
+        c.handles.forEach((h, e) => {
+          if (!h.userData.strip) return;
+          const t = c._curve.getTangent(e === 0 ? 0 : 1).normalize();
+          if (e === 1) t.negate();               // toujours vers l'intérieur
+          if (!isFinite(t.x)) return;
+          h.position.copy(e === 0 ? _pa : _pb).addScaledVector(t, STRIP_LEN / 2);
+          h.quaternion.setFromUnitVectors(_UNIT_X, t);
+        });
+      }
 
       // Le XT30 est porté par le câble : il glisse avec lui, dans tous ses états.
       if (c.inline && c._curve) {
@@ -3481,66 +3486,83 @@
       M1: 'arrière droit', M2: 'avant droit', M3: 'arrière gauche', M4: 'avant gauche'
     };
 
+    // Le parcours suit les cartes une par une : on finit l'ESC avant de toucher
+    // au FC, puis le récepteur, puis la vidéo. La nappe qui relie ESC et FC vient
+    // à l'avant-dernier moment, et la batterie tout à la fin. `focus` nomme la
+    // carte sur laquelle on travaille : les autres s'écartent et la caméra vient
+    // se poser dessus.
     const WIRING_STEPS = [
       {
-        id: 'config', kind: 'choice', title: 'Sens des hélices',
+        id: 'config', kind: 'choice', title: 'Sens des hélices', focus: null,
         text: "Choisis la configuration avant de souder : elle fixe le sens attendu de chaque moteur, et donc l'ordre des phases.",
         hint: "Props-in est le défaut Betaflight. Props-out projette les débris vers l'extérieur et se pilote pareil : c'est surtout une habitude de pilote."
       },
+
+      /* ---- L'ESC, du début à la fin ---- */
       {
-        id: 'etamage-plots', kind: 'solder', title: 'Étamage des douze plots',
+        id: 'etamage-plots', kind: 'solder', title: 'Étamage des douze plots', focus: 'esc',
         targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
-        text: "Sans toucher aux fils : maintiens le clic sur le plot que l'anneau désigne. Une petite goutte d'étain s'y dépose, le cuivre passe à l'étain et prend son relief. Puis au suivant, douze fois.",
+        text: "Le FC s'écarte, l'ESC est à nu. Sans toucher aux fils : maintiens le clic sur le plot que l'anneau désigne. Une petite goutte d'étain s'y dépose, le cuivre passe à l'étain et prend son relief. Puis au suivant, douze fois.",
         hint: "On étame toujours à vide, plot par plot. C'est le seul moment où l'on apporte de l'étain : au montage, il n'y en aura plus à ajouter, donc plus de risque de pont entre deux plots voisins."
       },
       {
-        id: 'etamage-fils', kind: 'solder', title: 'Étamage des douze fils',
+        id: 'etamage-fils', kind: 'solder', title: 'Étamage des douze fils', focus: 'esc',
         targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
-        text: "Même geste sur les bouts dénudés : maintiens le clic sur les 5 mm de cuivre nu, ils se couvrent d'étain à leur tour.",
+        text: "Même geste sur les bouts dénudés : maintiens le clic sur le cuivre nu, il se couvre d'étain à son tour. Les fils restent où ils sont, ils ne rejoignent leur plot qu'à la soudure.",
         hint: "Un fil étamé ne s'effiloche plus et conduit la chaleur d'un bloc. Avec le plot déjà étamé, la soudure se fait ensuite par simple refusion, sans apport."
       },
       {
-        id: 'phases', kind: 'solder', title: 'Phases moteur', targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
-        text: "Les 12 fils sortent déjà soudés aux moteurs. Attrape chaque bout libre, pose-le sur son plot étamé, puis maintiens le clic dessus : l'étain refond et la soudure se forme.",
+        id: 'phases', kind: 'solder', title: 'Phases moteur', focus: 'esc',
+        targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
+        text: "Maintenant seulement les fils rejoignent la carte. Attrape chaque bout, pose-le sur son plot étamé et maintiens le clic dessus : l'étain refond et la soudure se forme.",
         hint: "L'ordre des trois phases décide du sens de rotation. Interverti, le moteur tourne à l'envers — AM32 sait le corriger en logiciel, mais autant souder juste. Le bouton soude les douze d'un coup."
       },
       {
-        id: 'nappe', kind: 'plug', title: 'Nappe ESC → FC', targets: ['fc-jst8'],
-        text: "Branche la nappe JST-SH 8 broches entre l'ESC et le contrôleur de vol.",
-        hint: "Brochage : +BATT · GND · CURR · NC · M1 · M2 · M3 · M4. Le détrompeur du boîtier empêche l'inversion, ne force jamais."
+        id: 'cap', kind: 'solder', title: 'Condensateur low-ESR', focus: 'esc', targets: ['esc-cap'],
+        text: "Soude le condensateur sur les plots +BATT et GND, au plus près de l'entrée batterie.",
+        hint: "La bague marque le négatif, elle va sur GND. L'OpenESC embarque déjà 49 condensateurs de réserve : celui-ci reste utile sur une longue nappe d'alimentation."
       },
       {
-        id: 'cap', kind: 'solder', title: 'Condensateur low-ESR', targets: ['esc-cap'],
-        text: "Soude le condensateur 470 µF / 35 V sur les plots +BATT et GND, au plus près de l'entrée batterie.",
-        hint: "La bague marque le négatif, elle va sur GND. L'OpenESC n'a aucune protection en entrée : ce condensateur absorbe les pics de tension."
-      },
-      {
-        id: 'xt30', kind: 'solder', title: 'Câble batterie XT30', targets: ['esc-batt'],
+        id: 'xt30', kind: 'solder', title: 'Câble batterie XT30', focus: 'esc', targets: ['esc-batt'],
         text: "Soude le rouge sur +BATT et le noir sur GND, puis gaine les soudures. Le XT30 reste sur le câble, jamais sur la carte.",
-        hint: "Inverser rouge et noir détruit l'ESC à la première mise sous tension. Vérifie deux fois avant de brancher."
+        hint: "Inverser rouge et noir détruit l'ESC à la première mise sous tension. Vérifie deux fois avant de brancher. L'ESC est fini : on passe au contrôleur de vol."
       },
+
+      /* ---- Le contrôleur de vol ---- */
       {
-        id: 'rx', kind: 'plug', title: 'Récepteur OpenRX', targets: ['fc-crsf'],
+        id: 'vtx', kind: 'plug', title: 'Sortie vidéo du contrôleur', focus: 'fc', targets: ['fc-jst6'],
+        text: "Au tour du FC : branche la nappe 6 broches sur son port vidéo, l'autre bout ira sur l'Air Unit.",
+        hint: "Brochage : +10V · GND · DIGITAL_TX · DIGITAL_RX · GND · SBUS."
+      },
+
+      /* ---- Le récepteur ---- */
+      {
+        id: 'rx', kind: 'plug', title: 'Récepteur OpenRX', focus: 'rx', targets: ['rx-crsf'],
         text: "Relie le récepteur au contrôleur de vol : 5V, GND, TX et RX (protocole CRSF).",
         hint: "TX et RX se croisent : le TX du récepteur va sur le RX du contrôleur, et inversement."
       },
+
+      /* ---- La vidéo ---- */
       {
-        id: 'vtx', kind: 'plug', title: 'VTX DJI O4 Air Unit Pro', targets: ['vtx-jst6'],
-        text: "Branche la nappe 6 broches entre le contrôleur de vol et l'Air Unit.",
-        hint: "Brochage : +10V · GND · DIGITAL_TX · DIGITAL_RX · GND · SBUS."
-      },
-      {
-        id: 'antennes', kind: 'plug', title: 'Antennes vidéo', targets: ['antenne-0', 'antenne-1'],
+        id: 'antennes', kind: 'plug', title: 'Antennes vidéo', focus: 'vtx',
+        targets: ['antenne-0', 'antenne-1'],
         text: "Clipse les deux coaxiaux u.FL sur l'Air Unit.",
         hint: "N'alimente jamais un VTX sans antenne : l'étage de puissance se détruit en quelques secondes."
       },
       {
-        id: 'camera', kind: 'plug', title: 'Caméra', targets: ['vtx-cam'],
+        id: 'camera', kind: 'plug', title: 'Caméra', focus: 'vtx', targets: ['vtx-cam'],
         text: "Relie la caméra à l'Air Unit par sa nappe.",
         hint: "La nappe est fragile : elle se clipse sans forcer, connecteur bien en face."
       },
+
+      /* ---- On referme le stack ---- */
       {
-        id: 'test', kind: 'test', title: 'Test final',
+        id: 'nappe', kind: 'plug', title: 'Nappe ESC → FC', focus: 'gap', targets: ['fc-jst8'],
+        text: "Tout est câblé de part et d'autre : il ne reste qu'à relier les deux cartes par la nappe JST-SH 8 broches, avant de refermer le stack.",
+        hint: "Brochage : +BATT · GND · CURR · NC · M1 · M2 · M3 · M4. Les deux embases sont sous leur carte : la nappe contourne le bord, elle ne passe pas au travers. Le détrompeur empêche l'inversion, ne force jamais."
+      },
+      {
+        id: 'test', kind: 'test', title: 'Batterie et test final', focus: null,
         text: "Branche la batterie et lance le test de mise sous tension.",
         hint: "Au premier essai, on branche toujours sans hélices. Ici elles sont montées pour visualiser le sens de rotation."
       }
@@ -3551,18 +3573,45 @@
     // l'ESC, c'est-à-dire sous le FC une fois le stack empilé. Le temps de ces
     // étapes on écarte les cartes du dessus — c'est aussi l'ordre de montage
     // réel : on soude l'ESC à nu, puis on empile.
-    const ESC_STEPS = new Set(['phases', 'cap', 'xt30']);
-    // On les écarte en hauteur ET vers l'avant : monter seul ne suffit pas,
-    // vu de dessus le FC continuerait de masquer la face cuivrée de l'ESC.
-    const BOARD_LIFT = { fc: { up: 0.020, fwd: 0.050 }, rx: { up: 0.030, fwd: 0.082 } };
-
-    function wiringLiftFor(g, out) {
-      const lift = wiringActive ? BOARD_LIFT[g.id] : null;
-      if (!lift) return false;
+    // Ordre d'empilement : c'est lui qui décide de quel côté chaque carte
+    // s'écarte quand on en travaille une autre.
+    const STACK_ORDER = { esc: 0, fc: 1, rx: 2 };
+    const SPREAD = { up: 0.021, fwd: 0.046, down: 0.017 };
+    function stepFocus() {
       const s = WIRING_STEPS[wiringStep];
-      if (!s || !ESC_STEPS.has(s.id)) return false;
-      out.copy(localUp).multiplyScalar(lift.up * worldToLocalUnit)
-         .addScaledVector(localFront, lift.fwd * worldToLocalUnit);
+      return (wiringActive && s && s.focus) || null;
+    }
+
+    // On écarte en hauteur ET vers l'avant : monter seul ne suffit pas, vu de
+    // dessus la carte du dessus continuerait de masquer celle du dessous.
+    function wiringLiftFor(g, out) {
+      out.set(0, 0, 0);
+      const focus = stepFocus();
+      if (!focus) return false;
+      const gi = STACK_ORDER[g.id];
+      if (gi === undefined) return false;
+      const u = worldToLocalUnit;
+
+      // Étape de la nappe : on décolle simplement les cartes pour voir le fil
+      // passer entre elles, sans les envoyer au loin.
+      if (focus === 'gap') {
+        if (gi === 0) return false;
+        out.copy(localUp).multiplyScalar(SPREAD.up * 1.7 * gi * u);
+        return true;
+      }
+
+      const fi = STACK_ORDER[focus];
+      if (fi === undefined) return false;
+      const d = gi - fi;
+      if (d === 0) return false;
+      const n = Math.abs(d);
+      if (d > 0) {
+        out.copy(localUp).multiplyScalar(SPREAD.up * n * u)
+           .addScaledVector(localFront, SPREAD.fwd * n * u);
+      } else {
+        out.copy(localUp).multiplyScalar(-SPREAD.down * n * u)
+           .addScaledVector(localFront, -SPREAD.fwd * 0.7 * n * u);
+      }
       return true;
     }
 
@@ -3857,9 +3906,54 @@
       wiringFeedback.className = `wiring-feedback ${kind}`;
     }
 
+    // Une étape, une carte : la caméra vient se poser dessus une fois les
+    // voisines écartées. Le court délai leur laisse le temps de s'installer,
+    // sinon on cadrerait des positions qu'elles sont en train de quitter.
+    // Boîte d'un groupe à sa place de repos. Au changement d'étape les cartes
+    // sont en plein déplacement : cadrer leur position courante reviendrait à
+    // viser un point qu'elles sont en train de quitter.
+    const _boxSave = [];
+    function settledBox(g) {
+      const box = new THREE.Box3();
+      if (!g) return box;
+      _boxSave.length = 0;
+      g.nodes.forEach(n => {
+        _boxSave.push(n.position.clone());
+        if (n.userData.origPos) n.position.copy(n.userData.origPos);
+        n.updateMatrixWorld(true);
+      });
+      g.nodes.forEach(n => box.expandByObject(n));
+      g.nodes.forEach((n, i) => { n.position.copy(_boxSave[i]); n.updateMatrixWorld(true); });
+      return box;
+    }
+
+    function flyToStepFocus(dur = 0.95) {
+      if (!wiringActive) return;
+      const f = stepFocus();
+      let box, marge;
+      if (f === 'gap') {
+        // Les deux cartes du lien, avec de la marge pour l'écartement en cours.
+        box = settledBox(groupById('esc'));
+        const fcBox = settledBox(groupById('fc'));
+        if (!fcBox.isEmpty()) box.union(fcBox);
+        marge = 1.7;
+      } else if (f && groupById(f)) {
+        box = settledBox(groupById(f));
+        marge = 1.5;
+      } else {
+        box = stackBox();
+        marge = 1.15;
+      }
+      if (!box || box.isEmpty()) return;
+      const sph = box.getBoundingSphere(new THREE.Sphere());
+      flyToFit(sph.center, sph.radius, marge, dur);
+    }
+
     function gotoWiringStep(i) {
+      const before = wiringStep;
       wiringStep = Math.max(0, Math.min(WIRING_STEPS.length - 1, i));
       renderWiringStep();
+      if (wiringStep !== before) flyToStepFocus();
     }
 
     /* ---- Soudure par maintien ---- */
@@ -3898,7 +3992,10 @@
       }
       if (!complete) { wiringSay('Maintiens un peu plus longtemps.', 'warn'); return; }
       applyStepJoints(s.id);
-      connectStepCables(s.id);
+      // Étamer ne branche rien : les fils ne rejoignent leur plot qu'à la
+      // soudure. Seule une étape de soudure fait venir les câbles.
+      const geste = JOINT_GESTURE[s.id];
+      if (!geste || geste.kind === 'solder') connectStepCables(s.id);
       wiringState.done[s.id] = true;
       wiringState.faults = wiringState.faults.filter(f => f.step !== s.id);
       // renderWiringStep() remet le retour à zéro : on écrit le message après.
@@ -4037,11 +4134,9 @@
         }
       }
 
-      // Cadrage serré sur les cartes : c'est là que tout se joue. Le tapis et la
-      // batterie restent atteignables d'un coup de molette.
-      const box = stackBox();
-      const sphere = box.getBoundingSphere(new THREE.Sphere());
-      flyToFit(sphere.center, sphere.radius, 1.15, 0.9);
+      // Cadrage sur la carte de l'étape en cours. Le tapis et la batterie
+      // restent atteignables d'un coup de molette.
+      flyToStepFocus(0.9);
     }
 
     document.getElementById('btn-wiring').addEventListener('click', () => {
