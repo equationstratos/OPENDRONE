@@ -2041,10 +2041,65 @@
 
     /* ---- Batterie paramétrique + queue XT30 ----
        Le dépôt OA35 ne contient pas de modèle de batterie (elle y est un
-       emplacement réservé), elle est donc construite ici : pack 4S, wrap,
-       étiquette et deux fils vers une fiche XT30 mâle. ---- */
+       emplacement réservé), elle est donc construite ici. Le pack reprend la
+       facture du visualiseur TinyHoop MK1 : wrap noir à arêtes arrondies,
+       étiquette imprimée sur le dessus seulement, feuille d'aluminium apparente
+       aux deux bouts, et une queue rouge/noir terminée par un XT30. ---- */
 
-    const BATTERY_SIZE = { l: 0.062, w: 0.032, h: 0.024 };
+    const BATTERY_SIZE = { l: 0.065, w: 0.031, h: 0.022 };
+
+    // Étiquette imprimée : dessinée au canvas une seule fois, elle ne coûte
+    // qu'une texture au lieu d'une géométrie de texte en relief.
+    let battLabelTex = null;
+    function batteryLabelTexture() {
+      if (battLabelTex) return battLabelTex;
+      const W = 600, H = 320;
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      const x = cv.getContext('2d');
+      x.fillStyle = '#0c0c0e'; x.fillRect(0, 0, W, H);
+      x.textBaseline = 'middle';
+      x.fillStyle = '#e6b53c'; x.font = 'italic bold 68px Arial';
+      x.fillText('OPENDRONE', W * 0.145, H * 0.38);
+      x.fillStyle = '#f4d64a'; x.font = 'bold 58px Arial';
+      x.fillText('850', W * 0.155, H * 0.70);
+      x.font = 'bold 32px Arial'; x.fillText('MAH', W * 0.30, H * 0.71);
+      x.fillStyle = '#dcdcde'; x.font = 'bold 26px Arial';
+      x.fillText('14.8V 4S  ·  75C', W * 0.47, H * 0.70);
+      x.fillStyle = '#8d8d90'; x.font = '17px Arial';
+      x.fillText('opendrone.be', W * 0.60, H * 0.90);
+      x.fillStyle = '#e6b53c';
+      x.beginPath(); x.ellipse(W * 0.072, H * 0.36, 33, 28, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#0c0c0e'; x.font = 'bold 25px Arial';
+      x.fillText('OD', W * 0.045, H * 0.38);
+      battLabelTex = new THREE.CanvasTexture(cv);
+      if (THREE.SRGBColorSpace) battLabelTex.colorSpace = THREE.SRGBColorSpace;
+      battLabelTex.anisotropy = 8;
+      return battLabelTex;
+    }
+
+    // Pavé à arêtes arrondies sans dépendance supplémentaire : un profil
+    // arrondi dans le plan XY, extrudé sur la longueur en Z.
+    function roundedSlab(w, h, d, r) {
+      // Le biseau gonfle le profil dans les trois axes : on le retranche en
+      // amont pour que le pavé fasse exactement w × h × d, sinon l'étiquette
+      // posée sur le dessus se retrouve noyée sous le wrap.
+      const bevel = Math.min(r * 0.45, d * 0.2, w * 0.2, h * 0.2);
+      const rr = Math.max(1e-4, r - bevel);
+      const hw = Math.max(1e-4, (w - bevel * 2) / 2 - rr);
+      const hh = Math.max(1e-4, (h - bevel * 2) / 2 - rr);
+      const sh = new THREE.Shape();
+      sh.absarc(hw, hh, rr, 0, Math.PI / 2);
+      sh.absarc(-hw, hh, rr, Math.PI / 2, Math.PI);
+      sh.absarc(-hw, -hh, rr, Math.PI, Math.PI * 1.5);
+      sh.absarc(hw, -hh, rr, Math.PI * 1.5, Math.PI * 2);
+      const geo = new THREE.ExtrudeGeometry(sh, {
+        depth: Math.max(1e-4, d - bevel * 2), curveSegments: 6,
+        bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3
+      });
+      geo.center();
+      return geo;
+    }
 
     function buildBattery() {
       const topPlate = groupByLabel(/plaque sup/i) || groupByLabel(/platine/i);
@@ -2054,27 +2109,41 @@
       const g = new THREE.Group();
       g.name = 'Batterie-LiPo';
       g.userData.chunkId = 'battery';
+      const { l, w, h } = BATTERY_SIZE;
 
-      // Longueur suivant l'axe avant/arrière du drone (Z monde), pas sa largeur.
+      // Longueur suivant l'axe avant/arrière du drone (Z local), pas sa largeur.
       const body = new THREE.Mesh(
-        new THREE.BoxGeometry(BATTERY_SIZE.w, BATTERY_SIZE.h, BATTERY_SIZE.l),
-        wireMaterial('#1a1d22', { roughness: 0.45 })
+        roundedSlab(w, h, l, 0.0024),
+        wireMaterial('#0d0d10', { roughness: 0.62, metalness: 0.12 })
       );
       body.name = 'Batterie';
       g.add(body);
 
-      const label = new THREE.Mesh(
-        new THREE.BoxGeometry(BATTERY_SIZE.w * 0.6, BATTERY_SIZE.h * 0.5, 0.0005),
-        wireMaterial('#ffb700', { roughness: 0.6 })
-      );
-      label.position.set(0, 0, BATTERY_SIZE.l / 2 + 0.0003);
+      // Étiquette à plat sur le dessus, le texte courant sur la longueur.
+      const labGeo = new THREE.PlaneGeometry(l - 0.004, w - 0.004);
+      labGeo.rotateX(-Math.PI / 2);   // normale vers le haut
+      labGeo.rotateY(Math.PI / 2);    // le texte se lit d'avant en arrière
+      const label = new THREE.Mesh(labGeo, new THREE.MeshStandardMaterial({
+        map: batteryLabelTexture(), roughness: 0.5, metalness: 0.15
+      }));
+      label.position.y = h / 2 + 0.0003;
       label.name = 'Etiquette';
       g.add(label);
+
+      // Feuille d'aluminium apparente aux deux bouts : le wrap ne les couvre pas.
+      const foil = wireMaterial('#c4c6ca', { roughness: 0.32, metalness: 0.55 });
+      [-1, 1].forEach((s) => {
+        const e = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.005, h - 0.004), foil);
+        e.position.z = s * (l / 2 + 0.0003);
+        e.rotation.y = s > 0 ? 0 : Math.PI;
+        e.name = 'Alu';
+        g.add(e);
+      });
 
       // Posée sur la plaque supérieure, alignée sur l'axe du drone.
       const centre = box.getCenter(new THREE.Vector3());
       const pos = centre.clone();
-      pos.y = box.max.y + BATTERY_SIZE.h / 2 + 0.002;
+      pos.y = box.max.y + h / 2 + 0.002;
       g.position.copy(pos);
       // Repère monde (Y en haut) : la batterie n'hérite pas de la rotation d'occRoot.
       g.quaternion.identity();
@@ -2153,6 +2222,23 @@
       return g;
     }
 
+    function buildUfl() {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0014, 0.0014, 0.0016, 14),
+        wireMaterial('#d8dadd', { roughness: 0.3, metalness: 0.8 })
+      );
+      g.add(body);
+      const collar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0019, 0.0019, 0.0005, 14),
+        wireMaterial('#9aa0a6', { roughness: 0.35, metalness: 0.9 })
+      );
+      collar.position.y = -0.0008;
+      g.add(collar);
+      g.name = 'u.FL';
+      return g;
+    }
+
     function buildSolderBlob(radius = 0.0009) {
       const m = new THREE.Mesh(
         new THREE.SphereGeometry(radius, 10, 8),
@@ -2182,6 +2268,12 @@
         // Un câble est soit branché sur ses ancrages, soit rangé sur le tapis.
         state: 'connected',
         park: null,
+        // Extrémité déjà solidaire de sa pièce : les phases moteur sortent
+        // soudées côté moteur, seul le bout ESC attend d'être posé.
+        pinnedEnd: opts.pinnedEnd ?? null,
+        solder: [],                       // billes d'étain, montrées une fois raccordé
+        inline: null,                     // connecteur porté par le câble (XT30)
+        _curve: null,
         plug: null,                       // animation de clipsage en cours
         midOffset: new THREE.Vector3(),   // point de mou tiré à la souris
         _lastA: new THREE.Vector3(NaN, NaN, NaN),
@@ -2196,17 +2288,24 @@
         wiringRoot.add(m);
         c.meshes.push(m);
       }
-      // Ferrules d'extrémité : un tube de 0,45 mm est une cible trop fine à la
-      // souris, ces embouts servent de repère visuel et de zone de saisie.
+      // Embouts d'extrémité : la vraie fiche quand le montage en a une (JST-SH,
+      // u.FL), sinon une ferrule étamée là où le fil part directement au fer.
+      // Ils servent aussi de zone de saisie, un tube de 0,45 mm étant une cible
+      // trop fine à la souris.
       for (let e = 0; e < 2; e++) {
-        const h = new THREE.Mesh(
+        let h;
+        if (opts.plug === 'ufl') h = buildUfl();
+        else if (typeof opts.plug === 'number') h = buildJstHousing(opts.plug, e === 0);
+        else h = new THREE.Mesh(
           new THREE.SphereGeometry(Math.max(c.radius * 3.4, 0.0022), 10, 8),
           wireMaterial('#8f979f', { roughness: 0.3, metalness: 0.85 })
         );
-        h.frustumCulled = false;
-        h.userData.isCable = true;
-        h.userData.cable = c;
-        h.userData.cableEnd = e;
+        h.traverse((o) => {
+          o.frustumCulled = false;
+          o.userData.isCable = true;
+          o.userData.cable = c;
+          o.userData.cableEnd = e;
+        });
         wiringRoot.add(h);
         c.handles.push(h);
       }
@@ -2217,16 +2316,25 @@
     // Extrémités effectives : les ancrages réels une fois branché, ceux du tapis
     // tant que le câble est rangé. Pendant le clipsage on interpole entre les deux.
     const _epA = new THREE.Vector3(), _epB = new THREE.Vector3();
+    const _UNIT_X = new THREE.Vector3(1, 0, 0);
     function endpointsOf(c, outA, outB) {
-      const parked = c.state === 'parked' && c.park;
-      if (parked) { c.park.a.getWorldPosition(outA); c.park.b.getWorldPosition(outB); }
-      else { c.from.getWorldPosition(outA); c.to.getWorldPosition(outB); }
+      const park = c.park;
+      const loose = !!park && (c.state === 'parked' || !!c.plug);
+      // Position d'attente : le bout libre est sur le tapis, un bout déjà soudé
+      // reste sur sa pièce.
+      if (loose) {
+        if (c.pinnedEnd === 0) c.from.getWorldPosition(_epA); else park.a.getWorldPosition(_epA);
+        if (c.pinnedEnd === 1) c.to.getWorldPosition(_epB); else park.b.getWorldPosition(_epB);
+      }
+      c.from.getWorldPosition(outA);
+      c.to.getWorldPosition(outB);
       if (c.plug) {
-        c.park.a.getWorldPosition(_epA); c.park.b.getWorldPosition(_epB);
         const t = easeInOutCubic(Math.min(1, c.plug.t / c.plug.dur));
-        c.from.getWorldPosition(outA); c.to.getWorldPosition(outB);
         outA.lerpVectors(_epA, outA, t);
         outB.lerpVectors(_epB, outB, t);
+      } else if (loose) {
+        outA.copy(_epA);
+        outB.copy(_epB);
       }
     }
 
@@ -2249,10 +2357,25 @@
         _mid.y -= len * c.sag;
         _mid.add(c.midOffset);
         const curve = new THREE.CatmullRomCurve3([a, _mid.clone(), b]);
+        if (i === 0) c._curve = curve;
         const geo = new THREE.TubeGeometry(curve, 10, c.radius, 5, false);
         m.geometry.dispose();
         m.geometry = geo;
       });
+
+      // Le XT30 est porté par le câble : il glisse avec lui, dans tous ses états.
+      if (c.inline && c._curve) {
+        const p = c._curve.getPoint(c.inline.t);
+        const tg = c._curve.getTangent(c.inline.t).normalize();
+        c.inline.mesh.position.copy(p);
+        if (isFinite(tg.x)) c.inline.mesh.quaternion.setFromUnitVectors(_UNIT_X, tg);
+      }
+      // L'étain n'apparaît qu'une fois le fil réellement posé sur son plot.
+      if (c.solder.length) {
+        const shown = c.state === 'connected';
+        for (const b of c.solder) b.visible = shown;
+      }
+
       c._lastA.copy(_pa);
       c._lastB.copy(_pb);
     }
@@ -2294,10 +2417,21 @@
 
     /* ---- Construction du faisceau complet ---- */
 
+    // Billes d'étain, condensateur : ces pièces vivent sur les cartes, pas sous
+    // wiringRoot. On les note pour pouvoir les retirer à la reconstruction.
+    const wiringExtras = [];
+    function addExtra(parent, obj) {
+      parent.add(obj);
+      wiringExtras.push(obj);
+      return obj;
+    }
+
     function clearWiring() {
       cables.forEach(c => c.meshes.forEach(m => { m.geometry.dispose(); wiringRoot.remove(m); }));
       cables.length = 0;
       [...wiringRoot.children].forEach(o => wiringRoot.remove(o));
+      wiringExtras.forEach(o => { if (o.parent) o.parent.remove(o); });
+      wiringExtras.length = 0;
       Object.keys(wiringAnchors).forEach(k => delete wiringAnchors[k]);
       batteryGroup = null;
     }
@@ -2349,28 +2483,51 @@
       capPad.y = escTop;
       makeAnchor(escNode, capPad, 'esc-cap');
 
-      // Moteurs : sortie des fils sous la cloche, vers le bras.
+      // Moteurs : sortie des fils sous la cloche, vers le bras. Chaque phase est
+      // un câble à part entière — trois plots, trois brins, trois billes d'étain,
+      // rigoureusement au même endroit — pour qu'on voie le contact se faire et
+      // qu'on puisse les poser un par un.
       const MOTOR_TO_PAD = [
         [/arrière droit/i, 'M1'], [/avant droit/i, 'M2'],
         [/arrière gauche/i, 'M3'], [/avant gauche/i, 'M4']
       ];
+      const _upY = new THREE.Vector3(0, 1, 0);
+      const tangentAt = (from, to, fallback) => {
+        const t = new THREE.Vector3().subVectors(to, from).setY(0);
+        if (t.lengthSq() < 1e-9) return fallback.clone();
+        return t.normalize().cross(_upY).normalize();
+      };
       MOTOR_TO_PAD.forEach(([re, pad]) => {
         const mg = assemblyGroups.find(g => /^motor-\d+$/.test(g.id) && re.test(g.label));
         if (!mg) return;
         const mb = groupBox3(mg);
         const out = mb.getCenter(new THREE.Vector3());
         out.y = mb.min.y;
-        const anchor = makeAnchor(mg.nodes[0], out, `motor-${pad}`);
-        addCable(anchor, wiringAnchors[`esc-${pad}`], {
-          id: `phases-${pad}`, color: WIRE_COLORS.phase, wires: 3, radius: 0.0005,
-          sag: 0.16, spread: 0.0014
-        });
-        // Trois soudures par sortie, sur le plot correspondant.
+
+        const centrePad = ESC_PADS[pad];
+        // Rangée de trois plots tangente au bord de la carte : ils restent tous
+        // les trois sur le cuivre, à égale distance du centre.
+        const padAxis = tangentAt(escCentre, centrePad, droneRight);
+        const outAxis = tangentAt(out, centrePad, droneRight);
+
         for (let i = 0; i < 3; i++) {
-          const blob = buildSolderBlob();
-          blob.position.copy(wiringAnchors[`esc-${pad}`].position);
-          blob.position.x += (i - 1) * 0.0014;
-          escNode.add(blob);
+          const k = i - 1;
+          const padPos = centrePad.clone().addScaledVector(padAxis, k * 0.0017);
+          const b = makeAnchor(escNode, padPos, `esc-${pad}-${i}`);
+          const outPos = out.clone().addScaledVector(outAxis, k * 0.0013);
+          const a = makeAnchor(mg.nodes[0], outPos, `motor-${pad}-${i}`);
+          const c = addCable(a, b, {
+            id: `phases-${pad}-${i}`, color: WIRE_COLORS.phase, wires: 1,
+            radius: 0.0005, sag: 0.16, pinnedEnd: 0
+          });
+          if (!c) continue;
+          // La bille d'étain est posée sur le plot, exactement là où le fil
+          // arrive : les deux sont au même point, le contact se voit.
+          const blob = buildSolderBlob(0.0008);
+          blob.position.copy(b.position);
+          addExtra(escNode, blob);
+          blob.visible = false;
+          c.solder.push(blob);
         }
       });
 
@@ -2382,12 +2539,7 @@
         const fcConnPos = new THREE.Box3().setFromObject(fcConn8).getCenter(new THREE.Vector3());
         const a = makeAnchor(escConn, escConnPos, 'esc-jst8');
         const b = makeAnchor(fcConn8, fcConnPos, 'fc-jst8');
-        addCable(a, b, { id: 'nappe-esc-fc', color: WIRE_COLORS.signal, wires: 8, radius: 0.00028, sag: 0.1, spread: 0.001 });
-        [[a, true], [b, false]].forEach(([anchor, male]) => {
-          const h = buildJstHousing(8, male);
-          h.position.copy(anchor.position);
-          anchor.parent.add(h);
-        });
+        addCable(a, b, { id: 'nappe-esc-fc', color: WIRE_COLORS.signal, wires: 8, radius: 0.00028, sag: 0.1, spread: 0.001, plug: 8 });
       }
 
       // FC -> VTX : embase 6 broches côté FC, connecteur board-to-board côté module.
@@ -2398,12 +2550,7 @@
         const p2 = new THREE.Box3().setFromObject(vtxConn).getCenter(new THREE.Vector3());
         const a = makeAnchor(fcConn6, p1, 'fc-jst6');
         const b = makeAnchor(vtxConn, p2, 'vtx-jst6');
-        addCable(a, b, { id: 'nappe-fc-vtx', color: WIRE_COLORS.signal, wires: 6, radius: 0.0003, sag: 0.14, spread: 0.001 });
-        [[a, true], [b, false]].forEach(([anchor, male]) => {
-          const h = buildJstHousing(6, male);
-          h.position.copy(anchor.position);
-          anchor.parent.add(h);
-        });
+        addCable(a, b, { id: 'nappe-fc-vtx', color: WIRE_COLORS.signal, wires: 6, radius: 0.0003, sag: 0.14, spread: 0.001, plug: 6 });
       }
 
       // Récepteur : CRSF 4 fils vers le FC.
@@ -2417,7 +2564,7 @@
         fp.y = fb.max.y;
         fp.addScaledVector(droneRight, -fb.getSize(new THREE.Vector3()).x * 0.3);
         const b = makeAnchor(fc.nodes[0], fp, 'fc-crsf');
-        addCable(a, b, { id: 'rx-fc', color: WIRE_COLORS.signal, wires: 4, radius: 0.0003, sag: 0.15, spread: 0.0011 });
+        addCable(a, b, { id: 'rx-fc', color: WIRE_COLORS.signal, wires: 4, radius: 0.0003, sag: 0.15, spread: 0.0011, plug: 4 });
       }
 
       // Antennes VTX : coaxiaux vers le module.
@@ -2430,7 +2577,7 @@
           const ab = new THREE.Box3().setFromObject(n);
           const ap = ab.getCenter(new THREE.Vector3());
           const a = makeAnchor(n, ap, `antenne-${i}`);
-          addCable(a, vAnchor, { id: `coax-${i}`, color: WIRE_COLORS.coax, wires: 1, radius: 0.0006, sag: 0.1 });
+          addCable(a, vAnchor, { id: `coax-${i}`, color: WIRE_COLORS.coax, wires: 1, radius: 0.0006, sag: 0.1, plug: 'ufl' });
         });
       }
 
@@ -2444,16 +2591,24 @@
         const vp = vb.getCenter(new THREE.Vector3());
         vp.addScaledVector(droneFront, vb.getSize(new THREE.Vector3()).z * 0.4);
         const b = makeAnchor(vtx.nodes[0], vp, 'vtx-cam');
-        addCable(a, b, { id: 'nappe-camera', color: WIRE_COLORS.signal, wires: 4, radius: 0.0003, sag: 0.12, spread: 0.0011 });
+        addCable(a, b, { id: 'nappe-camera', color: WIRE_COLORS.signal, wires: 4, radius: 0.0003, sag: 0.12, spread: 0.0011, plug: 4 });
       }
 
-      // Condensateur low-ESR sur les plots batterie.
+      // Condensateur low-ESR sur les plots batterie, ses deux pattes soudées.
       const cap = buildCapacitor();
       cap.position.copy(wiringAnchors['esc-cap'].position);
       cap.position.y += 0.006;
-      escNode.add(cap);
+      addExtra(escNode, cap);
+      [-1, 1].forEach((s) => {
+        const blob = buildSolderBlob(0.001);
+        blob.position.copy(wiringAnchors['esc-cap'].position);
+        blob.position.x += s * 0.0022;
+        addExtra(escNode, blob);
+      });
 
       // Batterie + queue XT30 : deux fils rouge/noir vers les plots batterie.
+      // Le XT30 est enfilé sur le câble, pas posé sur la carte — sur l'ESC il n'y
+      // a que deux plots soudés, exactement comme sur le montage réel.
       const batt = buildBattery();
       if (batt) {
         const bb = new THREE.Box3().setFromObject(batt);
@@ -2461,21 +2616,35 @@
         outPos.addScaledVector(droneFront, -BATTERY_SIZE.l * 0.45);
         outPos.y = bb.min.y;
         const a = makeAnchor(batt, outPos, 'batt-out');
+        const b = wiringAnchors['esc-batt'];
 
-        const xt30Pos = wiringAnchors['esc-batt'].getWorldPosition(new THREE.Vector3());
-        xt30Pos.y += 0.008;
-        const b = makeAnchor(escNode, xt30Pos, 'xt30');
+        const plus = addCable(a, b, { id: 'batt-plus', color: WIRE_COLORS.plus, wires: 1, radius: 0.0011, sag: 0.2 });
+        const minus = addCable(a, b, { id: 'batt-minus', color: WIRE_COLORS.minus, wires: 1, radius: 0.0011, sag: 0.24 });
 
-        addCable(a, b, { id: 'batt-plus', color: WIRE_COLORS.plus, wires: 1, radius: 0.0011, sag: 0.2 });
-        addCable(a, b, { id: 'batt-minus', color: WIRE_COLORS.minus, wires: 1, radius: 0.0011, sag: 0.24 });
-
+        // Paire XT30 mâle/femelle accouplée, portée par le fil rouge.
+        const pair = new THREE.Group();
+        pair.name = 'XT30';
         const male = buildXT30(true);
-        male.position.copy(b.position);
-        escNode.add(male);
+        male.position.x = -0.004;
+        pair.add(male);
         const female = buildXT30(false);
-        female.position.copy(b.position);
-        female.position.y -= 0.004;
-        escNode.add(female);
+        female.position.x = 0.004;
+        female.rotation.y = Math.PI;
+        pair.add(female);
+        pair.traverse((o) => { o.userData.isCable = true; o.userData.cable = plus; });
+        wiringRoot.add(pair);
+        if (plus) plus.inline = { mesh: pair, t: 0.36 };
+
+        // Les deux soudures d'arrivée sur +BATT et GND.
+        [plus, minus].forEach((c, i) => {
+          if (!c) return;
+          const blob = buildSolderBlob(0.0011);
+          blob.position.copy(b.position);
+          blob.position.x += (i ? 1 : -1) * 0.0017;
+          addExtra(escNode, blob);
+          blob.visible = false;
+          c.solder.push(blob);
+        });
       }
 
       registerBatteryGroup();
@@ -2539,8 +2708,9 @@
       const centre = stack.getCenter(new THREE.Vector3());
       const size = stack.getSize(new THREE.Vector3());
 
-      const n = cables.length;
-      const rowGap = 0.009;
+      const free = cables.filter(c => c.pinnedEnd === null);
+      const n = Math.max(1, free.length);
+      const rowGap = 0.008;
       const width = (n - 1) * rowGap + 0.022;   // suivant droneRight
       const length = 0.078;                      // suivant droneFront
 
@@ -2548,7 +2718,7 @@
       benchGroup.name = 'etabli';
       // Repère local : X = droite du drone, Z = avant du drone.
       benchGroup.position.copy(centre)
-        .addScaledVector(droneRight, size.x / 2 + width / 2 + 0.016);
+        .addScaledVector(droneRight, size.x / 2 + width / 2 + 0.009);
       benchGroup.position.y = stack.min.y;
       benchGroup.rotateY(Math.atan2(droneFront.x, droneFront.z));
 
@@ -2571,13 +2741,32 @@
       edge.position.y = 0.0002;
       benchGroup.add(edge);
 
-      // Une ligne par câble, dans l'ordre des étapes.
-      cables.forEach((c, i) => {
+      benchGroup.updateMatrixWorld(true);
+
+      // Une voie par câble libre, dans l'ordre des étapes.
+      free.forEach((c, i) => {
         const x = -width / 2 + 0.011 + i * rowGap;
         const a = new THREE.Object3D();
         a.position.set(x, 0.0015, -length * 0.42);
         const b = new THREE.Object3D();
         b.position.set(x, 0.0015, length * 0.42);
+        benchGroup.add(a, b);
+        c.park = { a, b };
+      });
+
+      // Les phases restent soudées au moteur : leur bout libre attend juste à
+      // côté de son plot, pointé dessus, plutôt que sur le tapis à l'autre bout.
+      cables.filter(c => c.pinnedEnd !== null).forEach((c) => {
+        const goal = (c.pinnedEnd === 0 ? c.to : c.from).getWorldPosition(new THREE.Vector3());
+        const away = goal.clone().sub(centre).setY(0);
+        if (away.lengthSq() < 1e-9) away.copy(droneRight);
+        const rest = goal.clone().addScaledVector(away.normalize(), 0.011);
+        rest.y = stack.min.y + 0.0015;
+        const a = new THREE.Object3D();
+        const b = new THREE.Object3D();
+        const local = benchGroup.worldToLocal(rest.clone());
+        a.position.copy(local);
+        b.position.copy(local);
         benchGroup.add(a, b);
         c.park = { a, b };
       });
@@ -3059,8 +3248,8 @@
       },
       {
         id: 'phases', kind: 'solder', title: 'Phases moteur', targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
-        text: "Soude les 3 fils de chaque moteur sur le trio de plots de son coin : M1 arrière droit, M2 avant droit, M3 arrière gauche, M4 avant gauche.",
-        hint: "L'ordre des trois phases décide du sens de rotation. Interverti, le moteur tourne à l'envers — AM32 sait le corriger en logiciel, mais autant souder juste."
+        text: "Les 12 fils sortent déjà soudés aux moteurs. Attrape chaque bout libre et pose-le sur son plot : M1 arrière droit, M2 avant droit, M3 arrière gauche, M4 avant gauche.",
+        hint: "L'ordre des trois phases décide du sens de rotation. Interverti, le moteur tourne à l'envers — AM32 sait le corriger en logiciel, mais autant souder juste. Le bouton soude les douze d'un coup."
       },
       {
         id: 'nappe', kind: 'plug', title: 'Nappe ESC → FC', targets: ['fc-jst8'],
@@ -3074,7 +3263,7 @@
       },
       {
         id: 'xt30', kind: 'solder', title: 'Câble batterie XT30', targets: ['esc-batt'],
-        text: "Soude le rouge sur +BATT et le noir sur GND, puis gaine les soudures.",
+        text: "Soude le rouge sur +BATT et le noir sur GND, puis gaine les soudures. Le XT30 reste sur le câble, jamais sur la carte.",
         hint: "Inverser rouge et noir détruit l'ESC à la première mise sous tension. Vérifie deux fois avant de brancher."
       },
       {
@@ -3110,7 +3299,7 @@
 
     // Câbles concernés par chaque étape : ce sont eux qui se clipsent.
     const STEP_CABLES = {
-      phases: ['phases-M1', 'phases-M2', 'phases-M3', 'phases-M4'],
+      phases: ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
       nappe: ['nappe-esc-fc'],
       xt30: ['batt-plus', 'batt-minus'],
       rx: ['rx-fc'],
@@ -3122,19 +3311,37 @@
     const cableById = (id) => cables.find(c => c.id === id) || null;
 
     // Clipsage : le câble rejoint ses ancrages, puis le boîtier fait un à-coup.
+    function plugCable(c) {
+      if (!c || c.state === 'connected' || c.plug || !c.park) return false;
+      c.plug = { t: 0, dur: 0.7 };
+      c.sag = CABLE_SAG.has(c.id) ? CABLE_SAG.get(c.id) : c.sag;
+      c.midOffset.set(0, 0, 0);
+      c.handles.forEach(h => { h.userData.pop = 0; });
+      return true;
+    }
+
     function connectStepCables(stepId) {
       const ids = STEP_CABLES[stepId];
       if (!ids) return 0;
-      let n = 0;
-      ids.forEach(id => {
-        const c = cableById(id);
-        if (!c || c.state === 'connected' || !c.park) return;
-        c.plug = { t: 0, dur: 0.7 };
-        c.sag = CABLE_SAG.has(c.id) ? CABLE_SAG.get(c.id) : c.sag;
-        c.handles.forEach(h => { h.userData.pop = 0; });
-        n++;
-      });
-      return n;
+      return ids.reduce((n, id) => n + (plugCable(cableById(id)) ? 1 : 0), 0);
+    }
+
+    // Un fil posé à la main peut suffire à terminer son étape : on la valide
+    // alors comme si le bouton avait été utilisé.
+    function noteCableConnected(c) {
+      const stepId = Object.keys(STEP_CABLES).find(k => STEP_CABLES[k].includes(c.id));
+      if (!stepId) return;
+      const list = STEP_CABLES[stepId].map(cableById).filter(Boolean);
+      const left = list.filter(x => x.state === 'parked' && !x.plug).length;
+      const current = WIRING_STEPS[wiringStep] && WIRING_STEPS[wiringStep].id === stepId;
+      if (left === 0) {
+        wiringState.done[stepId] = true;
+        wiringState.faults = wiringState.faults.filter(f => f.step !== stepId);
+        if (current) { renderWiringStep(); wiringSay('Contact établi, étape terminée.', 'good'); }
+        else updateWiringProgress();
+      } else if (current) {
+        wiringSay(`Contact établi. Encore ${left} fil(s) à poser.`, '');
+      }
     }
 
     let wiringStep = 0;
@@ -3260,7 +3467,11 @@
       if (!solderTimer) return;
       clearInterval(solderTimer);
       solderTimer = null;
-      const held = performance.now() - solderStart;
+      let held = performance.now() - solderStart;
+      // Relâcher après le temps voulu vaut soudure faite, même si le tick de
+      // remplissage n'est pas encore passé : sinon un maintien assez long est
+      // rejeté à cause d'une image lente.
+      if (!complete && held >= SOLDER_MS) complete = true;
       wiringAction.classList.remove('soldering');
       wiringAction.style.setProperty('--fill', '0%');
       const s = WIRING_STEPS[wiringStep];
@@ -3375,6 +3586,9 @@
       if (!on) {
         // On rebranche tout : hors du mode, le drone se montre câblé.
         cables.forEach(c => { if (c.park) setCableState(c, 'connected'); });
+        if (batteryGroup && batteryGroup.userData.origPos) {
+          batteryGroup.position.copy(batteryGroup.userData.origPos);
+        }
         return;
       }
 
@@ -3392,11 +3606,25 @@
 
       renderWiringStep();
 
-      // Cadrage sur le stack et son tapis, pas sur le drone entier.
+      // La batterie se range à gauche : posée sur la plaque haute elle masque
+      // exactement les cartes qu'on vient regarder.
+      if (batteryGroup) {
+        const stack = stackBox();
+        if (!stack.isEmpty()) {
+          const size = stack.getSize(new THREE.Vector3());
+          const target = stack.getCenter(new THREE.Vector3())
+            .addScaledVector(droneRight, -(size.x / 2 + BATTERY_SIZE.w / 2 + 0.024));
+          target.y = stack.min.y + BATTERY_SIZE.h / 2;
+          occRoot.updateMatrixWorld(true);
+          batteryGroup.position.copy(occRoot.worldToLocal(target));
+        }
+      }
+
+      // Cadrage serré sur les cartes : c'est là que tout se joue. Le tapis et la
+      // batterie restent atteignables d'un coup de molette.
       const box = stackBox();
-      if (benchGroup) box.expandByObject(benchGroup);
       const sphere = box.getBoundingSphere(new THREE.Sphere());
-      flyToFit(sphere.center, sphere.radius, 1.25, 0.9);
+      flyToFit(sphere.center, sphere.radius, 1.15, 0.9);
     }
 
     document.getElementById('btn-wiring').addEventListener('click', () => {
@@ -4039,9 +4267,16 @@
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
-      const hits = raycaster.intersectObjects(wiringRoot.children, false);
-      const hit = hits.find(h => h.object.visible && h.object.userData.cable);
-      return hit || null;
+      // Récursif : une fiche JST ou u.FL est un groupe, c'est un de ses enfants
+      // qui est touché — on remonte au nœud qui porte le câble.
+      const hits = raycaster.intersectObjects(wiringRoot.children, true);
+      for (const h of hits) {
+        if (!h.object.visible) continue;
+        let o = h.object;
+        while (o && o !== wiringRoot && !o.userData.cable) o = o.parent;
+        if (o && o.userData.cable) return { object: o, point: h.point };
+      }
+      return null;
     }
 
     function beginCableDrag(e) {
@@ -4059,6 +4294,11 @@
         const len = _pa.distanceTo(_pb) || 1;
         if (Math.min(dA, dB) / len < 0.25) { mode = 'end'; end = dA < dB ? 0 : 1; }
         else mode = c.state === 'parked' ? 'whole' : 'slack';
+      }
+      // Un bout déjà soudé ne se décolle pas : on tire le mou à la place.
+      if (mode !== 'slack' && c.pinnedEnd !== null) {
+        if (mode === 'whole') mode = 'slack';
+        else if (end === c.pinnedEnd) { mode = 'end'; end = 1 - c.pinnedEnd; }
       }
 
       dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), hit.point);
@@ -4086,6 +4326,8 @@
       const d = dragPoint.clone().sub(dragStart);
       const c = dragging.cable;
 
+      if (dragging.mode === 'end' && dragging.end === c.pinnedEnd) return;
+
       if (dragging.mode === 'slack') {
         c.midOffset.copy(dragging.startMid).add(d);
       } else if (c.park) {
@@ -4103,11 +4345,28 @@
       rebuildCable(c);
     }
 
+    // Distance à laquelle un bout lâché près de son plot vient s'y poser.
+    const SNAP_DIST = 0.007;
+
+    // Le bout tiré est-il assez près de son point d'arrivée pour faire contact ?
+    function trySnapCable(c, end) {
+      if (!c || !c.park || c.state !== 'parked' || c.plug) return false;
+      endpointsOf(c, _pa, _pb);
+      const here = end === 0 ? _pa : _pb;
+      const goal = (end === 0 ? c.from : c.to).getWorldPosition(_epA);
+      if (here.distanceTo(goal) > SNAP_DIST) return false;
+      if (!plugCable(c)) return false;
+      noteCableConnected(c);
+      return true;
+    }
+
     function endCableDrag() {
       if (!dragging) return;
+      const { cable, mode, end } = dragging;
       dragging = null;
       controls.enabled = true;
       renderer.domElement.style.cursor = '';
+      if (mode === 'end') trySnapCable(cable, end);
     }
 
     renderer.domElement.addEventListener('pointermove', (e) => {
