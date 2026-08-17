@@ -461,6 +461,81 @@
     .step-hud-count { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb700; }
     .step-hud-name { display: block; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
 
+
+    /* ---- Mode câblage ---- */
+    .wiring-panel {
+      position: absolute; top: 74px; right: 24px; width: 330px; max-height: calc(100vh - 120px);
+      overflow-y: auto; z-index: 30; background: var(--bg-panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 18px; backdrop-filter: blur(20px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      transform: translateX(calc(100% + 40px)); opacity: 0; pointer-events: none;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    }
+    .wiring-panel.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
+    .wiring-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .wiring-eyebrow { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #ffb700; }
+    .wiring-count { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+    .wiring-progress-track { height: 3px; background: rgba(255,255,255,0.08); border-radius: 3px; margin: 10px 0 12px; overflow: hidden; }
+    .wiring-progress { height: 100%; width: 0%; background: linear-gradient(90deg, var(--teal), #ffb700); transition: width 0.3s ease; }
+    .wiring-title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); margin-bottom: 5px; }
+    .wiring-text { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+    .wiring-choice { display: flex; gap: 6px; margin-top: 10px; }
+    .wiring-action {
+      position: relative; overflow: hidden; width: 100%; margin-top: 12px; padding: 10px;
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+      color: #ffb700; background: rgba(255, 183, 0, 0.14); border: 1px solid rgba(255, 183, 0, 0.45);
+      border-radius: 8px; cursor: pointer; transition: background 0.15s ease;
+    }
+    .wiring-action:hover { background: rgba(255, 183, 0, 0.24); }
+    .wiring-action.done { color: var(--teal); border-color: rgba(0, 178, 169, 0.5); background: rgba(0, 178, 169, 0.12); }
+    /* Jauge de remplissage pendant le maintien du clic pour souder. */
+    .wiring-action.soldering::before {
+      content: ''; position: absolute; inset: 0; width: var(--fill, 0%);
+      background: rgba(255, 183, 0, 0.3); transition: width 0.04s linear;
+    }
+    .wiring-feedback { font-size: 11.5px; line-height: 1.45; margin-top: 8px; min-height: 16px; color: var(--text-muted); }
+    .wiring-feedback.good { color: var(--teal); }
+    .wiring-feedback.warn { color: #ffb700; }
+    .wiring-feedback.bad { color: #e5644f; }
+    .wiring-hint-btn {
+      margin-top: 8px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-dim); background: none; border: 0;
+      cursor: pointer; padding: 0; text-decoration: underline dotted;
+    }
+    .wiring-hint-btn:hover { color: #ffb700; }
+    .wiring-hint {
+      display: none; font-size: 11.5px; line-height: 1.5; color: var(--text-muted);
+      border-left: 2px solid rgba(255, 183, 0, 0.5); padding: 4px 0 4px 9px; margin-top: 7px;
+    }
+    .wiring-hint.shown { display: block; }
+    .wiring-nav { display: flex; gap: 6px; margin-top: 12px; }
+    .wiring-nav .btn-nav { flex: 1; justify-content: center; }
+    .wiring-nav .btn-nav:disabled { opacity: 0.35; cursor: default; }
+    .wiring-extra { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+    .wiring-extra summary {
+      font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-dim); cursor: pointer;
+    }
+    .wiring-extra summary:hover { color: #ffb700; }
+    .wiring-faults { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .compat-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 5px; }
+    .compat-list li { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
+    .compat-list b { color: var(--text); font-weight: 600; }
+
+    /* Le panneau occupe la place du ViewCube et du panneau Studio. */
+    body.wiring-on #viewcube-container, body.wiring-on .control-panel { opacity: 0; pointer-events: none; }
+
+    .confetti { position: absolute; inset: 0; z-index: 70; pointer-events: none; display: none; overflow: hidden; }
+    .confetti.on { display: block; }
+    .confetti i {
+      position: absolute; top: -12px; width: 7px; height: 12px; border-radius: 1px;
+      animation: confetti-fall linear forwards;
+    }
+    @keyframes confetti-fall {
+      to { transform: translateY(105vh) rotate(720deg); opacity: 0.2; }
+    }
+    @media (prefers-reduced-motion: reduce) { .confetti i { animation-duration: 0.1s; } }
+
     .btn-pill.accent { background: rgba(255, 183, 0, 0.16); border-color: rgba(255, 183, 0, 0.45); color: #ffb700; }
     .btn-pill.accent:hover { background: rgba(255, 183, 0, 0.26); border-color: #ffb700; }
 
@@ -700,6 +775,14 @@
   </div>
 </div>
 
+      <!-- Mode WIRING -->
+      <button class="btn-pill" id="btn-wiring" title="Mode câblage et soudures pas à pas">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 20c0-6 6-6 6-12a3 3 0 0 1 6 0c0 6 4 6 4 10"/><circle cx="4" cy="20" r="1.6"/><circle cx="20" cy="18" r="1.6"/>
+        </svg>
+        <span>Câblage</span>
+      </button>
+
       <!-- Menu ASSEMBLAGE -->
       <div class="dropdown-container" id="assemblage-dropdown">
         <button class="btn-pill" id="btn-assemblage-toggle">
@@ -813,6 +896,61 @@
       <button class="btn-nav" id="btn-reset-cam" style="width:100%; justify-content:center;">Recentrer & Grossir la vue</button>
     </div>
   </div>
+
+  <div class="confetti" id="confetti"></div>
+
+  <aside class="wiring-panel" id="wiring-panel">
+    <div class="wiring-head">
+      <div>
+        <div class="wiring-eyebrow">Mode câblage</div>
+        <div class="wiring-count" id="wiring-count">Étape 1 / 10</div>
+      </div>
+      <button class="card-close-btn" id="wiring-close" title="Quitter le mode câblage">&times;</button>
+    </div>
+    <div class="wiring-progress-track"><div class="wiring-progress" id="wiring-progress"></div></div>
+
+    <div class="wiring-title" id="wiring-title">Sens des hélices</div>
+    <div class="wiring-text" id="wiring-text"></div>
+
+    <div class="wiring-choice" id="wiring-choice">
+      <button class="btn-mini active" data-propcfg="props-in">Props-in</button>
+      <button class="btn-mini" data-propcfg="props-out">Props-out</button>
+    </div>
+
+    <button class="wiring-action" id="wiring-action">Brancher</button>
+    <div class="wiring-feedback" id="wiring-feedback"></div>
+
+    <button class="wiring-hint-btn" id="wiring-hint-btn">Indice</button>
+    <div class="wiring-hint" id="wiring-hint"></div>
+
+    <div class="wiring-nav">
+      <button class="btn-nav" id="wiring-prev">&larr; Précédent</button>
+      <button class="btn-nav" id="wiring-next">Suivant &rarr;</button>
+    </div>
+
+    <details class="wiring-extra">
+      <summary>Provoquer une erreur (démonstration)</summary>
+      <div class="wiring-faults">
+        <button class="btn-mini" data-fault="xt30">XT30 inversé</button>
+        <button class="btn-mini" data-fault="cap">Condensateur à l'envers</button>
+        <button class="btn-mini" data-fault="phase">Phases M2 inversées</button>
+      </div>
+    </details>
+
+    <details class="wiring-extra">
+      <summary>Pièces suggérées</summary>
+      <ul class="compat-list">
+        <li><b>Moteurs</b> — 1404 à 1604, 3000-4500 KV en 4S</li>
+        <li><b>Hélices</b> — tri-pales 3 pouces, pas 2.0 à 3.0</li>
+        <li><b>Batterie</b> — 4S 550-850 mAh, connecteur XT30</li>
+        <li><b>ESC</b> — OpenESC 4-en-1 20×20, 2-6S, AM32</li>
+        <li><b>Contrôleur</b> — OpenFC 20×20, Betaflight</li>
+        <li><b>Récepteur</b> — OpenRX ELRS 2.4 GHz, protocole CRSF</li>
+        <li><b>Vidéo</b> — DJI O4 Air Unit Pro, nappe 6 broches</li>
+        <li><b>Condensateur</b> — low-ESR 470 µF / 35 V</li>
+      </ul>
+    </details>
+  </aside>
 
   <div class="step-hud" id="step-hud">
     <button class="btn-pill" id="btn-step-prev" title="Étape précédente">
@@ -2753,6 +2891,356 @@
       else if (e.key === 'ArrowLeft') gotoStep(stepIndex - 1);
     });
 
+
+    /* ============================================================
+       MODE WIRING — câblage et soudures pas à pas, interactif
+       Brochage réel relevé sur les dépôts incutec-hw :
+         ESC->FC  JST-SH 8 : +BATT · GND · CURR · NC · M1 · M2 · M3 · M4
+         FC->VTX  6 broches : +10V · GND · DIGITAL_TX · DIGITAL_RX · GND · SBUS
+         RX       CRSF 4 fils : 5V · GND · TX · RX
+         Moteurs  3 phases par sortie, sens donné par l'ordre des phases
+       ============================================================ */
+
+    // Sens de rotation attendu. Les diagonales tournent ensemble ; passer en
+    // props-out inverse les quatre. Même convention que l'animation des hélices.
+    const SPIN_TABLE = {
+      'props-in': { M1: 'CCW', M2: 'CW', M3: 'CW', M4: 'CCW' },
+      'props-out': { M1: 'CW', M2: 'CCW', M3: 'CCW', M4: 'CW' }
+    };
+    let propConfig = 'props-in';
+
+    const MOTOR_CORNER = {
+      M1: 'arrière droit', M2: 'avant droit', M3: 'arrière gauche', M4: 'avant gauche'
+    };
+
+    const WIRING_STEPS = [
+      {
+        id: 'config', kind: 'choice', title: 'Sens des hélices',
+        text: "Choisis la configuration avant de souder : elle fixe le sens attendu de chaque moteur, et donc l'ordre des phases.",
+        hint: "Props-in est le défaut Betaflight. Props-out projette les débris vers l'extérieur et se pilote pareil : c'est surtout une habitude de pilote."
+      },
+      {
+        id: 'phases', kind: 'solder', title: 'Phases moteur', targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
+        text: "Soude les 3 fils de chaque moteur sur le trio de plots de son coin : M1 arrière droit, M2 avant droit, M3 arrière gauche, M4 avant gauche.",
+        hint: "L'ordre des trois phases décide du sens de rotation. Interverti, le moteur tourne à l'envers — AM32 sait le corriger en logiciel, mais autant souder juste."
+      },
+      {
+        id: 'nappe', kind: 'plug', title: 'Nappe ESC → FC', targets: ['fc-jst8'],
+        text: "Branche la nappe JST-SH 8 broches entre l'ESC et le contrôleur de vol.",
+        hint: "Brochage : +BATT · GND · CURR · NC · M1 · M2 · M3 · M4. Le détrompeur du boîtier empêche l'inversion, ne force jamais."
+      },
+      {
+        id: 'cap', kind: 'solder', title: 'Condensateur low-ESR', targets: ['esc-cap'],
+        text: "Soude le condensateur 470 µF / 35 V sur les plots +BATT et GND, au plus près de l'entrée batterie.",
+        hint: "La bague marque le négatif, elle va sur GND. L'OpenESC n'a aucune protection en entrée : ce condensateur absorbe les pics de tension."
+      },
+      {
+        id: 'xt30', kind: 'solder', title: 'Câble batterie XT30', targets: ['esc-batt'],
+        text: "Soude le rouge sur +BATT et le noir sur GND, puis gaine les soudures.",
+        hint: "Inverser rouge et noir détruit l'ESC à la première mise sous tension. Vérifie deux fois avant de brancher."
+      },
+      {
+        id: 'rx', kind: 'plug', title: 'Récepteur OpenRX', targets: ['fc-crsf'],
+        text: "Relie le récepteur au contrôleur de vol : 5V, GND, TX et RX (protocole CRSF).",
+        hint: "TX et RX se croisent : le TX du récepteur va sur le RX du contrôleur, et inversement."
+      },
+      {
+        id: 'vtx', kind: 'plug', title: 'VTX DJI O4 Air Unit Pro', targets: ['vtx-jst6'],
+        text: "Branche la nappe 6 broches entre le contrôleur de vol et l'Air Unit.",
+        hint: "Brochage : +10V · GND · DIGITAL_TX · DIGITAL_RX · GND · SBUS."
+      },
+      {
+        id: 'antennes', kind: 'plug', title: 'Antennes vidéo', targets: ['antenne-0', 'antenne-1'],
+        text: "Clipse les deux coaxiaux u.FL sur l'Air Unit.",
+        hint: "N'alimente jamais un VTX sans antenne : l'étage de puissance se détruit en quelques secondes."
+      },
+      {
+        id: 'camera', kind: 'plug', title: 'Caméra', targets: ['vtx-cam'],
+        text: "Relie la caméra à l'Air Unit par sa nappe.",
+        hint: "La nappe est fragile : elle se clipse sans forcer, connecteur bien en face."
+      },
+      {
+        id: 'test', kind: 'test', title: 'Test final',
+        text: "Branche la batterie et lance le test de mise sous tension.",
+        hint: "Au premier essai, on branche toujours sans hélices. Ici elles sont montées pour visualiser le sens de rotation."
+      }
+    ];
+
+    let wiringStep = 0;
+    const wiringState = { done: {}, faults: [], phaseOrder: {}, xt30Reversed: false, capReversed: false };
+
+    /* ---- Repères 3D : anneau pulsant sur la cible ---- */
+
+    const targetRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.006, 0.0009, 8, 28),
+      new THREE.MeshBasicMaterial({ color: 0xffb700, transparent: true, opacity: 0.9 })
+    );
+    targetRing.rotation.x = Math.PI / 2;
+    targetRing.visible = false;
+    scene.add(targetRing);
+
+    let ringPulse = 0;
+    function updateTargetRing(dt) {
+      if (!targetRing.visible) return;
+      ringPulse += dt * 3.2;
+      const s = 1 + Math.sin(ringPulse) * 0.16;
+      targetRing.scale.set(s, s, 1);
+      targetRing.material.opacity = 0.55 + Math.sin(ringPulse) * 0.3;
+    }
+
+    function pointTargetRing(anchorName) {
+      const a = wiringAnchors[anchorName];
+      if (!a) { targetRing.visible = false; return; }
+      targetRing.position.copy(a.getWorldPosition(new THREE.Vector3()));
+      targetRing.visible = true;
+    }
+
+    /* ---- Panneau d'étapes ---- */
+
+    const wiringPanel = document.getElementById('wiring-panel');
+    const wiringTitle = document.getElementById('wiring-title');
+    const wiringText = document.getElementById('wiring-text');
+    const wiringHint = document.getElementById('wiring-hint');
+    const wiringCount = document.getElementById('wiring-count');
+    const wiringAction = document.getElementById('wiring-action');
+    const wiringFeedback = document.getElementById('wiring-feedback');
+    const wiringChoice = document.getElementById('wiring-choice');
+
+    function renderWiringStep() {
+      const s = WIRING_STEPS[wiringStep];
+      wiringCount.textContent = `Étape ${wiringStep + 1} / ${WIRING_STEPS.length}`;
+      wiringTitle.textContent = s.title;
+      wiringText.textContent = s.text;
+      wiringHint.textContent = s.hint;
+      wiringHint.classList.remove('shown');
+      wiringChoice.style.display = s.kind === 'choice' ? 'flex' : 'none';
+      wiringFeedback.textContent = '';
+      wiringFeedback.className = 'wiring-feedback';
+
+      const done = !!wiringState.done[s.id];
+      if (s.kind === 'choice') {
+        wiringAction.textContent = 'Valider le sens';
+      } else if (s.kind === 'solder') {
+        wiringAction.textContent = done ? 'Soudé ✓' : 'Maintenir pour souder';
+      } else if (s.kind === 'test') {
+        wiringAction.textContent = 'Brancher et tester';
+      } else {
+        wiringAction.textContent = done ? 'Branché ✓' : 'Brancher';
+      }
+      wiringAction.classList.toggle('done', done);
+
+      if (s.targets && s.targets.length) pointTargetRing(s.targets[0]);
+      else targetRing.visible = false;
+
+      document.getElementById('wiring-prev').disabled = wiringStep === 0;
+      document.getElementById('wiring-next').disabled = wiringStep >= WIRING_STEPS.length - 1;
+      updateWiringProgress();
+    }
+
+    function updateWiringProgress() {
+      const total = WIRING_STEPS.length;
+      const done = WIRING_STEPS.filter(s => wiringState.done[s.id]).length;
+      document.getElementById('wiring-progress').style.width = `${(done / total) * 100}%`;
+    }
+
+    function wiringSay(msg, kind = '') {
+      wiringFeedback.textContent = msg;
+      wiringFeedback.className = `wiring-feedback ${kind}`;
+    }
+
+    function gotoWiringStep(i) {
+      wiringStep = Math.max(0, Math.min(WIRING_STEPS.length - 1, i));
+      renderWiringStep();
+    }
+
+    /* ---- Soudure par maintien ---- */
+
+    let solderTimer = null, solderStart = 0;
+    const SOLDER_MS = 1100;
+
+    function beginSolder() {
+      const s = WIRING_STEPS[wiringStep];
+      if (s.kind !== 'solder' || wiringState.done[s.id]) return;
+      solderStart = performance.now();
+      wiringAction.classList.add('soldering');
+      solderTimer = setInterval(() => {
+        const t = Math.min(1, (performance.now() - solderStart) / SOLDER_MS);
+        wiringAction.style.setProperty('--fill', `${t * 100}%`);
+        if (t >= 1) endSolder(true);
+      }, 40);
+    }
+
+    function endSolder(complete) {
+      if (!solderTimer) return;
+      clearInterval(solderTimer);
+      solderTimer = null;
+      const held = performance.now() - solderStart;
+      wiringAction.classList.remove('soldering');
+      wiringAction.style.setProperty('--fill', '0%');
+      const s = WIRING_STEPS[wiringStep];
+      if (!complete && held < SOLDER_MS * 0.55) {
+        wiringSay("Soudure froide : l'étain n'a pas mouillé le plot. Maintiens jusqu'au bout.", 'bad');
+        wiringState.faults.push({ step: s.id, why: 'soudure froide' });
+        return;
+      }
+      if (!complete) { wiringSay('Maintiens un peu plus longtemps.', 'warn'); return; }
+      wiringState.done[s.id] = true;
+      wiringState.faults = wiringState.faults.filter(f => f.step !== s.id);
+      // renderWiringStep() remet le retour à zéro : on écrit le message après.
+      renderWiringStep();
+      wiringSay('Soudure propre, brillante et bien formée.', 'good');
+    }
+
+    /* ---- Branchement ---- */
+
+    function doPlug() {
+      const s = WIRING_STEPS[wiringStep];
+      wiringState.done[s.id] = true;
+      renderWiringStep();
+      wiringSay('Connecteur en place, détrompeur respecté.', 'good');
+    }
+
+    /* ---- Test final : cotillons ou fumée ---- */
+
+    const smokeParticles = [];
+    function spawnSmoke(worldPos) {
+      const geo = new THREE.SphereGeometry(0.004, 6, 5);
+      for (let i = 0; i < 18; i++) {
+        const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+          color: 0x2b2b2b, transparent: true, opacity: 0.75, depthWrite: false
+        }));
+        m.position.copy(worldPos);
+        m.userData.vel = new THREE.Vector3((Math.random() - 0.5) * 0.02, 0.02 + Math.random() * 0.03, (Math.random() - 0.5) * 0.02);
+        m.userData.life = 0;
+        scene.add(m);
+        smokeParticles.push(m);
+      }
+    }
+
+    function updateSmoke(dt) {
+      for (let i = smokeParticles.length - 1; i >= 0; i--) {
+        const m = smokeParticles[i];
+        m.userData.life += dt;
+        m.position.addScaledVector(m.userData.vel, dt);
+        m.scale.setScalar(1 + m.userData.life * 1.6);
+        m.material.opacity = Math.max(0, 0.75 - m.userData.life * 0.42);
+        if (m.userData.life > 1.9) { scene.remove(m); m.material.dispose(); smokeParticles.splice(i, 1); }
+      }
+    }
+
+    function launchConfetti() {
+      const host = document.getElementById('confetti');
+      host.innerHTML = '';
+      const colors = ['#ffb700', '#00b2a9', '#0f3fd8', '#f0f2f5', '#e50914'];
+      for (let i = 0; i < 90; i++) {
+        const d = document.createElement('i');
+        d.style.left = `${Math.random() * 100}%`;
+        d.style.background = colors[i % colors.length];
+        d.style.animationDelay = `${Math.random() * 0.5}s`;
+        d.style.animationDuration = `${1.8 + Math.random() * 1.4}s`;
+        d.style.transform = `rotate(${Math.random() * 360}deg)`;
+        host.appendChild(d);
+      }
+      host.classList.add('on');
+      setTimeout(() => { host.classList.remove('on'); host.innerHTML = ''; }, 3600);
+    }
+
+    function runFinalTest() {
+      const missing = WIRING_STEPS.filter(s => s.kind !== 'test' && s.kind !== 'choice' && !wiringState.done[s.id]);
+      if (missing.length) {
+        wiringSay(`Il reste ${missing.length} étape(s) : ${missing.map(m => m.title).join(', ')}.`, 'warn');
+        return;
+      }
+      const faults = [...wiringState.faults];
+      if (wiringState.xt30Reversed) faults.push({ step: 'xt30', why: 'XT30 inversé' });
+      if (wiringState.capReversed) faults.push({ step: 'cap', why: 'condensateur à l\'envers' });
+
+      if (faults.length) {
+        const f = faults[0];
+        const anchor = wiringAnchors['esc-batt'] || wiringAnchors['esc-M1'];
+        if (anchor) spawnSmoke(anchor.getWorldPosition(new THREE.Vector3()));
+        wiringSay(`Fumée ! ${f.why}. Reprends l'étape « ${(WIRING_STEPS.find(s => s.id === f.step) || {}).title || f.step} ».`, 'bad');
+        return;
+      }
+
+      const reversed = Object.entries(wiringState.phaseOrder).filter(([, v]) => v === 'reversed');
+      if (reversed.length) {
+        const [pad] = reversed[0];
+        wiringSay(`Le drone bascule au décollage : ${pad} (${MOTOR_CORNER[pad]}) tourne à l'envers. Interverstis deux de ses phases.`, 'bad');
+        return;
+      }
+
+      wiringSay('Tout est bon : armement OK, les quatre moteurs tournent dans le bon sens.', 'good');
+      launchConfetti();
+    }
+
+    /* ---- Entrée / sortie du mode ---- */
+
+    function setWiringMode(on) {
+      wiringPanel.classList.toggle('open', on);
+      document.body.classList.toggle('wiring-on', on);
+      document.getElementById('btn-wiring').classList.toggle('active', on);
+      targetRing.visible = false;
+      if (on) {
+        setMode('assemble');
+        if (!showWiring) {
+          document.getElementById('chk-wiring').checked = true;
+          setWiringVisible(true);
+        }
+        renderWiringStep();
+        flyToFit(droneCentre, droneRadius, 0.75, 0.9);
+      }
+    }
+
+    document.getElementById('btn-wiring').addEventListener('click', () => {
+      setWiringMode(!wiringPanel.classList.contains('open'));
+    });
+    document.getElementById('wiring-close').addEventListener('click', () => setWiringMode(false));
+    document.getElementById('wiring-prev').addEventListener('click', () => gotoWiringStep(wiringStep - 1));
+    document.getElementById('wiring-next').addEventListener('click', () => gotoWiringStep(wiringStep + 1));
+    document.getElementById('wiring-hint-btn').addEventListener('click', () => wiringHint.classList.toggle('shown'));
+
+    wiringAction.addEventListener('pointerdown', () => {
+      const s = WIRING_STEPS[wiringStep];
+      if (s.kind === 'solder') beginSolder();
+    });
+    wiringAction.addEventListener('pointerup', () => { if (solderTimer) endSolder(false); });
+    wiringAction.addEventListener('pointerleave', () => { if (solderTimer) endSolder(false); });
+    wiringAction.addEventListener('click', () => {
+      const s = WIRING_STEPS[wiringStep];
+      if (s.kind === 'plug') doPlug();
+      else if (s.kind === 'test') runFinalTest();
+      else if (s.kind === 'choice') {
+        wiringState.done[s.id] = true;
+        renderWiringStep();
+        wiringSay(`Configuration ${propConfig} retenue : M1 ${SPIN_TABLE[propConfig].M1}, M2 ${SPIN_TABLE[propConfig].M2}, M3 ${SPIN_TABLE[propConfig].M3}, M4 ${SPIN_TABLE[propConfig].M4}.`, 'good');
+      }
+    });
+
+    document.querySelectorAll('[data-propcfg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        propConfig = btn.dataset.propcfg;
+        document.querySelectorAll('[data-propcfg]').forEach(o => o.classList.toggle('active', o === btn));
+        // Le sens d'animation des hélices suit la configuration choisie.
+        propPivots.forEach(p => { p.userData.dir = Math.abs(p.userData.dir) * (propConfig === 'props-out' ? -1 : 1) * Math.sign(p.userData.dir || 1); });
+        wiringSay(`${propConfig} : les quatre sens sont inversés d'un jeu à l'autre.`, '');
+      });
+    });
+
+    // Erreurs volontaires, pour montrer ce que le test détecte.
+    document.querySelectorAll('[data-fault]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const f = btn.dataset.fault;
+        if (f === 'xt30') { wiringState.xt30Reversed = !wiringState.xt30Reversed; btn.classList.toggle('active', wiringState.xt30Reversed); }
+        if (f === 'cap') { wiringState.capReversed = !wiringState.capReversed; btn.classList.toggle('active', wiringState.capReversed); }
+        if (f === 'phase') {
+          const on = wiringState.phaseOrder.M2 !== 'reversed';
+          wiringState.phaseOrder.M2 = on ? 'reversed' : 'ok';
+          btn.classList.toggle('active', on);
+        }
+      });
+    });
+
     function isolateGroup(g) {
       if (!g) return;
       soloGroup = (soloGroup === g) ? null : g;
@@ -3373,6 +3861,8 @@
       }
 
       updateCables();
+      updateTargetRing(dt);
+      updateSmoke(dt);
       updateCameraTween(dt);
 
       vcCube.quaternion.copy(camera.quaternion).invert();
