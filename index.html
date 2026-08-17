@@ -2007,6 +2007,13 @@
       coax: '#3a4048'
     };
 
+    // Un bout de fil dénudé sur 5 mm : cuivre nu tant qu'il n'est pas étamé.
+    const STRIP_LEN = 0.005;
+    const copperMaterial = () => new THREE.MeshStandardMaterial({
+      color: '#b06a3c', roughness: 0.38, metalness: 0.85
+    });
+    const TIN_COLOR = 0xc6ccd4, COPPER_COLOR = 0xb06a3c;
+
     const matCacheWiring = new Map();
     function wireMaterial(hex, opts = {}) {
       const key = hex + JSON.stringify(opts);
@@ -2282,7 +2289,10 @@
         pinnedEnd: opts.pinnedEnd ?? null,
         targetName: opts.targetName || null,   // ancrage visé, pour l'anneau
         solder: [],                       // billes d'étain, montrées une fois raccordé
-        tinned: false,                    // plot et fil étamés avant la soudure
+        pad: null,                        // pastille de cuivre, cible d'étamage
+        padTinned: false,                 // étain déposé sur la pastille
+        wireTinned: false,                // bout dénudé étamé
+        tinned: false,                     // les deux, donc prêt à souder
         soldered: false,                  // soudure validée au maintien
         holding: false,                   // fer posé dessus en ce moment
         clicky: !!opts.plug,              // une fiche fait un clic, un fil non
@@ -2304,17 +2314,20 @@
         c.meshes.push(m);
       }
       // Embouts d'extrémité : la vraie fiche quand le montage en a une (JST-SH,
-      // u.FL), sinon une ferrule étamée là où le fil part directement au fer.
-      // Ils servent aussi de zone de saisie, un tube de 0,45 mm étant une cible
+      // u.FL), sinon le bout dénudé du fil — 5 mm de cuivre nu qu'on étamera.
+      // Il sert aussi de zone de saisie, un tube de 0,45 mm étant une cible
       // trop fine à la souris.
       for (let e = 0; e < 2; e++) {
         let h;
         if (opts.plug === 'ufl') h = buildUfl();
         else if (typeof opts.plug === 'number') h = buildJstHousing(opts.plug, e === 0);
-        else h = new THREE.Mesh(
-          new THREE.SphereGeometry(Math.max(c.radius * 3.0, 0.0016), 10, 8),
-          wireMaterial('#8f979f', { roughness: 0.3, metalness: 0.85 })
-        );
+        else {
+          const rr = Math.max(c.radius * 1.35, 0.0006);
+          const geo = new THREE.CylinderGeometry(rr, rr, STRIP_LEN, 10);
+          geo.rotateZ(Math.PI / 2);   // axe sur X : plus simple à orienter ensuite
+          h = new THREE.Mesh(geo, copperMaterial());
+          h.userData.strip = true;
+        }
         h.traverse((o) => {
           o.frustumCulled = false;
           o.userData.isCable = true;
@@ -2360,6 +2373,16 @@
       _dir.subVectors(_pb, _pa);
       const len = _dir.length();
       if (len < 1e-6) return;
+
+      // Le bout dénudé se couche dans l'axe du fil, juste en retrait de la pointe.
+      _side.copy(_dir).normalize();
+      c.handles.forEach((h, e) => {
+        if (!h.userData.strip) return;
+        const tip = e === 0 ? _pa : _pb;
+        const inward = e === 0 ? _side : _side.clone().negate();
+        h.position.copy(tip).addScaledVector(inward, STRIP_LEN / 2);
+        h.quaternion.setFromUnitVectors(_UNIT_X, inward.clone().normalize());
+      });
       // Décalage latéral pour écarter les brins d'un même faisceau.
       _side.set(_dir.z, 0, -_dir.x).normalize();
       if (!isFinite(_side.x)) _side.set(1, 0, 0);
@@ -2394,7 +2417,7 @@
       });
       // L'étain n'apparaît qu'une fois le fil réellement posé sur son plot.
       if (c.solder.length) {
-        const shown = c.state === 'connected' || c.tinned || c.holding;
+        const shown = c.state === 'connected' || c.padTinned || c.holding;
         for (const b of c.solder) b.visible = shown;
       }
 
@@ -2651,7 +2674,27 @@
             }
           });
           if (!c) continue;
-          const blob = buildSolderBlob(blobR);
+
+          // La pastille est une cible à part entière : c'est elle qu'on étame,
+          // sans le fil. Elle vit dans le repère monde pour rester cliquable
+          // (le raycast ne descend que dans wiringRoot).
+          const padR = pads ? Math.max(0.0007, pads[i].w * 0.48) : PAD_R;
+          const disc = new THREE.Mesh(
+            new THREE.CylinderGeometry(padR, padR, 0.00014, 16),
+            new THREE.MeshStandardMaterial({ color: COPPER_COLOR, roughness: 0.34, metalness: 0.9 })
+          );
+          disc.name = `plot-${pad}-${i}`;
+          disc.position.copy(padPos).setY(padPos.y + 0.00008);
+          disc.userData.isCable = true;
+          disc.userData.cable = c;
+          disc.userData.padTarget = true;
+          disc.frustumCulled = false;
+          wiringRoot.add(disc);
+          c.pad = disc;
+
+          // La bille déposée à l'étamage : volontairement plus petite que celle
+          // qui vient du fil.
+          const blob = buildSolderBlob(blobR * 0.72);
           blob.position.copy(b.position);
           addExtra(escNode, blob);
           blob.visible = false;
@@ -3445,10 +3488,16 @@
         hint: "Props-in est le défaut Betaflight. Props-out projette les débris vers l'extérieur et se pilote pareil : c'est surtout une habitude de pilote."
       },
       {
-        id: 'etamage', kind: 'solder', title: 'Étamage des douze plots',
+        id: 'etamage-plots', kind: 'solder', title: 'Étamage des douze plots',
         targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
-        text: "Avant toute soudure : dépose une goutte d'étain sur chacun des douze plots. Maintiens le clic sur un plot jusqu'à ce que l'étain mouille, puis passe au suivant.",
-        hint: "Un plot étamé et un fil étamé se marient d'un coup de fer, sans apport. C'est ce qui évite la soudure froide — et le pont entre deux plots voisins, parce qu'on ne rajoute plus d'étain au moment de l'assemblage."
+        text: "Sans toucher aux fils : maintiens le clic sur le plot que l'anneau désigne. Une petite goutte d'étain s'y dépose, le cuivre passe à l'étain et prend son relief. Puis au suivant, douze fois.",
+        hint: "On étame toujours à vide, plot par plot. C'est le seul moment où l'on apporte de l'étain : au montage, il n'y en aura plus à ajouter, donc plus de risque de pont entre deux plots voisins."
+      },
+      {
+        id: 'etamage-fils', kind: 'solder', title: 'Étamage des douze fils',
+        targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
+        text: "Même geste sur les bouts dénudés : maintiens le clic sur les 5 mm de cuivre nu, ils se couvrent d'étain à leur tour.",
+        hint: "Un fil étamé ne s'effiloche plus et conduit la chaleur d'un bloc. Avec le plot déjà étamé, la soudure se fait ensuite par simple refusion, sans apport."
       },
       {
         id: 'phases', kind: 'solder', title: 'Phases moteur', targets: ['esc-M1', 'esc-M2', 'esc-M3', 'esc-M4'],
@@ -3522,7 +3571,8 @@
 
     // Câbles concernés par chaque étape : ce sont eux qui se clipsent.
     const STEP_CABLES = {
-      etamage: ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
+      'etamage-plots': ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
+      'etamage-fils': ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
       phases: ['M1', 'M2', 'M3', 'M4'].flatMap(p => [0, 1, 2].map(i => `phases-${p}-${i}`)),
       nappe: ['nappe-esc-fc'],
       xt30: ['batt-plus', 'batt-minus'],
@@ -3567,11 +3617,32 @@
       }
     }
 
-    function tinJoint(c) {
-      if (!c || c.tinned) return false;
-      c.tinned = true;
+    // Étamer la pastille : une goutte y est déposée, le cuivre passe à l'étain
+    // et prend un léger relief. Le fil n'a rien à voir là-dedans.
+    function tinPad(c) {
+      if (!c || c.padTinned) return false;
+      c.padTinned = true;
+      c.tinned = c.padTinned && c.wireTinned;
+      if (c.pad) {
+        c.pad.material.color.setHex(TIN_COLOR);
+        c.pad.material.roughness = 0.26;
+        c.pad.scale.set(1, 2.4, 1);
+      }
       c.solder.forEach(b => { b.visible = true; });
       setSolderShape(c, SOLDER_TIN, true);
+      return true;
+    }
+
+    // Étamer le bout dénudé : les 5 mm de cuivre nu passent à l'étain.
+    function tinWire(c) {
+      if (!c || c.wireTinned) return false;
+      c.wireTinned = true;
+      c.tinned = c.padTinned && c.wireTinned;
+      c.handles.forEach(h => {
+        if (!h.userData.strip) return;
+        h.material.color.setHex(TIN_COLOR);
+        h.material.roughness = 0.3;
+      });
       return true;
     }
 
@@ -3579,8 +3650,10 @@
       if (!c || c.soldered) return false;
       plugCable(c);
       c.soldered = true;
+      c.padTinned = c.wireTinned = c.tinned = true;
       c.solder.forEach(b => { b.visible = true; });
       setSolderShape(c, SOLDER_JOINT, true);
+      if (c.pad) { c.pad.material.color.setHex(TIN_COLOR); c.pad.scale.set(1, 2.4, 1); }
       c.handles.forEach(h => { h.visible = false; });
       return true;
     }
@@ -3625,22 +3698,27 @@
     }
 
     // Le bouton fait d'un coup ce que le maintien fait point par point.
+    // Le geste que réclame une étape : étamer la pastille, étamer le fil, souder.
+    const JOINT_GESTURE = {
+      'etamage-plots': { kind: 'tin-pad', apply: tinPad, pending: (c) => !c.padTinned },
+      'etamage-fils': { kind: 'tin-wire', apply: tinWire, pending: (c) => !c.wireTinned },
+      phases: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered }
+    };
+
+    // Le bouton fait d'un coup ce que le maintien fait point par point.
     function applyStepJoints(stepId) {
       const ids = STEP_CABLES[stepId];
-      if (!ids) return 0;
-      const tin = stepId === 'etamage';
-      return ids.reduce((n, id) => {
-        const c = cableById(id);
-        return n + ((tin ? tinJoint(c) : solderJoint(c)) ? 1 : 0);
-      }, 0);
+      const g = JOINT_GESTURE[stepId];
+      if (!ids || !g) return 0;
+      return ids.reduce((n, id) => n + (g.apply(cableById(id)) ? 1 : 0), 0);
     }
 
     // Une étape de points est finie quand ses douze points le sont.
     function stepJointsLeft(stepId) {
       const ids = STEP_CABLES[stepId];
-      if (!ids) return 0;
-      const tin = stepId === 'etamage';
-      return ids.map(cableById).filter(c => c && (tin ? !c.tinned : !c.soldered)).length;
+      const g = JOINT_GESTURE[stepId];
+      if (!ids || !g) return 0;
+      return ids.map(cableById).filter(c => c && g.pending(c)).length;
     }
 
     // Un fil posé à la main peut suffire à terminer son étape : on la valide
@@ -3712,12 +3790,11 @@
     function stepTargetAnchor(s) {
       const ids = STEP_CABLES[s.id];
       if (ids) {
-        const tin = s.id === 'etamage';
+        const g = JOINT_GESTURE[s.id];
         for (const id of ids) {
           const c = cableById(id);
           if (!c || !c.targetName) continue;
-          const pending = tin ? !c.tinned
-            : (s.kind === 'solder' ? !c.soldered : c.state !== 'connected' && !c.plug);
+          const pending = g ? g.pending(c) : (c.state !== 'connected' && !c.plug);
           if (pending) return c.targetName;
         }
       }
@@ -3750,10 +3827,11 @@
       if (s.kind === 'choice') {
         wiringAction.textContent = 'Valider le sens';
       } else if (s.kind === 'solder') {
-        const all = STEP_CABLES[s.id] ? ' les douze' : '';
-        wiringAction.textContent = done
-          ? (s.id === 'etamage' ? 'Étamé ✓' : 'Soudé ✓')
-          : (s.id === 'etamage' ? `Étamer${all} d'un coup` : `Souder${all} d'un coup`);
+        const g = JOINT_GESTURE[s.id];
+        const verbe = g && g.kind !== 'solder' ? 'Étamer' : 'Souder';
+        const fait = g && g.kind !== 'solder' ? 'Étamé ✓' : 'Soudé ✓';
+        wiringAction.textContent = done ? fait
+          : (STEP_CABLES[s.id] ? `${verbe} les douze d'un coup` : 'Maintenir pour souder');
       } else if (s.kind === 'test') {
         wiringAction.textContent = 'Brancher et tester';
       } else {
@@ -4622,6 +4700,16 @@
       const hit = pickCable(e);
       if (!hit) return false;
       const c = hit.object.userData.cable;
+
+      // Une pastille est soudée à la carte : on ne peut qu'y poser le fer.
+      if (hit.object.userData.padTarget) {
+        beginJointHold(c, hit, e);
+        dragging = { cable: c, mode: 'pad', end: -1, startA: null, startB: null,
+                     startMid: c.midOffset.clone() };
+        controls.enabled = false;
+        return true;
+      }
+
       endpointsOf(c, _pa, _pb);
 
       // Une ferrule saisit son extrémité ; sinon on regarde où le tube a été touché.
@@ -4644,7 +4732,7 @@
       raycaster.ray.intersectPlane(dragPlane, dragStart);
 
       // Sur une étape de soudure, appuyer sur le point c'est poser le fer.
-      beginJointHold(c, e);
+      beginJointHold(c, hit, e);
 
       dragging = {
         cable: c, mode, end,
@@ -4676,6 +4764,7 @@
       const d = dragPoint.clone().sub(dragStart);
       const c = dragging.cable;
 
+      if (dragging.mode === 'pad') return;
       if (dragging.mode === 'end' && dragging.end === c.pinnedEnd) return;
 
       if (dragging.mode === 'slack') {
@@ -4703,21 +4792,35 @@
     const JOINT_MS = 850;
     let jointHold = null;   // { cable, kind, t0, x, y }
 
-    function stepJointKind() {
+    function stepGesture() {
       const s = WIRING_STEPS[wiringStep];
-      if (!wiringActive || !s || s.kind !== 'solder' || !STEP_CABLES[s.id]) return null;
-      return s.id === 'etamage' ? 'tin' : 'solder';
+      if (!wiringActive || !s || s.kind !== 'solder') return null;
+      return JOINT_GESTURE[s.id] || null;
     }
+    const stepJointKind = () => (stepGesture() || {}).kind || null;
 
-    function beginJointHold(c, e) {
-      const kind = stepJointKind();
-      if (!kind) return false;
+    // Chaque étape a sa cible : la pastille pour l'étamage des plots, le bout
+    // dénudé pour celui des fils. Poser le fer ailleurs ne fait rien.
+    function beginJointHold(c, hit, e) {
+      const g = stepGesture();
+      if (!g) return false;
       const s = WIRING_STEPS[wiringStep];
-      if (!STEP_CABLES[s.id].includes(c.id)) return false;
-      if (kind === 'tin' ? c.tinned : c.soldered) return false;
-      jointHold = { cable: c, kind, t0: performance.now(), x: e.clientX, y: e.clientY };
+      if (!STEP_CABLES[s.id].includes(c.id) || !g.pending(c)) return false;
+      const onPad = !!hit.object.userData.padTarget;
+      const onStrip = !!hit.object.userData.strip;
+      if (g.kind === 'tin-pad' && !onPad) {
+        wiringSay("C'est le plot qu'on étame, pas le fil : vise la pastille.", 'warn');
+        return false;
+      }
+      if (g.kind === 'tin-wire' && !onStrip) {
+        wiringSay("C'est le bout dénudé du fil qu'on étame, pas la pastille.", 'warn');
+        return false;
+      }
+      jointHold = { cable: c, kind: g.kind, t0: performance.now(), x: e.clientX, y: e.clientY };
       c.holding = true;
-      c.solder.forEach(b => { b.visible = true; b.userData.melt = null; });
+      if (g.kind !== 'tin-wire') {
+        c.solder.forEach(b => { b.visible = true; b.userData.melt = null; });
+      }
       return true;
     }
 
@@ -4725,8 +4828,14 @@
     function updateJointHold() {
       if (!jointHold) return;
       const u = Math.min(1, (performance.now() - jointHold.t0) / JOINT_MS);
-      const k = 0.35 + u * 0.65;
-      jointHold.cable.solder.forEach(b => b.scale.set(k, SOLDER_BEAD.y * k, k));
+      const c = jointHold.cable;
+      if (jointHold.kind === 'tin-wire') {
+        const k = 1 + u * 0.35;
+        c.handles.forEach(h => { if (h.userData.strip) h.scale.set(1, k, k); });
+      } else {
+        const k = 0.35 + u * 0.65;
+        c.solder.forEach(b => b.scale.set(k, SOLDER_BEAD.y * k, k));
+      }
       targetRing.material.color.setHex(u >= 1 ? 0x8fe3a0 : 0xffb700);
     }
 
@@ -4739,26 +4848,39 @@
       targetRing.material.color.setHex(0xffb700);
       const held = performance.now() - h.t0;
       const s = WIRING_STEPS[wiringStep];
+      const g = JOINT_GESTURE[s.id];
       if (held < JOINT_MS) {
-        c.solder.forEach(b => { b.visible = c.state === 'connected' || c.tinned; });
-        wiringSay("Soudure froide : l'étain n'a pas mouillé le plot. Maintiens jusqu'au bout.", 'bad');
+        c.solder.forEach(b => { b.visible = c.state === 'connected' || c.padTinned; });
+        c.handles.forEach(x => { if (x.userData.strip) x.scale.set(1, 1, 1); });
+        wiringSay(h.kind === 'solder'
+          ? "Soudure froide : l'étain n'a pas refondu. Maintiens jusqu'au bout."
+          : "Trop bref : l'étain n'a pas mouillé. Maintiens jusqu'au bout.", 'bad');
         if (!wiringState.faults.some(f => f.step === s.id && f.why === 'soudure froide')) {
           wiringState.faults.push({ step: s.id, why: 'soudure froide' });
         }
         return true;
       }
-      if (h.kind === 'tin') tinJoint(c); else solderJoint(c);
+      // Procédure simple : on ne soude que du cuivre déjà étamé des deux côtés.
+      if (h.kind === 'solder' && !(c.padTinned && c.wireTinned)) {
+        wiringSay('Plot ou fil pas encore étamé : reprends les deux étapes précédentes.', 'warn');
+        return true;
+      }
+      c.handles.forEach(x => { if (x.userData.strip) x.scale.set(1, 1, 1); });
+      if (g) g.apply(c);
       wiringState.faults = wiringState.faults.filter(f => f.step !== s.id);
       const left = stepJointsLeft(s.id);
+      const mot = { 'tin-pad': 'Plot étamé', 'tin-wire': 'Fil étamé', solder: 'Soudé' }[h.kind];
       if (left === 0) {
         wiringState.done[s.id] = true;
         renderWiringStep();
-        wiringSay(h.kind === 'tin'
-          ? 'Les douze plots sont étamés, tu peux souder.'
-          : 'Soudure propre, brillante et bien formée.', 'good');
+        wiringSay({
+          'tin-pad': 'Les douze plots sont étamés. Au tour des fils.',
+          'tin-wire': 'Les douze fils sont étamés, tu peux souder.',
+          solder: 'Soudure propre, brillante et bien formée.'
+        }[h.kind], 'good');
       } else {
         pointTargetRing(stepTargetAnchor(s));
-        wiringSay(`${h.kind === 'tin' ? 'Étamé' : 'Soudé'}. Encore ${left} point(s).`, '');
+        wiringSay(`${mot}. Encore ${left} point(s).`, '');
         updateWiringProgress();
       }
       return true;
