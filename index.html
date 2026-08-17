@@ -3532,11 +3532,17 @@
         return { c: bb.getCenter(new THREE.Vector3()), r: Math.max(s.x, s.y, s.z) / 2, n: a.pts.length };
       }).filter(t => t.n > 12 && t.r > 0.002 && t.r < 0.007);
       if (!trous.length) return null;
-      // Celui du côté du récepteur : la queue y arrive le plus droit.
-      const rx = groupById('rx');
-      const cible = rx ? groupBox3(rx).getCenter(new THREE.Vector3()) : b.getCenter(new THREE.Vector3());
-      trous.sort((x, y) => Math.abs(x.c.dot(lat) - cible.dot(lat)) - Math.abs(y.c.dot(lat) - cible.dot(lat)));
-      const t = trous[0];
+      // Le support porte deux fourreaux qui encadrent l'axe du drone. Engager le
+      // brin dans l'un des deux le décale de 8,6 mm sur le côté, et vu de
+      // l'arrière il penche visiblement. On le pose donc sur l'AXE, entre les
+      // deux : c'est le canal central du support, et l'antenne retombe dans le
+      // plan du drone.
+      trous.sort((x, y) => y.n - x.n);
+      const paire = trous.slice(0, 2);
+      const t = paire.length === 2
+        ? { c: paire[0].c.clone().lerp(paire[1].c, 0.5),
+            r: Math.max(paire[0].r, paire[1].r) }
+        : trous[0];
       return { centre: t.c.clone(), rayon: t.r, dir, avant: b.max.clone(), boite: b };
     }
 
@@ -3672,15 +3678,14 @@
       // Repère local : X = droite du drone, Z = avant du drone.
       benchGroup.position.copy(centre)
         .addScaledVector(droneRight, size.x / 2 + width / 2 + 0.009);
-      // Le tapis se pose au-dessus des fils moteur : à la hauteur du stack il
-      // les coupait, les bras s'étendant justement sous son emprise. On relève
-      // le plateau plutôt que de déplacer quoi que ce soit du drone.
-      let hautFils = stack.min.y;
-      cables.forEach(c => {
-        if (!/^phases-/.test(c.id) || !c._curve) return;
-        for (let i = 0; i <= 12; i++) hautFils = Math.max(hautFils, c._curve.getPoint(i / 12).y);
-      });
-      benchGroup.position.y = hautFils + 0.004;
+      // Le tapis se pose SOUS le drone entier. À hauteur du stack il coupait les
+      // fils moteur ; relevé au-dessus d'eux il coupait les moteurs (10,9 à
+      // 27,4 mm) et les hélices. Il n'y a pas de tranche libre entre les deux :
+      // le plateau descend donc sous le point le plus bas de l'assemblage, et
+      // plus rien ne peut le traverser. Rien du drone ne bouge.
+      const tout = new THREE.Box3();
+      assemblyGroups.forEach(g => g.nodes.forEach(n => tout.expandByObject(n)));
+      benchGroup.position.y = (tout.isEmpty() ? stack.min.y : tout.min.y) - 0.004;
       benchGroup.rotateY(Math.atan2(droneFront.x, droneFront.z));
 
       const mat = new THREE.Mesh(
@@ -4590,16 +4595,34 @@
       targetRing.material.opacity = 0.55 + Math.sin(ringPulse) * 0.3;
     }
 
-    function pointTargetRing(anchorName) {
-      const a = anchorName ? wiringAnchors[anchorName] : null;
-      if (!a) { targetRing.visible = false; return; }
-      targetRing.position.copy(a.getWorldPosition(new THREE.Vector3()));
+    // L'anneau accepte un nom d'ancrage ou un point du monde : à l'étamage des
+    // fils, la cible n'est pas une pastille mais le bout dénudé, qui n'a pas
+    // d'ancrage à lui — c'est un embout porté par le câble.
+    function pointTargetRing(cible) {
+      let p = null;
+      if (cible && cible.isVector3) p = cible;
+      else if (cible && wiringAnchors[cible]) p = wiringAnchors[cible].getWorldPosition(new THREE.Vector3());
+      if (!p) { targetRing.visible = false; return; }
+      targetRing.position.copy(p);
       targetRing.position.y += 0.0006;
       targetRing.visible = true;
     }
 
-    // L'anneau doit désigner le prochain fil à poser, pas éternellement le
-    // premier plot de l'étape : sur les douze phases c'est ce qui guide.
+    // Le bout dénudé encore libre d'un câble : c'est là qu'on pose le fer à
+    // l'étamage des fils.
+    function stripPoint(c) {
+      if (!c) return null;
+      for (let e = 0; e < 2; e++) {
+        const h = c.handles[e];
+        if (!h || !h.userData.strip || e === c.pinnedEnd) continue;
+        return h.getWorldPosition(new THREE.Vector3());
+      }
+      return null;
+    }
+
+    // L'anneau doit désigner le prochain point à traiter, pas éternellement le
+    // premier de l'étape : sur les douze phases c'est ce qui guide. Selon le
+    // geste, ce point est la pastille ou le bout du fil.
     function stepTargetAnchor(s) {
       const ids = STEP_CABLES[s.id];
       if (ids) {
@@ -4608,7 +4631,9 @@
           const c = cableById(id);
           if (!c || !c.targetName) continue;
           const pending = g ? g.pending(c) : (c.state !== 'connected' && !c.plug);
-          if (pending) return c.targetName;
+          if (!pending) continue;
+          if (g && g.kind === 'tin-wire') return stripPoint(c) || c.targetName;
+          return c.targetName;
         }
       }
       return s.targets && s.targets.length ? s.targets[0] : null;
