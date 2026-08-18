@@ -2611,28 +2611,6 @@
       return g;
     }
 
-    function buildXT30(male) {
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.0105, 0.007, 0.0078),
-        wireMaterial('#e8c000', { roughness: 0.55, metalness: 0.05 })
-      );
-      g.add(body);
-      [-0.0026, 0.0026].forEach((x) => {
-        const blade = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.0009, 0.0009, male ? 0.006 : 0.004, 8),
-          wireMaterial('#b8860b', { roughness: 0.25, metalness: 0.95 })
-        );
-        blade.rotation.z = Math.PI / 2;
-        blade.position.set(x > 0 ? 0.0075 : 0.0075, 0, x);
-        blade.rotation.y = Math.PI / 2;
-        blade.position.set(0.0072, 0, x);
-        g.add(blade);
-      });
-      g.name = male ? 'XT30-male' : 'XT30-femelle';
-      return g;
-    }
-
     function buildCapacitor() {
       const g = new THREE.Group();
       const body = new THREE.Mesh(
@@ -2718,9 +2696,9 @@
         clicky: !!opts.plug,              // une fiche fait un clic, un fil non
         via: opts.via || null,            // point de passage imposé (bras, entre-cartes)
         lane: opts.lane || null,          // largeur de voie imposée sur l'établi
-        // 'centripetal' : ne dépasse pas entre des points de passage
-        // d'espacements très différents, là où l'uniforme part en cloche.
-        curveType: opts.curveType || null,
+        // Rayon de cintrage : un fil silicone épais se plie moins court qu'un
+        // brin fin. Par défaut 5 mm, la valeur d'un 26 AWG gainé.
+        bendR: opts.bendR,
         inline: null,                     // connecteur porté par le câble (XT30)
         _curve: null,
         plug: null,                       // animation de clipsage en cours
@@ -2773,6 +2751,7 @@
     const _qT = new THREE.Quaternion(), _qS = new THREE.Quaternion();
     const _basis = new THREE.Matrix4(), _bx = new THREE.Vector3(), _bz = new THREE.Vector3();
     const PLUG_DEPTH = 0.0022;   // hauteur d'un boîtier JST-SH
+    const BEND_R = 0.005;        // rayon de cintrage par défaut d'un fil gainé
     const UFL_DEPTH = 0.0013;    // hauteur d'une fiche u.FL sertie
     function endpointsOf(c, outA, outB) {
       const park = c.park;
@@ -2799,6 +2778,46 @@
       }
     }
 
+    // Un fil ne casse pas net : il se cintre sur un rayon. La polyligne des
+    // points de passage, elle, fait des coudes vifs, et la Catmull-Rom les
+    // reproduit en pointe. On remplace donc chaque sommet intérieur par deux
+    // points pris de part et d'autre, à une distance qui joue le rayon de
+    // cintrage — la courbe les relie par un arc au lieu d'un angle. Le rayon
+    // est ramené au tiers du plus court des deux segments quand ceux-ci sont
+    // trop courts, sinon le congé mangerait le segment voisin.
+    const _u = new THREE.Vector3(), _v = new THREE.Vector3();
+    function arrondiPoly(pts, rayon) {
+      if (pts.length < 3 || rayon <= 0) return pts;
+      const out = [pts[0]];
+      for (let i = 1; i < pts.length - 1; i++) {
+        const p = pts[i];
+        _u.subVectors(p, pts[i - 1]);
+        _v.subVectors(pts[i + 1], p);
+        const lu = _u.length(), lv = _v.length();
+        if (lu < 1e-6 || lv < 1e-6) { out.push(p); continue; }
+        _u.divideScalar(lu); _v.divideScalar(lv);
+        // Coude franc ou virage doux : sous 12° le congé ne se verrait pas.
+        if (_u.dot(_v) > 0.978) { out.push(p); continue; }
+        const r = Math.min(rayon, lu / 3, lv / 3);
+        out.push(p.clone().addScaledVector(_u, -r));
+        out.push(p.clone().addScaledVector(_v, r));
+      }
+      out.push(pts[pts.length - 1]);
+      return out;
+    }
+
+    // Un segment de tube tous les 1,2 mm, et huit facettes autour — douze pour
+    // les gros fils, où huit se verraient encore. À dix segments pour tout le
+    // câble et cinq facettes — un tube pentagonal —, les fils avaient l'air
+    // taillés à la serpe.
+    const PAS_TUBE = 0.0012;
+    const facettesTube = (r) => (r > 0.0008 ? 12 : 8);
+    function segmentsTube(pts) {
+      let L = 0;
+      for (let i = 1; i < pts.length; i++) L += pts[i].distanceTo(pts[i - 1]);
+      return Math.max(24, Math.min(150, Math.round(L / PAS_TUBE)));
+    }
+
     function rebuildCable(c) {
       endpointsOf(c, _pa, _pb);
       c.handles[0].position.copy(_pa);
@@ -2822,10 +2841,14 @@
         // à contourner des pièces dont le câble est justement éloigné. Gardés,
         // ils le tordaient — la nappe FC arrivait vrillée au lieu d'être à plat.
         const range = c.state === 'parked' && !c.plug;
-        const pts = (c.via && !range) ? [a, ...c.via(a, b, i), b] : [a, _mid.clone(), b];
-        const curve = new THREE.CatmullRomCurve3(pts, false, c.curveType || 'catmullrom');
+        const brut = (c.via && !range) ? [a, ...c.via(a, b, i), b] : [a, _mid.clone(), b];
+        const pts = arrondiPoly(brut, c.bendR ?? BEND_R);
+        // Centripète partout : avec des points de passage inégalement espacés,
+        // l'uniforme part en cloche entre deux d'entre eux.
+        const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
         if (i === 0) c._curve = curve;
-        const geo = new THREE.TubeGeometry(curve, 10, c.radius, 5, false);
+        const geo = new THREE.TubeGeometry(curve, segmentsTube(pts), c.radius,
+                                           facettesTube(c.radius), false);
         m.geometry.dispose();
         m.geometry = geo;
       });
@@ -3371,7 +3394,6 @@
               // s'étalaient sur 4 cm de tapis. Au pas de 3,5 ils se lisent comme
               // le faisceau qu'ils forment.
               lane: 0.0035,
-              curveType: 'centripetal',
               // Le récepteur est derrière et au-dessus, ses plats d'arrivée sur
               // le flanc gauche du contrôleur : en ligne droite avec de la mou,
               // le faisceau plongeait au travers de l'Air Unit puis remontait
@@ -3542,7 +3564,6 @@
         addCable(a, b, {
           id: 'nappe-camera', color: WIRE_COLORS.signal, wires: 4,
           radius: 0.0003, sag: 0.12, spread: 0.0011, plug: 4,
-          curveType: 'centripetal',
           // Elle monte franchement dès la sortie de la caméra : c'est là que
           // la nappe ESC->FC bombe vers l'avant, et une montée molle les
           // laissait à 2,4 mm l'une de l'autre.
@@ -3650,19 +3671,10 @@
         bindJoint(plus, jBatPlus);
         bindJoint(minus, jBatGnd);
 
-        // Paire XT30 mâle/femelle accouplée, portée par le fil rouge.
-        const pair = new THREE.Group();
-        pair.name = 'XT30';
-        const male = buildXT30(true);
-        male.position.x = -0.004;
-        pair.add(male);
-        const female = buildXT30(false);
-        female.position.x = 0.004;
-        female.rotation.y = Math.PI;
-        pair.add(female);
-        pair.traverse((o) => { o.userData.isCable = true; o.userData.cable = plus; });
-        wiringRoot.add(pair);
-        if (plus) plus.inline = { mesh: pair, t: 0.45 };
+        // Le XT30 lui-même n'est plus modélisé : la paire boîte-et-lames posée
+        // là ne valait pas le vrai connecteur. Le porteur reste — `inline`
+        // enfile un objet sur le câble et le fait glisser avec lui, quel que
+        // soit son état —, il n'attend qu'un modèle.
 
         // Prise d'équilibrage JST-XH et ses fils fins : un 4S en a cinq broches.
         batt.updateMatrixWorld(true);
@@ -4657,9 +4669,15 @@
 
     const cableById = (id) => cables.find(c => c.id === id) || null;
     const jointAt = (c, end) => (c ? c.joints.find(j => j.end === (end || 0)) : null) || null;
-    // Le point que traite une étape : par défaut celui du bout 0, mais les
-    // étapes du contrôleur visent l'autre bout du même fil.
-    const jointOfStep = (c, g) => jointAt(c, (g && g.end) || 0);
+    // Le point que traite une étape. Un geste qui nomme son bout le prend là ;
+    // les autres prennent le PREMIER point du câble et non celui du bout 0 —
+    // sur les douze phases, la queue de batterie et les pattes du condensateur,
+    // le seul point est au bout 1, et les chercher au bout 0 ne rendait rien :
+    // l'étape se déclarait faite sans avoir rien étamé ni soudé.
+    const jointOfStep = (c, g) => {
+      if (!c || !c.joints.length) return null;
+      return (g && g.end !== undefined) ? jointAt(c, g.end) : c.joints[0];
+    };
 
     /* ---- Étain : goutte posée, film d'étamage, soudure faite ---- */
 
