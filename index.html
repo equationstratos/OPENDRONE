@@ -2272,6 +2272,41 @@
       return best;
     }
 
+    // Les six plats à souder du bord gauche du contrôleur. Ils se distinguent
+    // du reste du cuivre par leur taille — 2,3 × 1,4 mm, contre moins d'un
+    // millimètre pour une empreinte de composant — et par leur alignement en
+    // colonne au pas de 2,25 mm. On prend celle qui longe le bord gauche.
+    function fcUartPads(g) {
+      if (!g) return null;
+      const isl = [];
+      g.nodes.forEach(n => n.traverse(o => {
+        if (!o.isMesh || !/_pad/i.test(o.name || '')) return;
+        padIslands(o).forEach(i => isl.push(i));
+      }));
+      if (!isl.length) return null;
+      const haut = Math.max(...isl.map(i => i.top));
+      const gros = isl.filter(i => Math.abs(i.top - haut) < 0.0002
+                                && i.size.x > 0.0012 && i.size.z > 0.0012);
+      // Colonnes : même abscisse à un demi-millimètre près.
+      const cols = new Map();
+      gros.forEach(i => {
+        const k = Math.round(i.c.dot(droneRight) * 2000);
+        if (!cols.has(k)) cols.set(k, []);
+        cols.get(k).push(i);
+      });
+      let best = null;
+      cols.forEach(list => {
+        if (list.length < 6) return;
+        const u = list[0].c.dot(droneRight);
+        if (!best || u < best.u) best = { u, list };   // le bord gauche du drone
+      });
+      if (!best) return null;
+      const rang = best.list.slice().sort((a, b) => a.c.dot(droneFront) - b.c.dot(droneFront));
+      const par = {};
+      FC_UART.forEach((nom, i) => { par[nom] = rang[i]; });
+      return par;
+    }
+
     // Les quatre plots CRSF du récepteur : traversants — ils prennent toute
     // l'épaisseur du stratifié —, alignés sur un seul bord, au pas de 2,54 mm.
     // On les relève dans le GLB au lieu de les placer à vue.
@@ -2303,6 +2338,18 @@
     }
 
     // Brochage du bord soudable du récepteur, dans l'ordre de la rangée.
+    // Le bord gauche du contrôleur porte six plats à souder, nommés par sa
+    // propre sérigraphie — relevés sur le modèle, du bord arrière vers l'avant :
+    // 3V3 · TX1 · RX1 · GND · 5V · LED. C'est l'UART du récepteur, et c'est là
+    // que les quatre fils CRSF se soudent. Le port CN1 du guide n'existe pas sur
+    // cet export : la carte n'y porte que deux embases, P1 (8P, vers l'ESC) et
+    // U14 (6P, vers la vidéo).
+    const FC_UART = ['3V3', 'TX1', 'RX1', 'GND', '5V', 'LED'];
+    // Sur une liaison CRSF, TX et RX se croisent — le TX du récepteur va sur le
+    // RX du contrôleur, et inversement. D'où cette table : pour chaque fil parti
+    // du récepteur, le nom du plat qui l'attend sur le contrôleur.
+    const CRSF_VERS_FC = ['5V', 'GND', 'RX1', 'TX1'];
+
     const RX_CRSF = [
       { nom: '5V', couleur: '#d0402e' },
       { nom: 'GND', couleur: '#141414' },
@@ -2323,6 +2370,16 @@
         if (!pcb || s.x * s.z > pcb.a) pcb = { a: s.x * s.z, box: b };
       }));
       if (!pcb) return null;
+      return buildPadSilkscreen(g.nodes[0], pcb.box, pads,
+                                RX_CRSF.map(r => r.nom), 'OpenRX-serigraphie-plots');
+    }
+
+    // Une rangée de plots nommés, dessinée au canevas et posée à plat sur le
+    // stratifié : un cadre par plot, son nom dessous. Le GLB ne nomme pas les
+    // plots — ni sur le récepteur, ni sur le contrôleur.
+    function buildPadSilkscreen(hote, pcbBox, pads, noms, nom) {
+      if (!hote || !pads || pads.length !== 4) return null;
+      const pcb = { box: pcbBox };
       const centre = pcb.box.getCenter(new THREE.Vector3());
       const rang = new THREE.Vector3();
       pads.forEach(p => rang.add(p.c));
@@ -2356,7 +2413,7 @@
         const w = Math.max(p.size.x, p.size.z) * px * 1.15;
         // Le cadre du plot, ouvert du côté du bord.
         x.strokeRect(cx - w / 2, cv.height * 0.06, w, cv.height * 0.42);
-        x.fillText(RX_CRSF[i].nom, cx, cv.height * 0.92);
+        x.fillText(noms[i], cx, cv.height * 0.92);
       });
       const tex = new THREE.CanvasTexture(cv);
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -2367,7 +2424,7 @@
       const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
         map: tex, transparent: true, depthWrite: false, toneMapped: false
       }));
-      m.name = 'OpenRX-serigraphie-plots';
+      m.name = nom;
       m.renderOrder = 2;
       // Au-dessus de la sérigraphie du GLB, sinon elle passerait dessous là où
       // les deux se recouvrent.
@@ -2375,7 +2432,6 @@
         .addScaledVector(outward, -PROF * 0.5 - pas * 0.08)
         .setY(pcb.box.max.y + 0.00014);
       m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(ex, up, outward));
-      const hote = g.nodes[0];
       hote.updateMatrixWorld(true);
       m.position.copy(hote.worldToLocal(pos.clone()));
       m.quaternion.premultiply(hote.getWorldQuaternion(new THREE.Quaternion()).invert());
@@ -2632,15 +2688,17 @@
         pinnedEnd: opts.pinnedEnd ?? null,
         targetName: opts.targetName || null,   // ancrage visé, pour l'anneau
         solder: [],                       // billes d'étain, montrées une fois raccordé
-        pad: null,                        // pastille de cuivre, cible d'étamage
-        padTinned: false,                 // étain déposé sur la pastille
-        wireTinned: false,                // bout dénudé étamé
-        tinned: false,                     // les deux, donc prêt à souder
-        soldered: false,                  // soudure validée au maintien
-        holding: false,                   // fer posé dessus en ce moment
+        // Un fil peut être soudé aux DEUX bouts — les quatre fils CRSF le sont,
+        // sur le récepteur d'un côté et sur le contrôleur de l'autre. L'état
+        // d'un point de soudure vit donc sur le point, pas sur le fil :
+        // { disc, blob, end, padTinned, wireTinned, soldered, holding }.
+        joints: [],
         clicky: !!opts.plug,              // une fiche fait un clic, un fil non
         via: opts.via || null,            // point de passage imposé (bras, entre-cartes)
         lane: opts.lane || null,          // largeur de voie imposée sur l'établi
+        // 'centripetal' : ne dépasse pas entre des points de passage
+        // d'espacements très différents, là où l'uniforme part en cloche.
+        curveType: opts.curveType || null,
         inline: null,                     // connecteur porté par le câble (XT30)
         _curve: null,
         plug: null,                       // animation de clipsage en cours
@@ -2743,7 +2801,7 @@
         // ils le tordaient — la nappe FC arrivait vrillée au lieu d'être à plat.
         const range = c.state === 'parked' && !c.plug;
         const pts = (c.via && !range) ? [a, ...c.via(a, b, i), b] : [a, _mid.clone(), b];
-        const curve = new THREE.CatmullRomCurve3(pts);
+        const curve = new THREE.CatmullRomCurve3(pts, false, c.curveType || 'catmullrom');
         if (i === 0) c._curve = curve;
         const geo = new THREE.TubeGeometry(curve, 10, c.radius, 5, false);
         m.geometry.dispose();
@@ -2812,12 +2870,12 @@
       // joint. Tant qu'il reste à souder, l'embout demeure — c'est la poignée,
       // et c'est aussi là qu'on pose le fer.
       c.handles.forEach((h, e) => {
-        h.visible = e !== c.pinnedEnd && (c.clicky || !c.soldered);
+        const p = jointAt(c, e);
+        h.visible = e !== c.pinnedEnd && (c.clicky || !(p && p.soldered));
       });
       // L'étain n'apparaît qu'une fois le fil réellement posé sur son plot.
-      if (c.solder.length) {
-        const shown = c.state === 'connected' || c.padTinned || c.holding;
-        for (const b of c.solder) b.visible = shown;
+      for (const p of c.joints) {
+        p.blob.visible = c.state === 'connected' || p.padTinned || p.holding;
       }
 
       c._lastA.copy(_pa);
@@ -3049,13 +3107,21 @@
         return { anchor, disc, blob };
       }
 
-      function bindJoint(c, j) {
-        if (!c) return;
-        c.pad = j.disc;
+      function bindJoint(c, j, end) {
+        if (!c) return null;
+        // L'extrémité se déduit de l'ancrage : inutile de la répéter à chaque
+        // appel, et impossible de se tromper.
+        if (end === undefined) end = (c.to === j.anchor) ? 1 : 0;
+        const point = { cable: c, disc: j.disc, blob: j.blob, end,
+                        padTinned: false, wireTinned: false, soldered: false, holding: false };
+        c.joints.push(point);
         j.disc.userData.isCable = true;
         j.disc.userData.cable = c;
         j.disc.userData.padTarget = true;
+        j.disc.userData.joint = point;
+        j.blob.userData.joint = point;
         c.solder.push(j.blob);
+        return point;
       }
 
       // Moteurs : sortie des fils sous la cloche, vers le bras. Chaque phase est
@@ -3235,7 +3301,7 @@
         const fp = fcPcb.getCenter(new THREE.Vector3());
         fp.y = fcTop;
         fp.addScaledVector(droneRight, (Math.abs(fcSz.x * droneRight.x)
-                                      + Math.abs(fcSz.z * droneRight.z)) / 2 - 0.0032);
+                                      + Math.abs(fcSz.z * droneRight.z)) / 2 - 0.0048);
 
         if (rxPads) {
           // Les plots du récepteur sont petits : 1,9 mm de large. La bille reste
@@ -3243,43 +3309,68 @@
           const pasRx = rxPads[0].c.distanceTo(rxPads[1].c);
           const blobR = Math.min(0.0005, pasRx * 0.19);
           const padR = Math.max(0.0006, Math.min(rxPads[0].size.x, rxPads[0].size.z) * 0.46);
-          // La fiche est couchée le long du bord, rangée de contacts dans
-          // l'axe avant-arrière et face d'accouplement vers le bas.
-          const fiche = buildJstHousing(4, false);
-          fiche.name = 'PORT-CRSF-4P';
-          // Posée en repère monde puis ramenée dans celui de la carte : le nœud
-          // du FC porte la transformation d'occRoot, un placement direct en
-          // coordonnées monde expédiait la fiche à 17 cm de là.
+
+          // Côté contrôleur, les fils se SOUDENT, sur les plats que la carte
+          // nomme elle-même. La fiche JST qu'on posait là était une invention :
+          // le port 4 broches du guide n'est pas dans cet export.
           const hote = fc.nodes[0];
-          hote.updateMatrixWorld(true);
-          const qMonde = new THREE.Quaternion().setFromRotationMatrix(
-            new THREE.Matrix4().makeBasis(
-              droneFront.clone().normalize(),
-              new THREE.Vector3(0, 1, 0),
-              new THREE.Vector3().crossVectors(droneFront, new THREE.Vector3(0, 1, 0)).normalize()));
-          fiche.position.copy(hote.worldToLocal(fp.clone().setY(fcTop + 0.0013)));
-          fiche.quaternion.copy(hote.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(qMonde));
-          addExtra(hote, fiche);
+          const platsFc = fcUartPads(fc);
+          const jointsFc = {};
+          if (platsFc) {
+            // Un plat de 2,3 × 1,4 mm : la bille reste bien en deçà pour ne pas
+            // toucher le voisin, qui n'est qu'à 2,25 mm.
+            const pasFc = platsFc.TX1.c.distanceTo(platsFc.RX1.c);
+            const blobRFc = Math.min(0.00055, pasFc * 0.22);
+            const padRFc = Math.max(0.0006, Math.min(platsFc.TX1.size.x, platsFc.TX1.size.z) * 0.46);
+            CRSF_VERS_FC.forEach((nom, i) => {
+              const q = platsFc[nom];
+              jointsFc[nom] = makeJoint(q.c.clone().setY(q.top), q.top, padRFc, blobRFc,
+                                        `fc-crsf-${i}`, hote);
+            });
+          }
+
+          // De combien il faut sortir des plats pour longer le bord de la carte :
+          // la distance du plat au bord gauche, plus 3 mm de dégagement.
+          const uPlat = platsFc ? platsFc.TX1.c.dot(droneRight) : fp.dot(droneRight);
+          const uBord = Math.min(fcPcb.min.dot(droneRight), fcPcb.max.dot(droneRight));
+          const ecartFlanc = Math.max(0.003, uPlat - uBord + 0.003);
 
           rxPads.forEach((p, i) => {
             const j = makeJoint(p.c.clone().setY(p.top), p.top, padR, blobR,
                                 `rx-crsf-${i}`, rxNode);
-            const bout = fp.clone()
-              .addScaledVector(droneFront, (i - 1.5) * 0.001)
-              .setY(fcTop + 0.0024);
-            const b = makeAnchor(fc.nodes[0], bout, `fc-crsf-${i}`);
-            const c = addCable(j.anchor, b, {
+            // TX et RX se croisent : le fil ne va pas au plat de même rang.
+            const jf = jointsFc[CRSF_VERS_FC[i]];
+            const c = addCable(j.anchor, jf ? jf.anchor
+                : makeAnchor(hote, fp.clone().addScaledVector(droneFront, (i - 1.5) * 0.002)
+                                     .setY(fcTop + 0.0018), `fc-crsf-${i}`), {
               id: `rx-fc-${i}`, color: RX_CRSF[i].couleur, wires: 1,
               radius: 0.00032, sag: 0.16, targetName: `rx-crsf-${i}`,
               // Quatre fils fins côte à côte : à la voie standard de 10 mm ils
               // s'étalaient sur 4 cm de tapis. Au pas de 3,5 ils se lisent comme
               // le faisceau qu'ils forment.
-              lane: 0.0035
+              lane: 0.0035,
+              curveType: 'centripetal',
+              // Le récepteur est derrière et au-dessus, ses plats d'arrivée sur
+              // le flanc gauche du contrôleur : en ligne droite avec de la mou,
+              // le faisceau plongeait au travers de l'Air Unit puis remontait
+              // sous le stratifié du contrôleur. Il reste donc à la hauteur du
+              // récepteur — au-dessus du module vidéo, sous la plaque
+              // supérieure —, ressort par le côté de la carte, et redescend le
+              // long du bord pour arriver sur les plats par le flanc, comme on
+              // le dresse à la main.
+              via: (pa, pb) => {
+                const cote = pb.clone().addScaledVector(droneRight, -ecartFlanc);
+                const p1 = pa.clone().lerp(cote, 0.45).setY(pa.y);
+                const p2 = cote.clone().setY(pa.y - 0.0015);
+                const p3 = cote.clone().setY(pb.y + 0.0018);
+                return [p1, p2, p3];
+              }
             });
             // Aucun bout n'est fixe : le faisceau attend en entier sur le tapis,
-            // bien droit, comme les nappes. Il ne rejoint la carte et ses plots
-            // qu'à la soudure.
-            bindJoint(c, j);
+            // bien droit, comme les nappes. Chaque fil porte deux points de
+            // soudure — un par carte —, chacun avec son propre état.
+            bindJoint(c, j, 0);
+            if (jf) bindJoint(c, jf, 1);
           });
         } else {
           const rb = groupBox3(rx);
@@ -3467,10 +3558,10 @@
             return [m];
           }
         });
-        bindJoint(c, j);
+        const point = bindJoint(c, j);
         // La patte d'un condensateur arrive étamée d'usine, et sa pastille l'a
         // été à l'étape du XT30 : il ne reste qu'à refondre.
-        if (c) { c.padTinned = true; c.wireTinned = true; c.tinned = true; }
+        if (point) { point.padTinned = true; point.wireTinned = true; }
       });
 
       // Batterie + queue XT30 : deux fils rouge/noir, chacun sur SA pastille.
@@ -4406,7 +4497,19 @@
       {
         id: 'rx', kind: 'solder', title: 'Récepteur OpenRX', focus: 'rx', targets: ['rx-crsf-0'],
         text: "Les quatre fils CRSF rejoignent leur plot : 5V, GND, TX et RX, chacun sur le sien. Pose le bout et maintiens le clic dessus.",
-        hint: "TX et RX se croisent : le TX du récepteur va sur le RX du contrôleur, et inversement. La sérigraphie ajoutée le long de la rangée nomme les quatre plots."
+        hint: "La sérigraphie ajoutée le long de la rangée nomme les quatre plots. L'autre bout de ces mêmes fils se soudera sur le contrôleur, aux deux étapes suivantes."
+      },
+      {
+        id: 'etamage-fc', kind: 'solder', title: 'Étamage des plats du contrôleur',
+        focus: 'fc', targets: ['fc-crsf-0'],
+        text: "Passe à l'autre bout des mêmes fils. Le bord gauche du contrôleur porte six plats nommés par sa sérigraphie — 3V3, TX1, RX1, GND, 5V, LED : quatre nous concernent. Étame-les, et avec eux les bouts de fil restants.",
+        hint: "Ce sont de vrais plats à souder, 2,3 × 1,4 mm au pas de 2,25 — bien plus confortables que les plots du récepteur. Le contrôleur n'a pas d'embase pour le récepteur : sur cette carte, la liaison CRSF se soude."
+      },
+      {
+        id: 'fc-crsf', kind: 'solder', title: 'Récepteur → contrôleur', focus: 'fc',
+        targets: ['fc-crsf-0'],
+        text: "Soude les quatre fils sur l'UART du contrôleur. 5V sur 5V, GND sur GND — mais TX et RX se croisent : le TX du récepteur va sur RX1, et son RX sur TX1.",
+        hint: "Le croisement est déjà fait dans le faisceau, tu le vois aux deux fils qui se chevauchent entre les cartes : le jaune (TX du récepteur) descend sur RX1, le vert (RX du récepteur) sur TX1. Deux fils droits ici, et la radio ne répond jamais."
       },
 
       /* ---- La vidéo ---- */
@@ -4496,12 +4599,18 @@
       cap: ['cap-plus', 'cap-minus'],
       'etamage-rx': [0, 1, 2, 3].map(i => `rx-fc-${i}`),
       rx: [0, 1, 2, 3].map(i => `rx-fc-${i}`),
+      'etamage-fc': [0, 1, 2, 3].map(i => `rx-fc-${i}`),
+      'fc-crsf': [0, 1, 2, 3].map(i => `rx-fc-${i}`),
       vtx: ['nappe-fc-vtx'],
       antennes: ['coax-0', 'coax-1', 'coax-rx'],
       camera: ['nappe-camera']
     };
 
     const cableById = (id) => cables.find(c => c.id === id) || null;
+    const jointAt = (c, end) => (c ? c.joints.find(j => j.end === (end || 0)) : null) || null;
+    // Le point que traite une étape : par défaut celui du bout 0, mais les
+    // étapes du contrôleur visent l'autre bout du même fil.
+    const jointOfStep = (c, g) => jointAt(c, (g && g.end) || 0);
 
     /* ---- Étain : goutte posée, film d'étamage, soudure faite ---- */
 
@@ -4509,8 +4618,8 @@
     const SOLDER_TIN = new THREE.Vector3(1.25, 0.2, 1.25);    // film d'étamage
     const SOLDER_JOINT = new THREE.Vector3(1.4, 0.28, 1.4);   // soudure formée
 
-    function setSolderShape(c, target, animate) {
-      c.solder.forEach(b => {
+    function setSolderShape(billes, target, animate) {
+      billes.forEach(b => {
         b.userData.to = target;
         if (animate) {
           b.userData.from = b.scale.clone();
@@ -4538,42 +4647,41 @@
 
     // Étamer la pastille : une goutte y est déposée, le cuivre passe à l'étain
     // et prend un léger relief. Le fil n'a rien à voir là-dedans.
-    function tinPad(c) {
-      if (!c || c.padTinned) return false;
-      c.padTinned = true;
-      c.tinned = c.padTinned && c.wireTinned;
-      if (c.pad) {
-        c.pad.material.color.setHex(TIN_COLOR);
-        c.pad.material.roughness = 0.26;
-        c.pad.scale.set(1, 2.4, 1);
-      }
-      c.solder.forEach(b => { b.visible = true; });
-      setSolderShape(c, SOLDER_TIN, true);
+    function tinPad(p) {
+      if (!p || p.padTinned) return false;
+      p.padTinned = true;
+      p.disc.material.color.setHex(TIN_COLOR);
+      p.disc.material.roughness = 0.26;
+      p.disc.scale.set(1, 2.4, 1);
+      p.blob.visible = true;
+      setSolderShape([p.blob], SOLDER_TIN, true);
       return true;
     }
 
     // Étamer le bout dénudé : les 5 mm de cuivre nu passent à l'étain.
-    function tinWire(c) {
-      if (!c || c.wireTinned) return false;
-      c.wireTinned = true;
-      c.tinned = c.padTinned && c.wireTinned;
-      c.handles.forEach(h => {
-        if (!h.userData.strip) return;
+    function tinWire(p) {
+      if (!p || p.wireTinned) return false;
+      p.wireTinned = true;
+      const h = p.cable.handles[p.end];
+      if (h && h.userData.strip) {
         h.material.color.setHex(TIN_COLOR);
         h.material.roughness = 0.3;
-      });
+      }
       return true;
     }
 
-    function solderJoint(c) {
-      if (!c || c.soldered) return false;
+    function solderJoint(p) {
+      if (!p || p.soldered) return false;
+      const c = p.cable;
       plugCable(c);
-      c.soldered = true;
-      c.padTinned = c.wireTinned = c.tinned = true;
-      c.solder.forEach(b => { b.visible = true; });
-      setSolderShape(c, SOLDER_JOINT, true);
-      if (c.pad) { c.pad.material.color.setHex(TIN_COLOR); c.pad.scale.set(1, 2.4, 1); }
-      c.handles.forEach(h => { h.visible = false; });
+      p.soldered = true;
+      p.padTinned = p.wireTinned = true;
+      p.blob.visible = true;
+      setSolderShape([p.blob], SOLDER_JOINT, true);
+      p.disc.material.color.setHex(TIN_COLOR);
+      p.disc.scale.set(1, 2.4, 1);
+      const h = c.handles[p.end];
+      if (h) h.visible = false;
       return true;
     }
 
@@ -4710,25 +4818,33 @@
 
     // Le bouton fait d'un coup ce que le maintien fait point par point.
     // Le geste que réclame une étape : étamer la pastille, étamer le fil, souder.
+    // `end` dit sur quel bout du fil l'étape travaille : 0 par défaut, 1 pour
+    // les deux étapes du contrôleur, qui reprennent l'autre bout des mêmes fils.
     const JOINT_GESTURE = {
-      'etamage-plots': { kind: 'tin-pad', apply: tinPad, pending: (c) => !c.padTinned },
-      'etamage-fils': { kind: 'tin-wire', apply: tinWire, pending: (c) => !c.wireTinned },
-      phases: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered },
+      'etamage-plots': { kind: 'tin-pad', apply: tinPad, pending: (p) => !p.padTinned },
+      'etamage-fils': { kind: 'tin-wire', apply: tinWire, pending: (p) => !p.wireTinned },
+      phases: { kind: 'solder', apply: solderJoint, pending: (p) => !p.soldered },
       // Les pastilles d'alimentation sont larges : le fer doit y rester plus
       // longtemps. Le même geste étame la pastille et le bout de fil.
       'etamage-batt': {
-        kind: 'tin-pad', holdMs: 1600, pending: (c) => !c.padTinned,
-        apply: (c) => { const fait = tinPad(c); tinWire(c); return fait; }
+        kind: 'tin-pad', holdMs: 1600, pending: (p) => !p.padTinned,
+        apply: (p) => { const fait = tinPad(p); tinWire(p); return fait; }
       },
-      xt30: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered },
-      cap: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered },
+      xt30: { kind: 'solder', apply: solderJoint, pending: (p) => !p.soldered },
+      cap: { kind: 'solder', apply: solderJoint, pending: (p) => !p.soldered },
       // À l'inverse, les plots du récepteur sont minuscules : l'étain y vient en
       // deux fois moins de temps que sur un plot moteur.
       'etamage-rx': {
-        kind: 'tin-pad', holdMs: 620, pending: (c) => !c.padTinned,
-        apply: (c) => { const fait = tinPad(c); tinWire(c); return fait; }
+        kind: 'tin-pad', holdMs: 620, pending: (p) => !p.padTinned,
+        apply: (p) => { const fait = tinPad(p); tinWire(p); return fait; }
       },
-      rx: { kind: 'solder', apply: solderJoint, pending: (c) => !c.soldered }
+      rx: { kind: 'solder', apply: solderJoint, pending: (p) => !p.soldered },
+      // L'autre bout des mêmes fils, sur les plots CRSF du contrôleur.
+      'etamage-fc': {
+        kind: 'tin-pad', holdMs: 620, end: 1, pending: (p) => !p.padTinned,
+        apply: (p) => { const fait = tinPad(p); tinWire(p); return fait; }
+      },
+      'fc-crsf': { kind: 'solder', end: 1, apply: solderJoint, pending: (p) => !p.soldered }
     };
 
     // Le bouton fait d'un coup ce que le maintien fait point par point.
@@ -4736,7 +4852,7 @@
       const ids = STEP_CABLES[stepId];
       const g = JOINT_GESTURE[stepId];
       if (!ids || !g) return 0;
-      return ids.reduce((n, id) => n + (g.apply(cableById(id)) ? 1 : 0), 0);
+      return ids.reduce((n, id) => n + (g.apply(jointOfStep(cableById(id), g)) ? 1 : 0), 0);
     }
 
     // Une étape de points est finie quand ses douze points le sont.
@@ -4744,7 +4860,7 @@
       const ids = STEP_CABLES[stepId];
       const g = JOINT_GESTURE[stepId];
       if (!ids || !g) return 0;
-      return ids.map(cableById).filter(c => c && g.pending(c)).length;
+      return ids.map(id => jointOfStep(cableById(id), g)).filter(p => p && g.pending(p)).length;
     }
 
     // Un fil posé à la main peut suffire à terminer son étape : on la valide
@@ -4818,9 +4934,10 @@
 
     // Le bout dénudé encore libre d'un câble : c'est là qu'on pose le fer à
     // l'étamage des fils.
-    function stripPoint(c) {
+    function stripPoint(c, bout) {
       if (!c) return null;
-      for (let e = 0; e < 2; e++) {
+      const ordre = bout === undefined ? [0, 1] : [bout];
+      for (const e of ordre) {
         const h = c.handles[e];
         if (!h || !h.userData.strip || e === c.pinnedEnd) continue;
         return h.getWorldPosition(new THREE.Vector3());
@@ -4837,11 +4954,16 @@
         const g = JOINT_GESTURE[s.id];
         for (const id of ids) {
           const c = cableById(id);
-          if (!c || !c.targetName) continue;
-          const pending = g ? g.pending(c) : (c.state !== 'connected' && !c.plug);
-          if (!pending) continue;
-          if (g && g.kind === 'tin-wire') return stripPoint(c) || c.targetName;
-          return c.targetName;
+          if (!c) continue;
+          if (!g) {
+            if (!c.targetName || c.state === 'connected' || c.plug) continue;
+            return c.targetName;
+          }
+          const p = jointOfStep(c, g);
+          if (!p || !g.pending(p)) continue;
+          if (g.kind === 'tin-wire') return stripPoint(c, p.end) || c.targetName;
+          // La pastille elle-même : c'est elle qu'on vise, et elle suit sa carte.
+          return p.disc.getWorldPosition(new THREE.Vector3());
         }
       }
       return s.targets && s.targets.length ? s.targets[0] : null;
@@ -5844,9 +5966,9 @@
       if (!dragging) return;
       // Bouger, c'est déplacer le fil, pas souder : le fer est retiré.
       if (jointHold && Math.hypot(e.clientX - jointHold.x, e.clientY - jointHold.y) > 5) {
-        const c = jointHold.cable;
-        c.holding = false;
-        c.solder.forEach(b => { b.visible = c.state === 'connected' || c.tinned; });
+        const p = jointHold.joint;
+        p.holding = false;
+        p.blob.visible = p.cable.state === 'connected' || (p.padTinned && p.wireTinned);
         jointHold = null;
         targetRing.material.color.setHex(0xffb700);
       }
@@ -5900,7 +6022,7 @@
       const g = stepGesture();
       if (!g) return false;
       const s = WIRING_STEPS[wiringStep];
-      if (!STEP_CABLES[s.id].includes(c.id) || !g.pending(c)) return false;
+      if (!STEP_CABLES[s.id].includes(c.id)) return false;
       const onPad = !!hit.object.userData.padTarget;
       const onStrip = !!hit.object.userData.strip;
       if (g.kind === 'tin-pad' && !onPad) {
@@ -5911,11 +6033,22 @@
         wiringSay("C'est le bout dénudé du fil qu'on étame, pas la pastille.", 'warn');
         return false;
       }
-      jointHold = { cable: c, kind: g.kind, ms: g.holdMs || JOINT_MS,
+      // Un fil soudé aux deux bouts a deux points : celui qu'on touche doit
+      // être celui de l'étape en cours, sinon on soude le mauvais côté.
+      const vise = hit.object.userData.joint
+        || jointAt(c, hit.object.userData.cableEnd === undefined ? 0 : hit.object.userData.cableEnd);
+      const point = jointOfStep(c, g);
+      if (!point || !g.pending(point)) return false;
+      if (vise && vise !== point) {
+        wiringSay("C'est l'autre bout du fil que cette étape demande.", 'warn');
+        return false;
+      }
+      jointHold = { cable: c, joint: point, kind: g.kind, ms: g.holdMs || JOINT_MS,
                     t0: performance.now(), x: e.clientX, y: e.clientY };
-      c.holding = true;
+      point.holding = true;
       if (g.kind !== 'tin-wire') {
-        c.solder.forEach(b => { b.visible = true; b.userData.melt = null; });
+        point.blob.visible = true;
+        point.blob.userData.melt = null;
       }
       return true;
     }
@@ -5924,13 +6057,14 @@
     function updateJointHold() {
       if (!jointHold) return;
       const u = Math.min(1, (performance.now() - jointHold.t0) / jointHold.ms);
-      const c = jointHold.cable;
+      const p = jointHold.joint;
       if (jointHold.kind === 'tin-wire') {
         const k = 1 + u * 0.35;
-        c.handles.forEach(h => { if (h.userData.strip) h.scale.set(1, k, k); });
+        const h = p.cable.handles[p.end];
+        if (h && h.userData.strip) h.scale.set(1, k, k);
       } else {
         const k = 0.35 + u * 0.65;
-        c.solder.forEach(b => b.scale.set(k, SOLDER_BEAD.y * k, k));
+        p.blob.scale.set(k, SOLDER_BEAD.y * k, k);
       }
       targetRing.material.color.setHex(u >= 1 ? 0x8fe3a0 : 0xffb700);
     }
@@ -5940,14 +6074,16 @@
       jointHold = null;
       if (!h) return false;
       const c = h.cable;
-      c.holding = false;
+      const p = h.joint;
+      p.holding = false;
+      const bout = c.handles[p.end];
       targetRing.material.color.setHex(0xffb700);
       const held = performance.now() - h.t0;
       const s = WIRING_STEPS[wiringStep];
       const g = JOINT_GESTURE[s.id];
       if (held < h.ms) {
-        c.solder.forEach(b => { b.visible = c.state === 'connected' || c.padTinned; });
-        c.handles.forEach(x => { if (x.userData.strip) x.scale.set(1, 1, 1); });
+        p.blob.visible = c.state === 'connected' || p.padTinned;
+        if (bout && bout.userData.strip) bout.scale.set(1, 1, 1);
         wiringSay(h.kind === 'solder'
           ? "Soudure froide : l'étain n'a pas refondu. Maintiens jusqu'au bout."
           : "Trop bref : l'étain n'a pas mouillé. Maintiens jusqu'au bout.", 'bad');
@@ -5957,12 +6093,12 @@
         return true;
       }
       // Procédure simple : on ne soude que du cuivre déjà étamé des deux côtés.
-      if (h.kind === 'solder' && !(c.padTinned && c.wireTinned)) {
+      if (h.kind === 'solder' && !(p.padTinned && p.wireTinned)) {
         wiringSay('Plot ou fil pas encore étamé : reprends les deux étapes précédentes.', 'warn');
         return true;
       }
-      c.handles.forEach(x => { if (x.userData.strip) x.scale.set(1, 1, 1); });
-      if (g) g.apply(c);
+      if (bout && bout.userData.strip) bout.scale.set(1, 1, 1);
+      if (g) g.apply(p);
       wiringState.faults = wiringState.faults.filter(f => f.step !== s.id);
       const left = stepJointsLeft(s.id);
       const mot = { 'tin-pad': 'Plot étamé', 'tin-wire': 'Fil étamé', solder: 'Soudé' }[h.kind];
@@ -5976,7 +6112,9 @@
           xt30: 'Rouge et noir en place, chacun sur sa pastille.',
           cap: 'Les deux pattes du condensateur sont soudées.',
           'etamage-rx': 'Les quatre plots du récepteur sont étamés.',
-          rx: 'Les quatre fils CRSF sont soudés, récepteur relié.'
+          rx: 'Les quatre fils CRSF sont soudés côté récepteur.',
+          'etamage-fc': "Les quatre plats de l'UART sont étamés, fils compris.",
+          'fc-crsf': 'Les quatre fils sont soudés sur TX1, RX1, GND et 5V, TX et RX croisés : le récepteur parle au contrôleur.'
         }[s.id] || (h.kind === 'solder'
           ? 'Soudure propre, brillante et bien formée.'
           : 'Étamage terminé.'), 'good');
