@@ -1866,26 +1866,48 @@
       // monde puis ramenée dans le parent, occRoot portant déjà -90° en X, et
       // faite avant les métriques pour que le centre, la direction
       // d'éclatement et la position d'origine soient ceux de la carte retournée.
-      const rxGroup = assemblyGroups.find(g => g.id === 'rx');
-      if (rxGroup && rxGroup.nodes.length) {
-        const rb = new THREE.Box3();
-        rxGroup.nodes.forEach(n => rb.expandByObject(n));
-        const ctr = rb.getCenter(new THREE.Vector3());
-        // L'axe est celui du modèle, pris tel qu'il est plutôt que supposé.
-        const axe = droneRight.clone().setY(0).normalize();
-        const demiTour = new THREE.Matrix4()
+      // Un demi-tour de groupe, autour de son propre centre. La rotation est
+      // composée en repère monde puis ramenée dans le parent — occRoot porte
+      // déjà -90° en X — et faite avant les métriques, pour que le centre, la
+      // direction d'éclatement et la position d'origine soient ceux de la
+      // pièce retournée.
+      function demiTourGroupe(g, axe) {
+        if (!g || !g.nodes.length) return;
+        const b = new THREE.Box3();
+        g.nodes.forEach(n => b.expandByObject(n));
+        const ctr = b.getCenter(new THREE.Vector3());
+        const M = new THREE.Matrix4()
           .makeTranslation(ctr.x, ctr.y, ctr.z)
           .multiply(new THREE.Matrix4().makeRotationAxis(axe, Math.PI))
           .multiply(new THREE.Matrix4().makeTranslation(-ctr.x, -ctr.y, -ctr.z));
-        rxGroup.nodes.forEach(n => {
+        g.nodes.forEach(n => {
           n.updateMatrixWorld(true);
-          const monde = demiTour.clone().multiply(n.matrixWorld);
+          const monde = M.clone().multiply(n.matrixWorld);
           const local = new THREE.Matrix4().copy(n.parent.matrixWorld).invert().multiply(monde);
           local.decompose(n.position, n.quaternion, n.scale);
           n.updateMatrixWorld(true);
         });
+      }
+
+      const rxGroup = assemblyGroups.find(g => g.id === 'rx');
+      if (rxGroup) {
+        // L'axe est celui du modèle, pris tel qu'il est plutôt que supposé.
+        demiTourGroupe(rxGroup, droneRight.clone().setY(0).normalize());
         buildRxSilkscreen(rxGroup, rxCrsfPads(rxGroup));
       }
+
+      // --- Air Unit : retourné sur lui-même, connecteur vers le bas ---
+      // Sorti du GLB, le module présente son BM6B sur le DESSUS, au bord avant.
+      // L'embase 6 broches du contrôleur, elle, pend SOUS la carte : la nappe
+      // devait donc contourner le bord du stratifié et remonter de 5,6 mm pour
+      // rejoindre le capot. Un demi-tour autour de l'axe AVANT-ARRIÈRE — le
+      // module bascule sur lui-même sans changer de bout — met le BM6B en
+      // dessous, à hauteur de l'embase qu'il rejoint, et remonte l'USB-C sur le
+      // dessus, là où on peut l'atteindre. La baie ANTENNA reste sur la face
+      // arrière, face aux brins : c'est le seul des deux demi-tours qui ne la
+      // déplace pas.
+      demiTourGroupe(assemblyGroups.find(g => g.id === 'vtx'),
+                     droneFront.clone().setY(0).normalize());
 
       // --- Métriques par groupe (centre, direction d'éclatement, position d'origine) ---
       const invOcc = new THREE.Matrix4().copy(occRoot.matrixWorld).invert();
