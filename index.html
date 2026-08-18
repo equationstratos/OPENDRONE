@@ -3493,15 +3493,42 @@
       // la nappe reste ancrée sur les faces en regard, sans repère
       // d'accouplement — les fiches s'orientent alors sur la tangente du câble.
       if (cam && vtx) {
+        // Les deux bouts se posent SUR la face en regard, pas 3 mm dedans : le
+        // rapport 0,4 de la demi-cote les enfonçait dans la caméra et dans le
+        // module, et la nappe semblait sortir de la matière.
+        const surFace = (b, sens) => {
+          const p = b.getCenter(new THREE.Vector3());
+          const demi = (Math.abs(b.getSize(new THREE.Vector3()).z * droneFront.z)
+                      + Math.abs(b.getSize(new THREE.Vector3()).x * droneFront.x)) / 2;
+          return p.addScaledVector(droneFront, sens * (demi - 0.0002));
+        };
         const cb = groupBox3(cam);
-        const cp = cb.getCenter(new THREE.Vector3());
-        cp.addScaledVector(droneFront, -cb.getSize(new THREE.Vector3()).z * 0.4);
-        const a = makeAnchor(cam.nodes[0], cp, 'camera-out');
+        const a = makeAnchor(cam.nodes[0], surFace(cb, -1), 'camera-out');
         const vb = groupBox3(vtx);
-        const vp = vb.getCenter(new THREE.Vector3());
-        vp.addScaledVector(droneFront, vb.getSize(new THREE.Vector3()).z * 0.4);
-        const b = makeAnchor(vtx.nodes[0], vp, 'vtx-cam');
-        addCable(a, b, { id: 'nappe-camera', color: WIRE_COLORS.signal, wires: 4, radius: 0.0003, sag: 0.12, spread: 0.0011, plug: 4 });
+        const b = makeAnchor(vtx.nodes[0], surFace(vb, 1), 'vtx-cam');
+
+        // Elle passe PAR-DESSUS le contrôleur. Tendue entre deux points bas, la
+        // nappe s'affaissait au milieu du drone : elle traversait le stratifié
+        // de l'ESC et venait se croiser avec la nappe ESC->FC, qui passait à
+        // 2,4 mm — deux nappes larges de 4 mm, elles se transperçaient. Elle
+        // monte donc au-dessus de la pile dès la sortie de la caméra, longe le
+        // dessus du contrôleur, et ne redescend qu'une fois le module atteint.
+        const hautPile = ['fc', 'esc'].reduce((h, id) => {
+          const g = groupById(id);
+          return g ? Math.max(h, groupBox3(g).max.y) : h;
+        }, 0) + 0.0015;
+        addCable(a, b, {
+          id: 'nappe-camera', color: WIRE_COLORS.signal, wires: 4,
+          radius: 0.0003, sag: 0.12, spread: 0.0011, plug: 4,
+          curveType: 'centripetal',
+          // Elle monte franchement dès la sortie de la caméra : c'est là que
+          // la nappe ESC->FC bombe vers l'avant, et une montée molle les
+          // laissait à 2,4 mm l'une de l'autre.
+          via: (pa, pb) => [
+            pa.clone().lerp(pb, 0.12).setY(hautPile),
+            pa.clone().lerp(pb, 0.80).setY(hautPile)
+          ]
+        });
       }
 
       // Condensateur réservoir. Il est couché derrière le bord arrière : debout
