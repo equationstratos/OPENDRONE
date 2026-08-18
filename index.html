@@ -2067,15 +2067,22 @@
     // Cadre d'accouplement d'une embase : direction d'enfichage (la normale de
     // sa face libre) et grand axe (la rangée de contacts). On le range dans le
     // repère de la pièce, il suit donc la carte quand elle bouge.
-    function setSocket(anchor, dirWorld, axisWorld) {
+    function setSocket(anchor, dirWorld, axisWorld, depth) {
       if (!anchor || !anchor.parent) return anchor;
       anchor.parent.updateMatrixWorld(true);
       const inv = new THREE.Matrix4().copy(anchor.parent.matrixWorld).invert();
       anchor.userData.socket = {
         dir: dirWorld.clone().transformDirection(inv).normalize(),
-        axis: axisWorld.clone().transformDirection(inv).normalize()
+        axis: axisWorld.clone().transformDirection(inv).normalize(),
+        depth: depth === undefined ? 0.0022 : depth
       };
       return anchor;
+    }
+
+    // Ce que la fiche occupe entre le contact et le départ du câble.
+    function socketDepth(anchor) {
+      const s = anchor && anchor.userData.socket;
+      return s && s.depth !== undefined ? s.depth : 0.0022;
     }
 
     // Direction d'enfichage ramenée en repère monde, au moment voulu.
@@ -2170,6 +2177,99 @@
         size: b.getSize(new THREE.Vector3()), top: b.max.y
       }));
       return out;
+    }
+
+    // La baie « ANTENNA » du module vidéo. Le boîtier porte, gravés dans sa
+    // face, un lamage rectangulaire, une flèche et le mot ANTENNA : c'est là que
+    // se clipsent les deux u.FL. On les posait sur le dessus, faute de repère.
+    // On relève donc le lamage dans le maillage plutôt que de le saisir à la
+    // main : parmi les facettes tournées vers l'extérieur et en retrait de 0,4 à
+    // 2,4 mm du nu de la face, on garde le plus grand îlot connexe. Les fentes
+    // d'aération sont au même retrait, mais dix fois plus petites.
+    function bayOfMesh(mesh, dehors) {
+      const geo = mesh.geometry, pos = geo.attributes.position;
+      if (!pos || pos.count < 600) return null;
+      mesh.updateMatrixWorld(true);
+      const M = mesh.matrixWorld;
+      const idx = geo.index;
+      const nTri = idx ? idx.count / 3 : pos.count / 3;
+
+      // Sommets en repère monde, une seule fois : la boucle est chaude.
+      const X = new Float64Array(pos.count), Y = new Float64Array(pos.count), Z = new Float64Array(pos.count);
+      const v = new THREE.Vector3();
+      let nu = -Infinity;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(M);
+        X[i] = v.x; Y[i] = v.y; Z[i] = v.z;
+        const d = v.x * dehors.x + v.y * dehors.y + v.z * dehors.z;
+        if (d > nu) nu = d;
+      }
+
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+      const ab = new THREE.Vector3(), ac = new THREE.Vector3(), nrm = new THREE.Vector3();
+      const gard = [];                       // triangles retenus : [i0,i1,i2,aire]
+      for (let t = 0; t < nTri; t++) {
+        const i0 = idx ? idx.getX(t * 3) : t * 3;
+        const i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1;
+        const i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
+        a.set(X[i0], Y[i0], Z[i0]); b.set(X[i1], Y[i1], Z[i1]); c.set(X[i2], Y[i2], Z[i2]);
+        const prof = nu - (a.clone().add(b).add(c).multiplyScalar(1 / 3)).dot(dehors);
+        if (prof < 0.0004 || prof > 0.0024) continue;
+        ab.subVectors(b, a); ac.subVectors(c, a); nrm.crossVectors(ab, ac);
+        const aire = nrm.length() / 2;
+        if (aire < 1e-10) continue;
+        if (nrm.divideScalar(aire * 2).dot(dehors) < 0.85) continue;   // doit regarder dehors
+        gard.push(i0, i1, i2, aire);
+      }
+      if (gard.length < 12) return null;
+
+      // Îlots : union-find sur les sommets soudés des seules facettes retenues.
+      const rac = new Map();
+      const trouve = (k) => { while (rac.get(k) !== k) { rac.set(k, rac.get(rac.get(k))); k = rac.get(k); } return k; };
+      const cle = (i) => `${Math.round(X[i] * 2e5)}_${Math.round(Y[i] * 2e5)}_${Math.round(Z[i] * 2e5)}`;
+      const cles = [];
+      for (let k = 0; k < gard.length; k += 4) {
+        const t = [cle(gard[k]), cle(gard[k + 1]), cle(gard[k + 2])];
+        t.forEach(q => { if (!rac.has(q)) rac.set(q, q); });
+        const r0 = trouve(t[0]);
+        rac.set(trouve(t[1]), r0); rac.set(trouve(t[2]), r0);
+        cles.push(t);
+      }
+      const ilots = new Map();
+      for (let k = 0, j = 0; k < gard.length; k += 4, j++) {
+        const r = trouve(cles[j][0]);
+        let il = ilots.get(r);
+        if (!il) { il = { aire: 0, prof: 0, box: new THREE.Box3() }; ilots.set(r, il); }
+        il.aire += gard[k + 3];
+        for (let q = 0; q < 3; q++) {
+          const i = gard[k + q];
+          il.box.expandByPoint(v.set(X[i], Y[i], Z[i]));
+        }
+      }
+      let best = null;
+      ilots.forEach(il => {
+        const sz = il.box.getSize(new THREE.Vector3());
+        const larg = Math.max(sz.x, sz.z);          // le lamage court à l'horizontale
+        if (larg < 0.006 || sz.y < 0.0015) return;  // pas une fente d'aération
+        if (!best || il.aire > best.aire) best = il;
+      });
+      if (!best) return null;
+      const ctr = best.box.getCenter(new THREE.Vector3());
+      return { aire: best.aire, box: best.box, c: ctr,
+               fond: nu - ctr.dot(dehors) };
+    }
+
+    function findAntennaBay(g) {
+      if (!g) return null;
+      const dehors = droneFront.clone().negate();   // la baie est sur la face arrière
+      let best = null;
+      g.nodes.forEach(n => n.traverse(o => {
+        if (!o.isMesh) return;
+        const r = bayOfMesh(o, dehors);
+        if (r && (!best || r.aire > best.aire)) best = r;
+      }));
+      if (best) best.dehors = dehors;
+      return best;
     }
 
     // Les quatre plots CRSF du récepteur : traversants — ils prennent toute
@@ -2478,18 +2578,21 @@
       return g;
     }
 
+    // Une fiche u.FL sertie : Ø 2,5 mm de corps, jupe de 3 mm, 1,25 de haut.
+    // Elle était modélisée une bonne moitié trop grosse et débordait du lamage
+    // ANTENNA de l'Air Unit, qui ne fait que 3 mm de hauteur.
     function buildUfl() {
       const g = new THREE.Group();
       const body = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.0014, 0.0014, 0.0016, 14),
+        new THREE.CylinderGeometry(0.00125, 0.00125, 0.0013, 14),
         wireMaterial('#d8dadd', { roughness: 0.3, metalness: 0.8 })
       );
       g.add(body);
       const collar = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.0019, 0.0019, 0.0005, 14),
+        new THREE.CylinderGeometry(0.0015, 0.0015, 0.00045, 14),
         wireMaterial('#9aa0a6', { roughness: 0.35, metalness: 0.9 })
       );
-      collar.position.y = -0.0008;
+      collar.position.y = -0.00065;
       g.add(collar);
       g.name = 'u.FL';
       return g;
@@ -2560,7 +2663,7 @@
       // trop fine à la souris.
       for (let e = 0; e < 2; e++) {
         let h;
-        if (opts.plug === 'ufl') h = buildUfl();
+        if (opts.plug === 'ufl') { h = buildUfl(); h.userData.ufl = true; }
         else if (typeof opts.plug === 'number') { h = buildJstHousing(opts.plug, e === 0); h.userData.jst = true; }
         else {
           const rr = Math.max(c.radius * 1.15, 0.00052);
@@ -2590,6 +2693,7 @@
     const _qT = new THREE.Quaternion(), _qS = new THREE.Quaternion();
     const _basis = new THREE.Matrix4(), _bx = new THREE.Vector3(), _bz = new THREE.Vector3();
     const PLUG_DEPTH = 0.0022;   // hauteur d'un boîtier JST-SH
+    const UFL_DEPTH = 0.0013;    // hauteur d'une fiche u.FL sertie
     function endpointsOf(c, outA, outB) {
       const park = c.park;
       const loose = !!park && (c.state === 'parked' || !!c.plug);
@@ -2603,8 +2707,8 @@
       c.to.getWorldPosition(outB);
       // Une fiche occupe 2,2 mm entre l'embase et le départ de la nappe : le fil
       // ne part pas du contact, il sort par l'arrière du boîtier.
-      if (socketDirWorld(c.from, _sockDir)) outA.addScaledVector(_sockDir, PLUG_DEPTH);
-      if (socketDirWorld(c.to, _sockDir)) outB.addScaledVector(_sockDir, PLUG_DEPTH);
+      if (socketDirWorld(c.from, _sockDir)) outA.addScaledVector(_sockDir, socketDepth(c.from));
+      if (socketDirWorld(c.to, _sockDir)) outB.addScaledVector(_sockDir, socketDepth(c.to));
       if (c.plug) {
         const t = easeInOutCubic(Math.min(1, c.plug.t / c.plug.dur));
         outA.lerpVectors(_epA, outA, t);
@@ -2667,8 +2771,10 @@
       // l'envers, boîtier contre le stratifié.
       if (c._curve) {
         c.handles.forEach((h, e) => {
-          if (!h.userData.jst) return;
           const anchor = e === 0 ? c.from : c.to;
+          // Le u.FL du récepteur n'a pas d'embase relevée : il ne reste que
+          // 0,45 mm sous la plaque, la fiche y reste couchée comme avant.
+          if (!h.userData.jst && !(h.userData.ufl && anchor.userData.socket)) return;
           const t = c._curve.getTangent(e === 0 ? 0 : 1).normalize();
           if (e === 1) t.negate();               // toujours vers l'intérieur du câble
           if (isFinite(t.x)) _qT.setFromUnitVectors(_UNIT_Y, t);
@@ -2691,7 +2797,7 @@
           // Le boîtier se glisse entre le contact et le départ de la nappe.
           const p = e === 0 ? _pa : _pb;
           h.position.copy(p);
-          if (sock) h.position.addScaledVector(_sockDir, -PLUG_DEPTH * 0.5 * seated);
+          if (sock) h.position.addScaledVector(_sockDir, -socketDepth(anchor) * 0.5 * seated);
         });
       }
 
@@ -3186,18 +3292,24 @@
       }
 
       // Antennes VTX : un coaxial par antenne, et surtout un point de
-      // branchement par antenne. Les deux partaient du centre du capot, ce qui
-      // les faisait converger au milieu du module au lieu d'aller chacune sur
-      // sa prise. On les place sur le dessus, au bord arrière — celui qui fait
-      // face aux antennes —, écartés de part et d'autre de l'axe.
+      // branchement par antenne. Le module dit lui-même où elles vont — un
+      // lamage rectangulaire gravé « ANTENNA », flèche à l'appui, creusé dans
+      // sa face arrière. Les deux u.FL s'y logent côte à côte, à plat dans la
+      // baie ; ils étaient posés sur le dessus du capot, où il n'y a rien.
       if (ant && vtx) {
         const vb = groupBox3(vtx);
         const vc = vb.getCenter(new THREE.Vector3());
         const vs = vb.getSize(new THREE.Vector3());
         const demiLat = (Math.abs(vs.x * droneRight.x) + Math.abs(vs.z * droneRight.z)) / 2;
         const demiLong = (Math.abs(vs.z * droneFront.z) + Math.abs(vs.x * droneFront.x)) / 2;
+        const baie = findAntennaBay(vtx);
+        // Repli si le lamage n'est pas relevé : le bord arrière du capot.
         const bordArr = vc.clone().addScaledVector(droneFront, -(demiLong - 0.004));
         bordArr.y = vb.max.y;
+        const lat = baie ? new THREE.Vector3(0, 1, 0).cross(baie.dehors).normalize() : droneRight.clone();
+        const larg = baie ? Math.abs(baie.box.max.x - baie.box.min.x) * Math.abs(lat.x)
+                          + Math.abs(baie.box.max.z - baie.box.min.z) * Math.abs(lat.z) : 0;
+        const ecart = Math.min(0.0026, larg / 4);   // deux fiches, dos à dos, dans la baie
 
         // Le coaxial se prend par son extrémité de fiche, pas par le milieu de
         // l'antenne : c'est le bout le plus proche du module, la tête bombée
@@ -3220,9 +3332,13 @@
         };
 
         ant.nodes.forEach((n, i) => {
-          const cote = (i === 0 ? 1 : -1) * demiLat * 0.45;
-          const vp = bordArr.clone().addScaledVector(droneRight, cote);
+          const cote = (i === 0 ? 1 : -1);
+          const vp = baie
+            ? baie.c.clone().addScaledVector(lat, cote * ecart)
+            : bordArr.clone().addScaledVector(droneRight, cote * demiLat * 0.45);
           const vAnchor = makeAnchor(vtx.nodes[0], vp, `vtx-ufl-${i}`);
+          // La fiche se présente perpendiculaire au fond de la baie, pas à plat.
+          if (baie) setSocket(vAnchor, baie.dehors, lat, UFL_DEPTH);
           const a = makeAnchor(n, boutFiche(n, vp), `antenne-${i}`);
           addCable(a, vAnchor, { id: `coax-${i}`, color: WIRE_COLORS.coax, wires: 1, radius: 0.0006, sag: 0.1, plug: 'ufl' });
         });
@@ -4461,25 +4577,117 @@
       return true;
     }
 
+    /* ---- Le chant des moteurs ----
+       Un ESC brushless n'a pas de buzzer : pour biper, il fait vibrer les
+       bobinages du moteur à une fréquence audible. D'où ce timbre si
+       particulier, nasal et métallique, qu'on reconnaît dès la mise sous
+       tension. On le rejoue ici à l'identique : le triton ascendant de
+       l'initialisation, le double bip d'armement, puis les quatre moteurs qui
+       montent en régime l'un après l'autre. */
+    let audioCtx = null;
+    function ensureAudio() {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try {
+        if (!audioCtx) audioCtx = new AC();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+      } catch (e) { return null; }
+      return audioCtx;
+    }
+
+    // Un bip d'ESC : une onde carrée (le hachage du pont en H) doublée d'une
+    // dent de scie légèrement désaccordée, qui donne le battement du rotor.
+    function escBeep(ctx, sortie, t0, freq, duree, vol) {
+      const osc = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const g = ctx.createGain();
+      const filtre = ctx.createBiquadFilter();
+      osc.type = 'square'; osc.frequency.setValueAtTime(freq, t0);
+      osc2.type = 'sawtooth'; osc2.frequency.setValueAtTime(freq * 1.004, t0);
+      filtre.type = 'bandpass';
+      filtre.frequency.setValueAtTime(freq * 1.5, t0);
+      filtre.Q.setValueAtTime(1.1, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.006);
+      g.gain.setValueAtTime(vol, t0 + duree - 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + duree);
+      osc.connect(filtre); osc2.connect(filtre); filtre.connect(g); g.connect(sortie);
+      osc.start(t0); osc2.start(t0);
+      osc.stop(t0 + duree + 0.02); osc2.stop(t0 + duree + 0.02);
+    }
+
+    // La montée en régime d'un moteur : la fréquence de commutation glisse vers
+    // le haut pendant que le souffle des pales s'installe.
+    function motorSpool(ctx, sortie, t0, base, duree, vol) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(base, t0);
+      osc.frequency.exponentialRampToValueAtTime(base * 3.4, t0 + duree * 0.62);
+      osc.frequency.exponentialRampToValueAtTime(base * 2.9, t0 + duree);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + duree * 0.35);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + duree);
+      osc.connect(g); g.connect(sortie);
+      osc.start(t0); osc.stop(t0 + duree + 0.02);
+
+      // Le souffle : bruit blanc passé au passe-bande qui suit le régime.
+      const n = Math.floor(ctx.sampleRate * duree);
+      const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const dat = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) dat[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.Q.setValueAtTime(0.7, t0);
+      bp.frequency.setValueAtTime(base * 4, t0);
+      bp.frequency.exponentialRampToValueAtTime(base * 12, t0 + duree * 0.62);
+      const gn = ctx.createGain();
+      gn.gain.setValueAtTime(0.0001, t0);
+      gn.gain.exponentialRampToValueAtTime(vol * 0.5, t0 + duree * 0.4);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t0 + duree);
+      src.connect(bp); bp.connect(gn); gn.connect(sortie);
+      src.start(t0); src.stop(t0 + duree);
+    }
+
+    function playArmedChime() {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      try {
+      const maitre = ctx.createGain();
+      maitre.gain.value = 0.16;
+      maitre.connect(ctx.destination);
+
+      const t = ctx.currentTime + 0.05;
+      // Initialisation : do — mi — sol, le triton que sort tout ESC au réveil.
+      [1046.5, 1318.5, 1568.0].forEach((f, i) => escBeep(ctx, maitre, t + i * 0.15, f, 0.11, 0.9));
+      // Armement : deux bips brefs et hauts, puis le si de confirmation.
+      escBeep(ctx, maitre, t + 0.60, 1975.5, 0.07, 0.8);
+      escBeep(ctx, maitre, t + 0.72, 1975.5, 0.07, 0.8);
+      escBeep(ctx, maitre, t + 0.88, 2093.0, 0.20, 0.85);
+      // Les quatre moteurs prennent leur ralenti, l'un après l'autre.
+      [96, 101, 92, 106].forEach((f, i) => motorSpool(ctx, maitre, t + 1.18 + i * 0.09, f, 1.25, 0.5));
+
+      // On libère le graphe une fois le dernier moteur retombé.
+      setTimeout(() => { try { maitre.disconnect(); } catch (e) {} }, 3200);
+      } catch (e) { /* pas d'audio : on continue en silence */ }
+    }
+
     // Petit clic d'encliquetage — volontairement discret, et silencieux si le
     // navigateur refuse l'audio tant que l'utilisateur n'a rien cliqué.
-    let clickCtx = null;
     function playClick() {
+      const ctx = ensureAudio();
+      if (!ctx) return;
       try {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return;
-        clickCtx = clickCtx || new AC();
-        if (clickCtx.state === 'suspended') clickCtx.resume();
-        const t = clickCtx.currentTime;
-        const o = clickCtx.createOscillator();
-        const g = clickCtx.createGain();
+        const t = ctx.currentTime;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
         o.type = 'square';
         o.frequency.setValueAtTime(2400, t);
         o.frequency.exponentialRampToValueAtTime(720, t + 0.028);
         g.gain.setValueAtTime(0.0001, t);
         g.gain.exponentialRampToValueAtTime(0.05, t + 0.004);
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-        o.connect(g).connect(clickCtx.destination);
+        o.connect(g).connect(ctx.destination);
         o.start(t); o.stop(t + 0.06);
       } catch (e) { /* pas d'audio : on continue en silence */ }
     }
@@ -4876,6 +5084,7 @@
 
       wiringSay('Tout est bon : armement OK, les quatre moteurs tournent dans le bon sens.', 'good');
       launchConfetti();
+      playArmedChime();
     }
 
     /* ---- Entrée / sortie du mode ---- */
