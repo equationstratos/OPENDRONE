@@ -2294,6 +2294,63 @@
       return best;
     }
 
+    // La fente de passage des fils de batterie. La plaque supérieure en porte
+    // une, longue et étroite, dans l'axe du drone : c'est par là que la queue du
+    // pack descend vers l'ESC. On la relève au lancer de rayon le long de cet
+    // axe — une seule ligne suffit, les autres ouvertures de la plaque
+    // l'encadrent sans la couper —, puis une passe en travers donne sa longueur.
+    // La plaque ne fait que 1 762 facettes : deux cents rayons ne coûtent rien.
+    function findBatterySlot(g, pres) {
+      if (!g) return null;
+      const meshes = [];
+      g.nodes.forEach(n => n.traverse(o => { if (o.isMesh) meshes.push(o); }));
+      if (!meshes.length) return null;
+      const b = new THREE.Box3();
+      meshes.forEach(o => b.expandByObject(o));
+      const ctr = b.getCenter(new THREE.Vector3());
+      const sz = b.getSize(new THREE.Vector3());
+      const demiF = (Math.abs(sz.x * droneFront.x) + Math.abs(sz.z * droneFront.z)) / 2;
+      const demiR = (Math.abs(sz.x * droneRight.x) + Math.abs(sz.z * droneRight.z)) / 2;
+      const rc = new THREE.Raycaster();
+      const bas = new THREE.Vector3(0, -1, 0);
+      const point = (u, v) => ctr.clone()
+        .addScaledVector(droneFront, u).addScaledVector(droneRight, v);
+      const plein = (u, v) => {
+        const p = point(u, v);
+        p.y = b.max.y + 0.005;
+        rc.set(p, bas);
+        rc.far = 0.02;
+        return rc.intersectObjects(meshes, true).length > 0;
+      };
+      // Les vides le long de l'axe, en ne gardant que ceux d'une fente : plus
+      // large qu'un fil, moins long qu'une ouverture de plaque.
+      const PAS = 0.0004;
+      const vides = [];
+      let deb = null;
+      for (let u = -demiF; u <= demiF; u += PAS) {
+        if (!plein(u, 0)) { if (deb === null) deb = u; }
+        else if (deb !== null) { vides.push([deb, u - PAS]); deb = null; }
+      }
+      if (deb !== null) vides.push([deb, demiF]);
+      const fentes = vides
+        .map(([a, z]) => ({ u: (a + z) / 2, larg: z - a + PAS }))
+        .filter(f => f.larg > 0.0012 && f.larg < 0.005);
+      if (!fentes.length) return null;
+      // Celle qui tombe le plus près du point donné — la sortie du pack.
+      const ref = pres ? pres.clone().sub(ctr).dot(droneFront) : 0;
+      fentes.sort((x, y) => Math.abs(x.u - ref) - Math.abs(y.u - ref));
+      const f = fentes[0];
+      // Sa longueur, en travers.
+      let g1 = 0, g2 = 0;
+      while (g1 > -demiR && !plein(f.u, g1 - PAS)) g1 -= PAS;
+      while (g2 < demiR && !plein(f.u, g2 + PAS)) g2 += PAS;
+      return {
+        centre: point(f.u, (g1 + g2) / 2),
+        yHaut: b.max.y, yBas: b.min.y,
+        larg: f.larg, long: g2 - g1
+      };
+    }
+
     // Les six plats à souder du bord gauche du contrôleur. Ils se distinguent
     // du reste du cuivre par leur taille — 2,3 × 1,4 mm, contre moins d'un
     // millimètre pour une empreinte de composant — et par leur alignement en
@@ -3647,17 +3704,43 @@
         // Boucle de service reprise du visualiseur TinyHoop MK1 : un fil silicone
         // épais ne colle pas au pack, il bombe vers l'arrière, culmine, puis
         // redescend vers les plots.
+        // La queue du pack ne traverse pas la plaque : elle passe par la fente
+        // prévue pour elle, relevée sur la plaque même. Avant, les deux fils
+        // descendaient tout droit et mordaient le carbone sur 24 points — ils
+        // tombaient entre les deux ouvertures arrière, dans le plein.
+        const fente = findBatterySlot(groupById('plate-top'), outPos);
+        const ECART_FENTE = 0.0035;   // les deux fils côte à côte dans la fente
+
         const loopVia = (side) => (pa, pb) => {
-          const back = droneFront.clone().negate();
-          const p1 = pa.clone().addScaledVector(back, 0.008)
-            .addScaledVector(droneRight, side * 0.0016);
-          p1.y = pa.y - 0.0012;
-          const p2 = pa.clone().addScaledVector(back, 0.0135)
-            .addScaledVector(droneRight, side * 0.0016);
-          p2.y = pa.y - 0.0075;
-          const p3 = new THREE.Vector3().lerpVectors(pa, pb, 0.7);
-          p3.y = pb.y + 0.009;
-          return [p1, p2, p3];
+          const dec = droneRight.clone().multiplyScalar(side * ECART_FENTE);
+          if (!fente) {
+            // Repli : l'ancienne boucle de service, si la fente n'est pas trouvée.
+            const back = droneFront.clone().negate();
+            const p1 = pa.clone().addScaledVector(back, 0.008).add(dec);
+            p1.y = pa.y - 0.0012;
+            const p2 = pa.clone().addScaledVector(back, 0.0135).add(dec);
+            p2.y = pa.y - 0.0075;
+            const p3 = new THREE.Vector3().lerpVectors(pa, pb, 0.7);
+            p3.y = pb.y + 0.009;
+            return [p1, p2, p3];
+          }
+          // Entre le pack et la plaque il n'y a que 1,4 mm, et le fil en fait
+          // 2,5 : il se couche donc SUR la plaque et le pack s'assied dessus,
+          // comme au montage. Toute boucle de service ici le ferait remonter
+          // dans la batterie.
+          const surPlaque = fente.yHaut + 0.00125;
+          const sortie = pa.clone().add(dec).setY(surPlaque);
+          const dessus = fente.centre.clone().add(dec).setY(surPlaque);
+          // Trois points alignés pour que le brin reste vraiment plat : avec
+          // deux seulement, la courbe repartait vers le haut en approchant de
+          // la fente et bombait de 0,4 mm dans le pack.
+          const milieu = sortie.clone().lerp(dessus, 0.5);
+          const dessous = fente.centre.clone().add(dec).setY(fente.yBas - 0.002);
+          // Sous la plaque, le faisceau file vers l'avant en gardant sa hauteur :
+          // l'Air Unit est juste dessous, il ne reste que 4 mm entre les deux.
+          const avant = dessous.clone().addScaledVector(droneFront, 0.0075);
+          avant.y = dessous.y - 0.0009;
+          return [sortie, milieu, dessus, dessous, avant];
         };
 
         const plus = jBatPlus && addCable(a, jBatPlus.anchor, {
@@ -4581,17 +4664,17 @@
         hint: "N'alimente jamais un VTX sans antenne : l'étage de puissance se détruit en quelques secondes. Le coaxial du récepteur contourne la plaque supérieure au lieu de la traverser."
       },
       {
+        id: 'nappe', kind: 'plug', title: 'Nappe ESC → FC', focus: 'gap', targets: ['fc-jst8'],
+        text: "Tout est câblé de part et d'autre : il ne reste qu'à relier les deux cartes par la nappe JST-SH 8 broches, avant de refermer le stack.",
+        hint: "Brochage : +BATT · GND · CURR · NC · M1 · M2 · M3 · M4. Les deux embases sont sous leur carte : la nappe contourne le bord, elle ne passe pas au travers. Le détrompeur empêche l'inversion, ne force jamais."
+      },
+      {
         id: 'camera', kind: 'plug', title: 'Caméra', focus: 'vtx', targets: ['vtx-cam'],
         text: "Relie la caméra à l'Air Unit par sa nappe.",
         hint: "La nappe est fragile : elle se clipse sans forcer, connecteur bien en face."
       },
 
       /* ---- On referme le stack ---- */
-      {
-        id: 'nappe', kind: 'plug', title: 'Nappe ESC → FC', focus: 'gap', targets: ['fc-jst8'],
-        text: "Tout est câblé de part et d'autre : il ne reste qu'à relier les deux cartes par la nappe JST-SH 8 broches, avant de refermer le stack.",
-        hint: "Brochage : +BATT · GND · CURR · NC · M1 · M2 · M3 · M4. Les deux embases sont sous leur carte : la nappe contourne le bord, elle ne passe pas au travers. Le détrompeur empêche l'inversion, ne force jamais."
-      },
       {
         id: 'test', kind: 'test', title: 'Batterie et test final', focus: null,
         text: "Branche la batterie et lance le test de mise sous tension.",
