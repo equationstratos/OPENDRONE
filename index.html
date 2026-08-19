@@ -1321,6 +1321,12 @@
     const droneFront = new THREE.Vector3(0, 0, 1);
     const droneRight = new THREE.Vector3(1, 0, 0);
 
+    // Modèle du connecteur, commun aux deux tailles de drone : un XT30U mâle et
+    // un femelle, convertis du STEP d'Amass fourni par le dépôt — boîtier et
+    // contacts séparés, cotes d'origine (10,2 × 5,6 mm de section).
+    const XT30_FILE = 'models/xt30.glb';
+    let xt30Src = null;
+
     const CHUNKS_DEF = {
       od3: [
         { id: 'frame', label: 'Châssis & Visserie', file: 'models/od3/frame.glb', bytes: 383740 },
@@ -1424,14 +1430,21 @@
         const cur = recus.reduce((a, b) => a + b, 0);
         loaderBar.style.width = `${Math.min(100, (cur / totalBytes) * 100)}%`;
       };
-      const gltfs = await Promise.all(CHUNKS.map((c, i) => new Promise((resolve, reject) => {
-        loader.load(
-          c.file,
-          (g) => { recus[i] = c.bytes; majBarre(); resolve(g); },
-          (e) => { if (e.total) { recus[i] = c.bytes * (e.loaded / e.total); majBarre(); } },
-          () => { loader.load(CHUNKS_DEF['od3'][0].file, resolve, undefined, reject); }
-        );
-      })));
+      const [gltfs, xt30] = await Promise.all([
+        Promise.all(CHUNKS.map((c, i) => new Promise((resolve, reject) => {
+          loader.load(
+            c.file,
+            (g) => { recus[i] = c.bytes; majBarre(); resolve(g); },
+            (e) => { if (e.total) { recus[i] = c.bytes * (e.loaded / e.total); majBarre(); } },
+            () => { loader.load(CHUNKS_DEF['od3'][0].file, resolve, undefined, reject); }
+          );
+        }))),
+        // Le XT30 n'est pas une pièce de l'assemblage : il appartient au
+        // faisceau. Il part avec les autres mais n'entre pas dans occRoot —
+        // sinon il se retrouverait dans l'arbre, éclaté et posé à plat.
+        new Promise((resolve) => loader.load(XT30_FILE, resolve, undefined, () => resolve(null)))
+      ]);
+      xt30Src = xt30 ? xt30.scene : null;
 
       gltfs.forEach((gltf, i) => {
         const c = CHUNKS[i];
@@ -2095,6 +2108,23 @@
 
     const wiringRoot = new THREE.Group();
     wiringRoot.name = 'wiring-root';
+    // Pièces du faisceau montées SUR une pièce du drone — le XT30, monté dans
+    // la plaque supérieure et sur le pack. Elles vivent dans wiringRoot, en
+    // unités monde, et recopient chaque image la pose de leur ancrage : les
+    // mettre en enfant direct leur ferait hériter l'échelle d'occRoot.
+    const wiringFixtures = [];
+    const _mFix = new THREE.Matrix4();
+    function updateFixtures() {
+      wiringFixtures.forEach(({ mesh, anchor }) => {
+        if (!anchor.parent) return;
+        anchor.updateWorldMatrix(true, false);
+        mesh.position.setFromMatrixPosition(anchor.matrixWorld);
+        mesh.quaternion.setFromRotationMatrix(_mFix.extractRotation(anchor.matrixWorld));
+        let vu = true, p = anchor;
+        while (vu && p) { vu = p.visible; p = p.parent; }
+        mesh.visible = vu;
+      });
+    }
 
     let batteryGroup = null;
     const cables = [];          // { anchors, mesh, color, radius, sag, wires }
@@ -2390,12 +2420,39 @@
       if (!suite.length) return null;
       suite.sort((x, y) => x.u - y.u);
       const t = suite[0];
-      let g1 = vSortie, g2 = vSortie;
-      while (g1 > -demiR && !plein(t.u, g1 - PAS)) g1 -= PAS;
-      while (g2 < demiR && !plein(t.u, g2 + PAS)) g2 += PAS;
-      return { centre: point(t.u, (g1 + g2) / 2),
+      // L'ouverture est un trou de serrure : une fente de 4 mm depuis le bord
+      // arrière qui débouche sur une chambre bien plus large. Prendre le milieu
+      // du vide entier tombait dans le col, là où le connecteur ne passe pas ;
+      // on relève donc la largeur tranche par tranche et on ne garde que le
+      // plateau le plus large — c'est la chambre, à la cote du XT30.
+      const tranche = (u) => {
+        let g1 = vSortie, g2 = vSortie;
+        if (plein(u, vSortie)) return null;
+        while (g1 > -demiR && !plein(u, g1 - PAS)) g1 -= PAS;
+        while (g2 < demiR && !plein(u, g2 + PAS)) g2 += PAS;
+        // Une tranche qui sort de la plaque des deux côtés n'est pas une
+        // ouverture : c'est l'air derrière le bord arrière. Sans ce garde-fou
+        // le « plus large » tombait dehors, 6 mm en arrière de la plaque.
+        if (g1 <= -demiR + PAS || g2 >= demiR - PAS) return null;
+        return { u, v: (g1 + g2) / 2, larg: g2 - g1 + PAS };
+      };
+      const uA = t.u - t.long / 2, uB = t.u + t.long / 2;
+      const coupes = [];
+      for (let u = uA; u <= uB; u += PAS) {
+        const c = tranche(u);
+        if (c) coupes.push(c);
+      }
+      if (!coupes.length) return null;
+      const large = Math.max(...coupes.map(c => c.larg));
+      // Tolérance de 0,4 mm : les congés de la découpe font varier la largeur
+      // d'une tranche à l'autre sans que la chambre s'arrête pour autant.
+      const plateau = coupes.filter(c => c.larg > large - 0.0004);
+      const u1 = Math.min(...plateau.map(c => c.u)), u2 = Math.max(...plateau.map(c => c.u));
+      const vMoy = plateau.reduce((a, c) => a + c.v, 0) / plateau.length;
+      return { centre: point((u1 + u2) / 2, vMoy),
                yHaut: b.max.y, yBas: b.min.y,
-               long: t.long, larg: g2 - g1 };
+               long: u2 - u1 + PAS, larg: large,
+               fente: t.long };
     }
 
     // Les six plats à souder du bord gauche du contrôleur. Ils se distinguent
@@ -3039,6 +3096,7 @@
 
     function updateCables(dt = 0) {
       if (!wiringRoot.visible || !cables.length) return;
+      updateFixtures();
       updatePadDiscs();
 
       // Les câbles en cours de clipsage sont hors quota : les brider rendrait
@@ -3101,7 +3159,73 @@
       wiringExtras.forEach(o => { if (o.parent) o.parent.remove(o); });
       wiringExtras.length = 0;
       Object.keys(wiringAnchors).forEach(k => delete wiringAnchors[k]);
+      wiringFixtures.forEach(({ anchor }) => { if (anchor.parent) anchor.parent.remove(anchor); });
+      wiringFixtures.length = 0;
       batteryGroup = null;
+    }
+
+    // Le XT30, en vrai. La femelle se monte DANS la plaque supérieure, engagée
+    // de la moitié de son boîtier dans l'ouverture arrière ; le mâle vient s'y
+    // clipser par-dessus, au bout de la queue du pack. Les deux sortent du STEP
+    // d'Amass : boîtier et contacts séparés, cotes d'origine.
+    //
+    // Repères du modèle : l'axe d'accouplement est le z local, face de contact
+    // vers +z, fûts à souder vers −z. La rangée de contacts court sur le y
+    // local de la femelle et sur le x local du mâle — les deux boîtiers sont à
+    // 90° l'un de l'autre dans le fichier, comme ils le sont en main.
+    const XT30_ENFONCE = 0.0055;   // profondeur d'accouplement, jupe du mâle
+    function buildXt30(passage) {
+      if (!xt30Src || !passage) return null;
+      const pris = (re) => {
+        const g = new THREE.Group();
+        xt30Src.traverse((o) => {
+          if (!o.isMesh || !re.test(o.name || '')) return;
+          const m = new THREE.Mesh(o.geometry, o.material.clone());
+          m.name = o.name;
+          m.frustumCulled = false;
+          g.add(m);
+        });
+        return g.children.length ? g : null;
+      };
+      const femelle = pris(/^XT30U-F-/);
+      const male = pris(/^XT30U-M-/);
+      if (!femelle || !male) return null;
+      const boite = (g, re) => {
+        const b = new THREE.Box3();
+        g.children.forEach(m => { if (re.test(m.name)) b.expandByObject(m); });
+        return b;
+      };
+      const bF = boite(femelle, /boitier/), bM = boite(male, /boitier/);
+      const cF = boite(femelle, /contacts/), cM = boite(male, /contacts/);
+      const haut = new THREE.Vector3(0, 1, 0), bas = new THREE.Vector3(0, -1, 0);
+      // Femelle : z local vers le haut, rangée de contacts en travers du drone.
+      const rF = new THREE.Matrix4().makeBasis(
+        new THREE.Vector3().crossVectors(droneRight, haut), droneRight, haut);
+      // Mâle : retourné, face de contact vers le bas, même rangée.
+      const rM = new THREE.Matrix4().makeBasis(
+        droneRight, new THREE.Vector3().crossVectors(bas, droneRight), bas);
+
+      // Mi-hauteur du boîtier femelle sur la face supérieure de la plaque.
+      const yF = passage.yHaut - (bF.max.z + bF.min.z) / 2;
+      // Le mâle descend jusqu'à recouvrir la femelle de la profondeur de jupe.
+      const yM = yF + bF.max.z + bM.max.z - XT30_ENFONCE;
+      const centre = passage.centre;
+      femelle.quaternion.setFromRotationMatrix(rF);
+      femelle.position.set(centre.x, yF, centre.z);
+      male.quaternion.setFromRotationMatrix(rM);
+      male.position.set(centre.x, yM, centre.z);
+      femelle.name = 'XT30U-F';
+      male.name = 'XT30U-M';
+      return {
+        femelle, male,
+        // Où le fil entre et ressort : bouche des fûts du mâle en haut,
+        // pointe des fûts de la femelle en bas.
+        yEntree: yM - cM.min.z,
+        ySortie: yF + cF.min.z,
+        // Ce qu'on vérifie ensuite : section du boîtier contre l'ouverture.
+        section: { larg: bF.max.y - bF.min.y, ep: bF.max.x - bF.min.x },
+        engage: (bF.max.z - bF.min.z) / 2
+      };
     }
 
     function buildHarness() {
@@ -3834,6 +3958,20 @@
         // XT30. Avant, ils descendaient tout droit et mordaient le carbone sur
         // 24 points relevés.
         const passage = findBatteryNotch(groupById('plate-top'), outPos);
+        const fiches = buildXt30(passage);
+        if (fiches) {
+          const plaqueNode = (groupById('plate-top') || {}).nodes;
+          [[fiches.femelle, plaqueNode && plaqueNode[0], 'xt30-f'],
+           [fiches.male, batt, 'xt30-m']].forEach(([obj, hote, nom]) => {
+            if (!hote) return;
+            const a = makeAnchor(hote, obj.position.clone(), nom);
+            a.quaternion.copy(hote.getWorldQuaternion(new THREE.Quaternion()).invert()
+              .multiply(obj.quaternion));
+            wiringRoot.add(obj);
+            wiringFixtures.push({ mesh: obj, anchor: a });
+          });
+          updateFixtures();
+        }
 
         const loopVia = (side) => (pa, pb) => {
           const dec = droneRight.clone().multiplyScalar(side * 0.0022);
@@ -3848,15 +3986,26 @@
             p3.y = pb.y + 0.009;
             return [p1, p2, p3];
           }
-          // Sur la plaque, puis vers l'arrière jusqu'à l'ouverture. Entre le
-          // pack et le carbone il n'y a que 1,4 mm et le fil en fait 2,5 : il
-          // se couche sur la plaque et le pack s'assied dessus, comme au
-          // montage — mais seulement sur les sept premiers millimètres, la
-          // batterie s'arrêtant là.
+          // La queue du pack ne traverse plus la plaque : elle s'arrête sur le
+          // XT30 monté dedans. Elle sort du pack, remonte en arc jusqu'au-dessus
+          // du connecteur, puis descend DROIT dans l'axe — trois points alignés
+          // pour que la courbe ne bombe pas hors du plastique — traverse la
+          // paire accouplée et ressort par les fûts de la femelle, sous la
+          // plaque. Tout ce qui suit est inchangé.
+          const axe = passage.centre.clone().add(dec);
           const surPlaque = passage.yHaut + 0.00125;
-          const sortie = pa.clone().add(dec).setY(surPlaque);
-          const dessus = passage.centre.clone().add(dec).setY(surPlaque);
-          const dessous = passage.centre.clone().add(dec).setY(passage.yBas - 0.002);
+          const yHaut = fiches ? fiches.yEntree : surPlaque;
+          const yBas = fiches ? fiches.ySortie : passage.yBas - 0.002;
+          const sortie = pa.clone().add(dec)
+            .addScaledVector(droneFront, -0.008)
+            .setY((pa.y + yHaut) / 2 + 0.002);
+          const entree = axe.clone().setY(yHaut + 0.003);
+          const dessus = axe.clone().setY(yHaut);
+          const bout = axe.clone().setY(yBas);
+          // Repère de la suite du trajet : la hauteur d'origine sous la plaque,
+          // celle dont les gardes ont été relevées. Le fil y remonte en douceur
+          // depuis la pointe des fûts.
+          const dessous = axe.clone().setY(passage.yBas - 0.002);
           // Sous la plaque, le support d'antennes occupe encore six
           // millimètres : les fils descendent dans son couloir central, tout
           // droit, et ne s'écartent qu'une fois dehors — sans quoi ils
@@ -3874,7 +4023,7 @@
           const versPlot = droneRight.clone()
             .multiplyScalar(pb.clone().sub(dessous).dot(droneRight));
           const revient = dessous.clone().add(versPlot).addScaledVector(droneFront, 0.0365);
-          return [sortie, dessus, dessous, couloir, ecarte, long, revient];
+          return [sortie, entree, dessus, bout, couloir, ecarte, long, revient];
         };
 
         const plus = jBatPlus && addCable(a, jBatPlus.anchor, {
@@ -3888,10 +4037,6 @@
         bindJoint(plus, jBatPlus);
         bindJoint(minus, jBatGnd);
 
-        // Le XT30 lui-même n'est plus modélisé : la paire boîte-et-lames posée
-        // là ne valait pas le vrai connecteur. Le porteur reste — `inline`
-        // enfile un objet sur le câble et le fait glisser avec lui, quel que
-        // soit son état —, il n'attend qu'un modèle.
 
         // Prise d'équilibrage JST-XH et ses fils fins : un 4S en a cinq broches.
         batt.updateMatrixWorld(true);
@@ -4737,7 +4882,7 @@
       {
         id: 'xt30', kind: 'solder', title: 'Câble batterie XT30', focus: 'esc', targets: ['esc-bat-plus'],
         text: "Le rouge sur la pastille marquée +, le noir sur celle marquée −. Chacun sur la sienne : maintiens le clic sur le point que l'anneau désigne, puis sur l'autre.",
-        hint: "Inverser rouge et noir détruit l'étage de puissance à la première mise sous tension. Vérifie deux fois. Le XT30 reste sur le câble, jamais sur la carte."
+        hint: "Inverser rouge et noir détruit l'étage de puissance à la première mise sous tension. Vérifie deux fois. Le XT30 ne se soude pas ici : la femelle est montée dans l'ouverture de la plaque supérieure, engagée de la moitié de son boîtier, et le mâle arrive au bout de la queue du pack."
       },
       {
         id: 'cap', kind: 'solder', title: 'Condensateur low-ESR', focus: 'esc', targets: ['esc-cap-plus'],
