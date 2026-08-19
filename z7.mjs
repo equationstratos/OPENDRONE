@@ -1,0 +1,14 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const p = await b.newPage({ viewport: { width: 1100, height: 700 } });
+p.on('pageerror', e => console.log('ERR', e.message));
+await p.goto('http://localhost:8125/index.html', { waitUntil: 'load' });
+await p.waitForFunction(() => window.__soloMany && document.getElementById('loading-overlay').classList.contains('hidden'), null, { timeout: 300000 });
+await p.waitForTimeout(2000);
+await p.evaluate(() => { document.querySelectorAll('.hud,#dock,#tour-card').forEach(e=>e && (e.style.display='none')); });
+await p.evaluate(() => window.__soloMany(['esc','arms','motor-0','motor-1','motor-2','motor-3','_cables']));
+await p.evaluate(() => window.__look2(3, 20, 15, 130, 90, 55));
+await p.waitForTimeout(700);
+await p.screenshot({ path: 'phases-apres.png', timeout: 90000 });
+console.log('ok');
+await b.close();

@@ -3262,6 +3262,15 @@
         // La colonne des trois plots court le long du bord de la carte.
         const outAxis = tangentAt(out, centrePad, droneRight);
         const pads = realPads ? realPads[pad] : null;
+        // Les trois plots d'un moteur sont relevés dans l'ordre du bord de la
+        // carte, qui ne tourne pas dans le même sens des deux côtés. Sans
+        // remettre l'écartement de sortie dans CET ordre, les trois fils
+        // partaient du moteur dans un sens et arrivaient dans l'autre : ils se
+        // croisaient en chemin, trois paires par moteur du côté droit.
+        if (pads) {
+          const sensPlots = new THREE.Vector3().subVectors(pads[2].c, pads[0].c).setY(0);
+          if (outAxis.dot(sensPlots) < 0) outAxis.negate();
+        }
 
         for (let i = 0; i < 3; i++) {
           const k = i - 1;
@@ -3296,6 +3305,9 @@
               const axe = new THREE.Vector3().subVectors(pb, pa).setY(0);
               const cote = axe.lengthSq() < 1e-9 ? outAxis.clone()
                 : axe.normalize().cross(_upY).normalize();
+              // Le même sens qu'aux deux bouts, sinon le fil part d'un côté,
+              // passe de l'autre au milieu du bras et revient : un S.
+              if (cote.dot(outAxis) < 0) cote.negate();
               const ecart = cote.multiplyScalar(k * 0.0013);
               const p1 = new THREE.Vector3().lerpVectors(pa, pb, 0.34).setY(pa.y).add(ecart);
               const p2 = new THREE.Vector3().lerpVectors(pa, pb, 0.74)
