@@ -2294,15 +2294,15 @@
       return best;
     }
 
-    // Les ouvertures de passage de la queue de batterie. La plaque supérieure
-    // en porte deux, au droit de la sortie du pack, une de chaque côté du
-    // récepteur : chaque fil descend par celle de son côté et arrive au-dessus
-    // de son propre plot. On les relève sur la plaque même — une ligne de
-    // rayons en travers, à l'aplomb de la sortie du pack, donne leur position
-    // et leur largeur ; une seconde, dans le sens de l'axe, leur longueur. La
-    // plaque ne fait que 1 762 facettes : quelques centaines de rayons ne
-    // coûtent rien.
-    function findBatteryHoles(g, sortie) {
+    // L'ouverture de passage de la queue de batterie : la dernière de la
+    // plaque supérieure, celle de son bord arrière, encadrée par les deux vis
+    // de fixation. Elle est taillée à la cote d'un XT30 — le connecteur y
+    // passe, pas seulement les fils. On la relève sur la plaque même : une
+    // ligne de rayons dans l'axe du drone donne les vides, on garde le plus
+    // reculé, en arrière de la sortie du pack ; une passe en travers donne sa
+    // largeur. La plaque ne fait que 1 762 facettes, quelques centaines de
+    // rayons ne coûtent rien.
+    function findBatteryNotch(g, sortie) {
       if (!g || !sortie) return null;
       const meshes = [];
       g.nodes.forEach(n => n.traverse(o => { if (o.isMesh) meshes.push(o); }));
@@ -2336,26 +2336,22 @@
         return out;
       };
       const PAS = 0.0004;
-      const u0 = sortie.clone().sub(ctr).dot(droneFront);
-      // En travers, à l'aplomb du pack : une ouverture est plus large qu'un fil
-      // et moins large qu'un bord de plaque.
-      const trous = vides(u0, -demiR, demiR, PAS, true)
-        .map(([a, z]) => ({ v: (a + z) / 2, larg: z - a + PAS }))
-        .filter(t => t.larg > 0.004 && t.larg < 0.016);
-      if (trous.length < 2) return null;
-      // Les deux qui encadrent l'axe du pack, une de chaque côté.
-      const vRef = sortie.clone().sub(ctr).dot(droneRight);
-      const gauche = trous.filter(t => t.v < vRef).sort((a, c) => c.v - a.v)[0];
-      const droite = trous.filter(t => t.v >= vRef).sort((a, c) => a.v - c.v)[0];
-      if (!gauche || !droite) return null;
-      const mesure = (t) => {
-        let a = u0, z = u0;
-        while (a > -demiF && !plein(a - PAS, t.v)) a -= PAS;
-        while (z < demiF && !plein(z + PAS, t.v)) z += PAS;
-        return { centre: point((a + z) / 2, t.v), larg: t.larg, long: z - a };
-      };
-      return { gauche: mesure(gauche), droite: mesure(droite),
-               yHaut: b.max.y, yBas: b.min.y };
+      const vSortie = sortie.clone().sub(ctr).dot(droneRight);
+      const uSortie = sortie.clone().sub(ctr).dot(droneFront);
+      // Dans l'axe du pack : on ne garde que ce qui est derrière lui, et parmi
+      // ces vides le plus reculé — c'est la dernière ouverture de la plaque.
+      const suite = vides(vSortie, -demiF, demiF, PAS, false)
+        .map(([a, z]) => ({ u: (a + z) / 2, long: z - a + PAS }))
+        .filter(t => t.u < uSortie && t.long > 0.003);
+      if (!suite.length) return null;
+      suite.sort((x, y) => x.u - y.u);
+      const t = suite[0];
+      let g1 = vSortie, g2 = vSortie;
+      while (g1 > -demiR && !plein(t.u, g1 - PAS)) g1 -= PAS;
+      while (g2 < demiR && !plein(t.u, g2 + PAS)) g2 += PAS;
+      return { centre: point(t.u, (g1 + g2) / 2),
+               yHaut: b.max.y, yBas: b.min.y,
+               long: t.long, larg: g2 - g1 };
     }
 
     // Les six plats à souder du bord gauche du contrôleur. Ils se distinguent
@@ -3711,18 +3707,17 @@
         // Boucle de service reprise du visualiseur TinyHoop MK1 : un fil silicone
         // épais ne colle pas au pack, il bombe vers l'arrière, culmine, puis
         // redescend vers les plots.
-        // La queue du pack ne traverse pas la plaque : chaque fil descend par
-        // l'ouverture de son côté, celles que la plaque porte juste sous la
-        // sortie du pack. Avant, les deux fils descendaient tout droit et
-        // mordaient le carbone sur 24 points — ils tombaient entre les deux
-        // ouvertures, dans le plein.
-        const passages = findBatteryHoles(groupById('plate-top'), outPos);
+        // La queue du pack ne traverse pas la plaque : les deux fils passent par
+        // la dernière ouverture, celle du bord arrière, taillée à la cote d'un
+        // XT30. Avant, ils descendaient tout droit et mordaient le carbone sur
+        // 24 points relevés.
+        const passage = findBatteryNotch(groupById('plate-top'), outPos);
 
         const loopVia = (side) => (pa, pb) => {
-          if (!passages) {
-            // Repli : l'ancienne boucle de service, si les ouvertures manquent.
+          const dec = droneRight.clone().multiplyScalar(side * 0.0022);
+          if (!passage) {
+            // Repli : l'ancienne boucle de service, si l'ouverture manque.
             const back = droneFront.clone().negate();
-            const dec = droneRight.clone().multiplyScalar(side * 0.0016);
             const p1 = pa.clone().addScaledVector(back, 0.008).add(dec);
             p1.y = pa.y - 0.0012;
             const p2 = pa.clone().addScaledVector(back, 0.0135).add(dec);
@@ -3731,19 +3726,33 @@
             p3.y = pb.y + 0.009;
             return [p1, p2, p3];
           }
-          const trou = side > 0 ? passages.droite : passages.gauche;
-          // Un millimètre vers l'extérieur dans l'ouverture : au centre, le fil
-          // de masse frôlait le récepteur, qui passe juste entre les deux.
-          const ecarte = droneRight.clone().multiplyScalar(side * 0.001);
-          // Le fil sort du pack et plonge aussitôt : l'ouverture est à moins de
-          // deux millimètres derrière lui, il n'a pas à courir sous la batterie.
-          const dessus = trou.centre.clone().add(ecarte).setY(passages.yHaut + 0.0008);
-          // Sous la plaque il ne reste que 4 mm avant le capot de l'Air Unit,
-          // et le fil en fait 2,5 : il se cale au milieu de la tranche et y
-          // reste jusqu'à avoir dépassé le module, avant de redescendre.
-          const dessous = trou.centre.clone().add(ecarte).setY(passages.yBas - 0.002);
-          const avant = dessous.clone().addScaledVector(droneFront, 0.025);
-          return [dessus, dessous, avant];
+          // Sur la plaque, puis vers l'arrière jusqu'à l'ouverture. Entre le
+          // pack et le carbone il n'y a que 1,4 mm et le fil en fait 2,5 : il
+          // se couche sur la plaque et le pack s'assied dessus, comme au
+          // montage — mais seulement sur les sept premiers millimètres, la
+          // batterie s'arrêtant là.
+          const surPlaque = passage.yHaut + 0.00125;
+          const sortie = pa.clone().add(dec).setY(surPlaque);
+          const dessus = passage.centre.clone().add(dec).setY(surPlaque);
+          const dessous = passage.centre.clone().add(dec).setY(passage.yBas - 0.002);
+          // Sous la plaque, le support d'antennes occupe encore six
+          // millimètres : les fils descendent dans son couloir central, tout
+          // droit, et ne s'écartent qu'une fois dehors — sans quoi ils
+          // mordaient ses montants. Ils longent ensuite le récepteur au lieu
+          // de le traverser, en gardant leur hauteur : il ne reste que 4 mm
+          // entre le carbone et le capot de l'Air Unit, et le fil en fait 2,5.
+          // Ils ne redescendent qu'une fois le module dépassé.
+          const lat = droneRight.clone().multiplyScalar(side * 0.0075);
+          const couloir = dessous.clone().addScaledVector(droneFront, 0.0065);
+          const ecarte = dessous.clone().add(lat).addScaledVector(droneFront, 0.0125);
+          const long = dessous.clone().add(lat).addScaledVector(droneFront, 0.030);
+          // Puis ils se resserrent dans l'axe de leur plot : plus loin, le
+          // support porte deux bossages autour des entretoises, et c'est là
+          // qu'ils mordaient. Entre les deux il y a dix-huit millimètres.
+          const versPlot = droneRight.clone()
+            .multiplyScalar(pb.clone().sub(dessous).dot(droneRight));
+          const revient = dessous.clone().add(versPlot).addScaledVector(droneFront, 0.0365);
+          return [sortie, dessus, dessous, couloir, ecarte, long, revient];
         };
 
         const plus = jBatPlus && addCable(a, jBatPlus.anchor, {
