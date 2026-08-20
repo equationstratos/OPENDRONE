@@ -768,8 +768,8 @@
         <div class="menu-group-header">
           <span>Hélices FPV</span>
           <span class="prop-mode-switch">
-            <button class="btn-mini" id="btn-prop-2" title="Colorer seulement les 2 hélices avant, pour repérer la marche avant">x2</button>
-            <button class="btn-mini active" id="btn-prop-4" title="Colorer les 4 hélices">x4</button>
+            <button class="btn-mini active" id="btn-prop-2" title="Colorer seulement les 2 hélices avant, pour repérer la marche avant">x2</button>
+            <button class="btn-mini" id="btn-prop-4" title="Colorer les 4 hélices">x4</button>
           </span>
         </div>
         <div class="palette-grid" id="palette-prop"></div>
@@ -1297,6 +1297,14 @@
       "Vue Éclatée": "Exploded view",
       "Wireframe": "Wireframe",
       "XT30 inversé": "XT30 reversed",
+      "Moteur avant droit": "Motor front right",
+      "Moteur avant gauche": "Motor front left",
+      "Moteur arrière droit": "Motor rear right",
+      "Moteur arrière gauche": "Motor rear left",
+      "Hélice avant droite": "Propeller front right",
+      "Hélice avant gauche": "Propeller front left",
+      "Hélice arrière droite": "Propeller rear right",
+      "Hélice arrière gauche": "Propeller rear left",
       "Moteur": "Motor",
       "arrière": "rear",
       "arrière droit": "rear right",
@@ -1355,8 +1363,9 @@
 
     const LANG_ATTRS = ['title', 'placeholder', 'aria-label'];
     const TITRE_FR = document.title;
-    let LANG = localStorage.getItem('od-lang')
-      || (/^fr/i.test(navigator.language || navigator.userLanguage || 'fr') ? 'fr' : 'en');
+    // Le site s'ouvre en anglais ; le français est à un clic, et le choix se
+    // retient d'une visite à l'autre.
+    let LANG = localStorage.getItem('od-lang') || 'en';
     const t = (s) => (LANG === 'en' && TR[s]) || s;
 
     // Texte d'origine des nœuds déjà traduits : c'est lui qui sert de clé, et
@@ -1489,10 +1498,10 @@
     ];
 
     let activeTpuHex = '#ff6b00';
-    let activeMotorHex = '#ff6b00';
-    let activePropHex = '#f0f2f5';
+    let activeMotorHex = '#111111';
+    let activePropHex = '#ff6b00';
     let activeStandoffHex = '#ffb700';
-    let activeScrewHex = '#7c8590';
+    let activeScrewHex = '#ff6b00';
     let selectedNode = null;
 
     const assemblageDropdown = document.getElementById('assemblage-dropdown');
@@ -1641,7 +1650,7 @@
     // en gris foncé translucide : c'est le repère visuel de la marche avant.
     const PROP_REAR_HEX = '#2a2f36';
     const PROP_REAR_OPACITY = 0.35;
-    let propColorMode = 4;
+    let propColorMode = 2;
     let rearPropMaterial = null;
 
     function propGroupsByHalf() {
@@ -2332,7 +2341,10 @@
         const rgt = d.dot(right) >= 0;
         return { fwd, rgt, order: (fwd ? 0 : 2) + (rgt ? 1 : 0) };
       };
-      const orientLabel = (o, fem) => `${t(o.fwd ? 'avant' : 'arrière')} ${t(o.rgt ? (fem ? 'droite' : 'droit') : 'gauche')}`;
+      // L'étiquette reste en français : c'est une clé pour le code — les fils
+      // moteur retrouvent leur plot par elle, et les hélices leur moitié. La
+      // traduction se fait à l'affichage, pas à la construction.
+      const orientLabel = (o, fem) => `${o.fwd ? 'avant' : 'arrière'} ${o.rgt ? (fem ? 'droite' : 'droit') : 'gauche'}`;
 
       for (const node of tops) {
         const chunk = node.userData.chunkId || '';
@@ -2376,7 +2388,7 @@
       }
       clusters.forEach((cl, i) => {
         const o = orientOf(cl.centre);
-        const g = getGroup(`motor-${i}`, 'PROPULSION', `${t('Moteur')} ${clusters.length === 4 ? orientLabel(o, false) : i + 1}`, 10 + (clusters.length === 4 ? o.order : i));
+        const g = getGroup(`motor-${i}`, 'PROPULSION', `Moteur ${clusters.length === 4 ? orientLabel(o, false) : i + 1}`, 10 + (clusters.length === 4 ? o.order : i));
         cl.nodes.forEach(n => g.nodes.push(n));
       });
 
@@ -2384,7 +2396,7 @@
       propNodes.forEach((p, i) => {
         tmpBox.setFromObject(p).getCenter(tmpC);
         const o = orientOf(tmpC);
-        const g = getGroup(`prop-${i}`, 'PROPULSION', `${t('Hélice')} ${propNodes.length === 4 ? orientLabel(o, true) : i + 1}`, 20 + (propNodes.length === 4 ? o.order : i));
+        const g = getGroup(`prop-${i}`, 'PROPULSION', `Hélice ${propNodes.length === 4 ? orientLabel(o, true) : i + 1}`, 20 + (propNodes.length === 4 ? o.order : i));
         g.nodes.push(p);
       });
 
@@ -3361,7 +3373,15 @@
       // trop fine à la souris.
       for (let e = 0; e < 2; e++) {
         let h;
-        if (opts.plug === 'ufl') { h = buildUfl(); h.userData.ufl = true; }
+        // Un câble n'a pas forcément une fiche à chaque bout. Le coaxial d'une
+        // antenne, lui, sort de l'antenne d'un seul tenant : il n'y a rien à
+        // ce bout-là, le fil continue jusqu'à la carte où il porte son u.FL.
+        // `plugEnd` nomme alors le seul bout qui reçoit un embout.
+        if (opts.plugEnd !== undefined && e !== opts.plugEnd) {
+          h = new THREE.Group();
+          h.name = 'sans-embout';
+        }
+        else if (opts.plug === 'ufl') { h = buildUfl(); h.userData.ufl = true; }
         else if (typeof opts.plug === 'number') { h = buildJstHousing(opts.plug, e === 0); h.userData.jst = true; }
         else {
           const rr = Math.max(c.radius * 1.15, 0.00052);
@@ -4201,7 +4221,10 @@
           // La fiche se présente perpendiculaire au fond de la baie, pas à plat.
           if (baie) setSocket(vAnchor, baie.dehors, lat, UFL_DEPTH);
           const a = makeAnchor(n, boutFiche(n, vp), `antenne-${i}`);
-          addCable(a, vAnchor, { id: `coax-${i}`, color: WIRE_COLORS.coax, wires: 1, radius: 0.0006, sag: 0.1, plug: 'ufl' });
+          // La fiche u.FL n'est qu'au bout module : côté brin, le coaxial fait
+          // corps avec l'antenne.
+          addCable(a, vAnchor, { id: `coax-${i}`, color: WIRE_COLORS.coax, wires: 1,
+                                 radius: 0.0006, sag: 0.1, plug: 'ufl', plugEnd: 1 });
         });
       }
 
@@ -4325,7 +4348,9 @@
           const descente = trouve();
           addCable(a, b, {
             id: 'coax-rx', color: WIRE_COLORS.coax, wires: 1, radius: 0.0004,
-            sag: 0, plug: 'ufl',
+            // Même chose ici : l'u.FL est au bout récepteur, le coaxial sort du
+            // col de l'antenne sans embout.
+            sag: 0, plug: 'ufl', plugEnd: 0,
             via: (pa, pb) => {
               // pa = embase u.FL, pb = bout du col de l'antenne.
               const p1 = new THREE.Vector3().lerpVectors(pa, pb, 0.32).setY(sousPlaque);
@@ -5556,7 +5581,9 @@
       },
       {
         id: 'antennes', kind: 'plug', title: 'Antennes vidéo', focus: 'vtx',
-        targets: ['antenne-0', 'antenne-1'],
+        // L'anneau vise la baie, pas le brin : c'est là que la fiche s'enfonce,
+        // et c'est le seul bout du coaxial qui en porte une.
+        targets: ['vtx-ufl-0', 'vtx-ufl-1'],
         text: "Clipse les deux coaxiaux u.FL dans la baie ANTENNA de l'Air Unit, chaque brin sur la fiche de son côté.",
         hint: "N'alimente jamais un VTX sans antenne : l'étage de puissance se détruit en quelques secondes."
       },
