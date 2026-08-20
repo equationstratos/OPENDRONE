@@ -655,7 +655,7 @@
         <div class="brand-logo-text"><span class="part-open">Open</span><span class="part-drone">Drone</span></div>
         <select id="model-selector" class="model-selector" title="Choisir le modèle de drone">
           <option value="od3" selected>Modèle 3"</option>
-          <option value="od5">Modèle 5"</option>
+          <option value="od5" disabled>Modèle 5" — bientôt</option>
         </select>
         <div class="lang-switch" title="Langue du site / Site language">
           <button class="btn-lang" data-lang="fr" type="button">FR</button>
@@ -1184,6 +1184,7 @@
       "Module Vidéo O3": "O3 Video Module",
       "Modèle 3\"": "3\" Model",
       "Modèle 5\"": "5\" Model",
+      "Modèle 5\" — bientôt": "5\" model — coming soon",
       "Modèle en cours de chargement…": "Model loading…",
       "Montage pas à pas": "Step-by-step build",
       "Moteur Anodisé": "Anodised motor",
@@ -1879,8 +1880,14 @@
       });
     }
 
+    // Le 5" est en retrait le temps de reprendre son assemblage : son option
+    // est grisée, et la garde ci-dessous rattrape les autres chemins d'appel.
+    const MODELES_RETIRES = new Set(['od5']);
+
     async function loadAssembly(modelKey = 'od3') {
+      if (MODELES_RETIRES.has(modelKey)) modelKey = 'od3';
       currentModelKey = modelKey;
+      if (modelSelector && modelSelector.value !== modelKey) modelSelector.value = modelKey;
       if (loaderOverlay) loaderOverlay.classList.remove('hidden');
       soloGroup = null;
       selectedGroup = null;
