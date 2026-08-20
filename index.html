@@ -1028,6 +1028,7 @@
       "Architecture modulaire open-source": "Modular open-source architecture",
       "Arrière": "Rear",
       "Arêtes surlignées": "Highlighted edges",
+      "Avant": "Front",
       "Assemblage": "Assembly",
       "Assemblage complet, toutes catégories": "Complete assembly, every category",
       "Assembler": "Assemble",
@@ -1061,7 +1062,7 @@
       "Carbone 3mm": "3 mm carbon",
       "Carbone T700": "T700 carbon",
       "Ce sont de vrais plats à souder, 2,3 × 1,4 mm au pas de 2,25 — bien plus confortables que les plots du récepteur. Le contrôleur n'a pas d'embase pour le récepteur : sur cette carte, la liaison CRSF se soude.": "These are real solder pads, 2.3 × 1.4 mm on a 2.25 pitch — far friendlier than the receiver's through-holes. The controller has no header for the receiver: on this board the CRSF link is soldered.",
-      "Centrer Zoom": "Recentre",
+      "Centrer Zoom": "Reset View",
       "Chargement": "Loading",
       "Choisir le modèle de drone": "Choose the drone model",
       "Choisis la configuration avant de souder : elle fixe le sens attendu de chaque moteur, et donc l'ordre des phases.": "Choose the configuration before soldering: it sets which way each motor must turn, and therefore the phase order.",
@@ -1238,8 +1239,8 @@
       "Provoquer une erreur (démonstration)": "Trigger a fault (demo)",
       "Queue de batterie": "Battery lead",
       "Quitter le mode câblage": "Leave wiring mode",
-      "Recentrer": "Recentre",
-      "Recentrer et zoomer sur le drone": "Recentre and zoom on the drone",
+      "Recentrer": "Recenter",
+      "Recentrer et zoomer sur le drone": "Recenter and zoom to fit the drone",
       "Relie la caméra à l'Air Unit par sa nappe.": "Connect the camera to the Air Unit with its ribbon.",
       "Replier le sélecteur de vue": "Collapse the view selector",
       "Reprends l'étape": "Redo the step",
@@ -1464,6 +1465,7 @@
         if (typeof wiringSay === 'function' && wiringActive) wiringSay('', '');
         if (typeof selectGroup === 'function' && selectedGroup) selectGroup(selectedGroup);
         if (typeof renderKits === 'function') { renderKits(); renderKitDetail(); }
+        if (typeof regraverViewCube === 'function') regraverViewCube();
       } catch (e) { /* rien de vital : l'observateur a déjà fait le gros */ }
     }
 
@@ -4475,9 +4477,18 @@
       const batt = buildBattery();
       if (batt) {
         const bb = new THREE.Box3().setFromObject(batt);
-        const outPos = bb.getCenter(new THREE.Vector3());
-        outPos.addScaledVector(droneFront, -BATTERY_SIZE.l * 0.45);
-        outPos.y = bb.min.y;
+        // La queue sort du MILIEU de la face arrière du pack, pas de son arête
+        // basse : sur un LiPo les languettes sont soudées au centre des
+        // cellules et le wrap laisse passer les deux fils là, côte à côte. Ils
+        // partaient jusqu'ici du dessous du pack, ce qui les faisait naître
+        // d'un coin. L'ancre est enfouie de trois millimètres DANS le pack :
+        // les deux fils s'y écartent à l'abri du wrap et ressortent parallèles
+        // par la face, sans montrer leur point de départ commun.
+        const BATT_ENFOUI = 0.003;   // longueur de fil cachée sous le wrap
+        const centreBatt = bb.getCenter(new THREE.Vector3());
+        const faceQueue = centreBatt.clone()
+          .addScaledVector(droneFront, -BATTERY_SIZE.l / 2);
+        const outPos = faceQueue.clone().addScaledVector(droneFront, BATT_ENFOUI);
         const a = makeAnchor(batt, outPos, 'batt-out');
 
         // Boucle de service reprise du visualiseur TinyHoop MK1 : un fil silicone
@@ -4503,6 +4514,12 @@
           updateFixtures();
         }
 
+        // La bouche se déduit de l'ancre, jamais d'un point du monde figé : en
+        // mode câblage le pack se range sur le tapis, et un repère pris au
+        // montage laisserait le fil accroché à l'ancienne place.
+        const bouchePack = (pa, dec) => pa.clone()
+          .addScaledVector(droneFront, -BATT_ENFOUI).add(dec);
+
         const loopVia = (side) => (pa, pb) => {
           const dec = droneRight.clone().multiplyScalar(side * 0.0022);
           if (!passage) {
@@ -4514,14 +4531,19 @@
             p2.y = pa.y - 0.0075;
             const p3 = new THREE.Vector3().lerpVectors(pa, pb, 0.7);
             p3.y = pb.y + 0.009;
-            return [p1, p2, p3];
+            return [bouchePack(pa, dec), p1, p2, p3];
           }
           // La queue du pack ne traverse plus la plaque : elle s'arrête sur le
           // XT30 monté dedans. Elle sort du pack, remonte en arc jusqu'au-dessus
           // du connecteur, puis descend DROIT dans l'axe — trois points alignés
           // pour que la courbe ne bombe pas hors du plastique — traverse la
           // paire accouplée et ressort par les fûts de la femelle, sous la
-          // plaque. Tout ce qui suit est inchangé.
+          // plaque.
+          //
+          // Premier point du trajet : la face du pack, les deux fils déjà
+          // écartés. Leur convergence vers l'ancre commune reste ainsi enfouie
+          // sous le wrap, hors de vue.
+          const bouche = bouchePack(pa, dec);
           const axe = passage.centre.clone().add(dec);
           const surPlaque = passage.yHaut + 0.00125;
           const yHaut = fiches ? fiches.yEntree : surPlaque;
@@ -4553,7 +4575,7 @@
           const versPlot = droneRight.clone()
             .multiplyScalar(pb.clone().sub(dessous).dot(droneRight));
           const revient = dessous.clone().add(versPlot).addScaledVector(droneFront, 0.0365);
-          return [sortie, entree, dessus, bout, couloir, ecarte, long, revient];
+          return [bouche, sortie, entree, dessus, bout, couloir, ecarte, long, revient];
         };
 
         const plus = jBatPlus && addCable(a, jBatPlus.anchor, {
@@ -4571,25 +4593,30 @@
         // Prise d'équilibrage JST-XH et ses fils fins : un 4S en a cinq broches.
         batt.updateMatrixWorld(true);
         const invBatt = new THREE.Matrix4().copy(batt.matrixWorld).invert();
-        const balWorld = outPos.clone()
-          .addScaledVector(droneRight, 0.012)
+        // Elle sort de la même face que la queue, à côté d'elle et un cran
+        // plus bas, et pend contre le pack : c'est là qu'elle est en vrai.
+        const balWorld = faceQueue.clone()
+          .addScaledVector(droneRight, 0.009)
           .addScaledVector(droneFront, -0.005);
-        balWorld.y = outPos.y + 0.0015;
+        balWorld.y = faceQueue.y - 0.007;
         const bal = new THREE.Mesh(
           new THREE.BoxGeometry(0.0098, 0.0042, 0.0034),
           wireMaterial('#ededf0', { roughness: 0.7, metalness: 0 })
         );
         bal.name = 'JST-XH-5P';
         bal.position.copy(balWorld.clone().applyMatrix4(invBatt));
-        bal.quaternion.copy(batt.getWorldQuaternion(new THREE.Quaternion()).invert());
+        // Alignée sur le pack, pas sur la scène : elle est plaquée sur sa face.
+        bal.quaternion.identity();
         batt.add(bal);
 
         const balCols = ['#141619', '#c0392b', '#e0a828', '#2b8a2b', '#f0f2f5'];
         for (let i = 0; i < 5; i++) {
-          const from = outPos.clone().addScaledVector(droneRight, 0.0035 + i * 0.0007);
+          const from = faceQueue.clone()
+            .addScaledVector(droneRight, 0.0042 + i * 0.0007)
+            .addScaledVector(droneFront, 0.001);
           const to = balWorld.clone().addScaledVector(droneRight, (i - 2) * 0.0017);
           const mid = from.clone().lerp(to, 0.5);
-          mid.y += 0.0028 + i * 0.0004;
+          mid.addScaledVector(droneFront, -(0.0022 + i * 0.0004));
           const geo = new THREE.TubeGeometry(
             new THREE.CatmullRomCurve3([from, mid, to]), 14, 0.00035, 6, false);
           geo.applyMatrix4(invBatt);
@@ -6822,14 +6849,24 @@
     vcContainer.appendChild(vcRenderer.domElement);
 
     const cubeGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
-    const cubeMat = [
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Droite') }),  // 0: +X
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Gauche') }),  // 1: -X
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessus', 180) }),  // 2: +Y
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Dessous') }), // 3: -Y
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Avant') }),   // 4: +Z
-      new THREE.MeshBasicMaterial({ map: createFaceTexture('Arrière') })  // 5: -Z
-    ];
+    // Ordre des faces d'une BoxGeometry : +X, −X, +Y, −Y, +Z, −Z.
+    const VC_FACES = [['Droite', 0], ['Gauche', 0], ['Dessus', 180],
+                      ['Dessous', 0], ['Avant', 0], ['Arrière', 0]];
+    const cubeMat = VC_FACES.map(([nom, rot]) =>
+      new THREE.MeshBasicMaterial({ map: createFaceTexture(t(nom), rot) }));
+
+    // Ces six libellés sont gravés dans des textures, pas écrits dans la page :
+    // la passe de traduction du DOM ne les voit pas et les laissait en
+    // français. On les regrave au changement de langue, l'ancienne texture
+    // rendue au pilote au passage.
+    function regraverViewCube() {
+      VC_FACES.forEach(([nom, rot], i) => {
+        const vieille = cubeMat[i].map;
+        cubeMat[i].map = createFaceTexture(t(nom), rot);
+        cubeMat[i].needsUpdate = true;
+        if (vieille) vieille.dispose();
+      });
+    }
     
     const vcCube = new THREE.Mesh(cubeGeo, cubeMat);
     vcScene.add(vcCube);
