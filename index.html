@@ -269,6 +269,18 @@
     }
     .tree-actions button:hover { color: #ffb700; border-color: rgba(255,183,0,0.5); background: rgba(255,183,0,0.08); }
 
+    .lang-switch {
+      display: inline-flex; gap: 2px; margin-left: 8px; padding: 2px;
+      background: var(--bg-surface); border: 1px solid var(--border); border-radius: 7px;
+    }
+    .btn-lang {
+      font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+      padding: 3px 7px; border: 0; border-radius: 5px; background: transparent;
+      color: var(--text-dim); cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-lang:hover { color: var(--text); }
+    .btn-lang.active { background: #ffb700; color: #10131a; }
+
     .dropdown-container { position: relative; display: inline-block; }
     .dropdown-content {
       position: absolute;
@@ -645,6 +657,10 @@
           <option value="od3" selected>Modèle 3"</option>
           <option value="od5">Modèle 5"</option>
         </select>
+        <div class="lang-switch" title="Langue du site / Site language">
+          <button class="btn-lang" data-lang="fr" type="button">FR</button>
+          <button class="btn-lang" data-lang="en" type="button">EN</button>
+        </div>
       </div>
 
       <div class="tree-dropdown-wrapper">
@@ -986,6 +1002,469 @@
     import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
     import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
     import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+
+    /* ---- Bilingue : le site parle français ou anglais ---- */
+    // Une seule source, un seul dictionnaire : le français reste écrit dans le
+    // code et l'anglais se pose par-dessus au moment de l'affichage. Rien à
+    // dupliquer, rien à maintenir en double.
+    const TR = {
+      "Activer / Désactiver la rotation automatique": "Turn auto-rotation on / off",
+      "Activer / Désactiver la rotation des hélices": "Turn propeller spin on / off",
+      "Affichage": "Display",
+      "Afficher / Masquer": "Show / hide",
+      "Afficher / Masquer l'arbre d'assemblage": "Show / hide the assembly tree",
+      "Afficher / Masquer toute la catégorie": "Show / hide the whole category",
+      "Afficher Infos": "Show info",
+      "Afficher le maillage filaire": "Show the wireframe mesh",
+      "Afficher le sélecteur de vue": "Show the view selector",
+      "Aluminium CNC (Standoff)": "CNC aluminium (standoff)",
+      "Antenne ELRS 2,4 GHz (dipôle T)": "ELRS 2.4 GHz antenna (T dipole)",
+      "Antenne Linéaire": "Linear antenna",
+      "Antenne du récepteur": "Receiver antenna",
+      "Antennes vidéo": "Video antennas",
+      "Arbre": "Tree",
+      "Arbre d'Assemblage": "Assembly Tree",
+      "Architecture modulaire open-source": "Modular open-source architecture",
+      "Arrière": "Rear",
+      "Arêtes surlignées": "Highlighted edges",
+      "Assemblage": "Assembly",
+      "Assemblage complet, toutes catégories": "Complete assembly, every category",
+      "Assembler": "Assemble",
+      "Au premier essai, on branche toujours sans hélices. Ici elles sont montées pour visualiser le sens de rotation.": "On a first power-up you always plug in without propellers. They are fitted here so you can see which way each motor turns.",
+      "Au tour du FC : branche la nappe 6 broches sur son port vidéo, l'autre bout ira sur l'Air Unit.": "The FC's turn: plug the 6-pin ribbon into its video port, the other end goes on the Air Unit.",
+      "Aucune pièce ne correspond.": "No part matches.",
+      "Batterie": "Battery",
+      "Batterie LiPo + queue XT30": "LiPo battery + XT30 pigtail",
+      "Batterie et test final": "Battery and final test",
+      "Berceau VTX": "VTX cradle",
+      "Bicolores OpenDrone": "OpenDrone two-tone",
+      "Blanc": "White",
+      "Bleu / Blanc": "Blue / White",
+      "Bleu / Jaune": "Blue / Yellow",
+      "Bleu / Noir": "Blue / Black",
+      "Bleu Foncé": "Dark blue",
+      "Branche la batterie et lance le test de mise sous tension.": "Plug the battery in and run the power-up test.",
+      "Brancher": "Plug in",
+      "Brancher et tester": "Plug in and test",
+      "Branché ✓": "Plugged in ✓",
+      "Bras carbone": "Carbon arm",
+      "Brochage : +10V · GND · DIGITAL_TX · DIGITAL_RX · GND · SBUS.": "Pinout: +10V · GND · DIGITAL_TX · DIGITAL_RX · GND · SBUS.",
+      "Brochage : +BATT · GND · CURR · NC · M1 · M2 · M3 · M4. Les deux embases sont sous leur carte : la nappe contourne le bord, elle ne passe pas au travers. Le détrompeur empêche l'inversion, ne force jamais.": "Pinout: +BATT · GND · CURR · NC · M1 · M2 · M3 · M4. Both headers sit under their board: the ribbon goes round the edge, never through it. The key stops you plugging it in backwards — never force it.",
+      "Bumper avant": "Front bumper",
+      "C'est l'autre bout du fil que cette étape demande.": "This step asks for the other end of the wire.",
+      "C'est le bout dénudé du fil qu'on étame, pas la pastille.": "It is the stripped end of the wire you tin here, not the pad.",
+      "C'est le plot qu'on étame, pas le fil : vise la pastille.": "It is the pad you tin, not the wire: aim at the copper.",
+      "Caméra": "Camera",
+      "Caméra FPV": "FPV camera",
+      "Caméra FPV HD": "HD FPV camera",
+      "Carbone 3mm": "3 mm carbon",
+      "Carbone T700": "T700 carbon",
+      "Ce sont de vrais plats à souder, 2,3 × 1,4 mm au pas de 2,25 — bien plus confortables que les plots du récepteur. Le contrôleur n'a pas d'embase pour le récepteur : sur cette carte, la liaison CRSF se soude.": "These are real solder pads, 2.3 × 1.4 mm on a 2.25 pitch — far friendlier than the receiver's through-holes. The controller has no header for the receiver: on this board the CRSF link is soldered.",
+      "Centrer Zoom": "Recentre",
+      "Chargement": "Loading",
+      "Choisir le modèle de drone": "Choose the drone model",
+      "Choisis la configuration avant de souder : elle fixe le sens attendu de chaque moteur, et donc l'ordre des phases.": "Choose the configuration before soldering: it sets which way each motor must turn, and therefore the phase order.",
+      "Châssis & Visserie": "Frame & Screws",
+      "Châssis 5\" & Visserie": "5\" Frame & Screws",
+      "Châssis complet FPV assemblé": "Complete FPV frame, assembled",
+      "Clipse les deux coaxiaux u.FL dans la baie ANTENNA de l'Air Unit, chaque brin sur la fiche de son côté.": "Clip the two u.FL coaxes into the Air Unit's ANTENNA bay, each element on the plug on its own side.",
+      "Cloche aluminium anodisé équilibrée.": "Balanced anodised aluminium bell.",
+      "Coaxial d'antenne": "Antenna coax",
+      "Colorer les 4 hélices": "Colour all 4 propellers",
+      "Colorer seulement les 2 hélices avant, pour repérer la marche avant": "Colour only the 2 front propellers, to spot which way is forward",
+      "Commander": "Order",
+      "Commander / Télécharger les pièces": "Order / Download the parts",
+      "Commander ou télécharger les pièces": "Order or download the parts",
+      "Commander sur opendrone.be": "Order on opendrone.be",
+      "Composants SMD": "SMD components",
+      "Conception optimisée pour la robustesse et la réparabilité.": "Designed for toughness and repairability.",
+      "Condensateur": "Capacitor",
+      "Condensateur low-ESR": "Low-ESR capacitor",
+      "Condensateur à l'envers": "Capacitor backwards",
+      "Configuration Châssis": "Frame Configuration",
+      "Configuration Dead Cat — en cours de modélisation": "Dead Cat configuration — being modelled",
+      "Connecteur en place, détrompeur respecté.": "Connector seated, key respected.",
+      "Connecteurs & nappes": "Connectors & ribbons",
+      "Contact établi, étape terminée.": "Contact made, step complete.",
+      "Contact établi. Encore {n} fil(s) à poser.": "Contact made. {n} wire(s) left to place.",
+      "Contrôleur": "Controller",
+      "Contrôleur de Vol": "Flight Controller",
+      "Contrôleur de vol Betaflight / INAV avec pastilles ENIG.": "Betaflight / INAV flight controller with ENIG pads.",
+      "Croix centrale": "Centre cross",
+      "Cube de vue CAO interactif": "Interactive CAD view cube",
+      "Cyberpunk Vert": "Cyberpunk Green",
+      "Câblage": "Wiring",
+      "Câble batterie XT30": "XT30 battery lead",
+      "Dead Cat (DC)": "Dead Cat (DC)",
+      "Demander le fichier STEP": "Request the STEP file",
+      "Dessous": "Bottom",
+      "Dessus": "Top",
+      "Dissipateur VTX": "VTX heatsink",
+      "Double cœur RP2354B": "Dual-core RP2354B",
+      "Droite": "Right",
+      "Drone": "Drone",
+      "Drone entier": "Whole drone",
+      "ESC 4-en-1": "4-in-1 ESC",
+      "Entretoises (Standoffs)": "Standoffs",
+      "Entretoises alu": "Aluminium standoffs",
+      "Exporter en STL": "Export as STL",
+      "Fil posé sur son plot. Maintiens le clic dessus pour souder.": "Wire resting on its pad. Hold the click on it to solder.",
+      "Fil étamé": "Wire tinned",
+      "Fils CRSF": "CRSF wires",
+      "Filtrer les pièces...": "Filter parts...",
+      "Firmware AM32 • 45A": "AM32 firmware • 45A",
+      "Fond d'origine du site OpenDrone": "The original OpenDrone site background",
+      "Fond du Plan de Travail": "Workspace Background",
+      "Format": "Format",
+      "Fumée !": "Smoke!",
+      "Gauche": "Left",
+      "Ghost Stealth": "Ghost Stealth",
+      "Grille de Sol": "Ground grid",
+      "Gris": "Grey",
+      "Grommet Caoutchouc": "Rubber grommet",
+      "Génération…": "Generating…",
+      "Hélice": "Propeller",
+      "Hélice Tri-pales FPV": "Tri-blade FPV propeller",
+      "Hélices": "Propellers",
+      "Hélices FPV": "FPV Propellers",
+      "Il reste": "Still to do:",
+      "Ils sont petits — 1,9 mm au pas de 2,54 — et l'étain vient donc vite : bien plus vite que sur les pastilles de batterie. Trop d'étain ici et deux plots voisins se rejoignent.": "They are small — 1.9 mm on a 2.54 pitch — so the solder takes fast, much faster than on the battery pads. Too much solder here and two neighbouring pads bridge.",
+      "Impression TPU": "TPU print",
+      "Indice": "Hint",
+      "Initialisation du moteur 3D PBR...": "Starting the PBR 3D engine...",
+      "Inverser rouge et noir détruit l'étage de puissance à la première mise sous tension. Vérifie deux fois. Le XT30 ne se soude pas ici : la femelle est montée dans l'ouverture de la plaque supérieure, engagée de la moitié de son boîtier, et le mâle arrive au bout de la queue du pack.": "Swapping red and black destroys the power stage the first time you connect a battery. Check twice. The XT30 is not soldered here: the female half is mounted in the top plate's opening, sunk to half its body, and the male arrives at the end of the pack's pigtail.",
+      "Iso droite": "Iso right",
+      "Iso gauche": "Iso left",
+      "Isoler (Solo)": "Isolate (solo)",
+      "KV haute efficacité": "High-efficiency KV",
+      "Kit TPU": "TPU kit",
+      "Kit châssis carbone": "Carbon frame kit",
+      "Kit propulsion": "Propulsion kit",
+      "Kit électronique": "Electronics kit",
+      "L'ordre des trois phases décide du sens de rotation. Interverti, le moteur tourne à l'envers — AM32 sait le corriger en logiciel, mais autant souder juste. Le bouton soude les douze d'un coup.": "The order of the three phases decides which way the motor turns. Swapped, it runs backwards — AM32 can fix that in software, but you may as well solder it right. The button does all twelve at once.",
+      "La bague marque le négatif, elle va sur GND. Les pastilles sont déjà étamées et les pattes le sont d'usine : il n'y a plus qu'à refondre. L'OpenESC embarque déjà 49 condensateurs de réserve, celui-ci reste utile sur une longue nappe d'alimentation.": "The stripe marks the negative, it goes to GND. The pads are already tinned and the legs come tinned from the factory: all that is left is to reflow. The OpenESC already carries 49 reservoir capacitors; this one still helps on a long power lead.",
+      "La nappe est fragile : elle se clipse sans forcer, connecteur bien en face.": "The ribbon is fragile: it clips in without force, connector square on.",
+      "La sérigraphie ajoutée le long de la rangée nomme les quatre plots. L'autre bout de ces mêmes fils se soudera sur le contrôleur, aux deux étapes suivantes.": "The silkscreen added along the row names the four pads. The other end of these same wires will be soldered to the controller in the next two steps.",
+      "Le FC s'écarte, l'ESC est à nu. Sans toucher aux fils : maintiens le clic sur le plot que l'anneau désigne. Une petite goutte d'étain s'y dépose, le cuivre passe à l'étain et prend son relief. Puis au suivant, douze fois.": "The FC moves aside, the ESC is bare. Without touching the wires: hold the click on the pad the ring points at. A small bead of solder settles on it, the copper turns to tin and takes on relief. Then the next, twelve times.",
+      "Le coaxial contourne la plaque supérieure au lieu de la traverser : en ligne droite il la percerait, elle passe 0,5 mm au-dessus de l'embase.": "The coax goes around the top plate instead of through it: straight, it would pierce it; here it passes 0.5 mm above the socket.",
+      "Le connecteur vient se clipser en place.": "The connector clicks into place.",
+      "Le croisement est déjà fait dans le faisceau, tu le vois aux deux fils qui se chevauchent entre les cartes : le jaune (TX du récepteur) descend sur RX1, le vert (RX du récepteur) sur TX1. Deux fils droits ici, et la radio ne répond jamais.": "The crossover is already made in the harness — you can see it in the two wires that overlap between the boards: the yellow one (receiver TX) drops onto RX1, the green one (receiver RX) onto TX1. Two straight wires here and the radio never answers.",
+      "Le drone bascule au décollage :": "The drone flips on take-off:",
+      "Le rouge sur la pastille marquée +, le noir sur celle marquée −. Chacun sur la sienne : maintiens le clic sur le point que l'anneau désigne, puis sur l'autre.": "Red on the pad marked +, black on the one marked −. Each on its own: hold the click on the point the ring shows, then on the other.",
+      "Le récepteur est câblé des deux côtés : reste son antenne. Clipse le coaxial de l'ELRS sur l'embase u.FL de la carte.": "The receiver is wired on both sides: its antenna is all that is left. Clip the ELRS coax onto the board's u.FL socket.",
+      "Le récepteur n'a pas d'embase : quatre plots traversants sur le bord, tournés vers l'avant du drone. Maintiens le clic sur celui que l'anneau désigne, quatre fois.": "The receiver has no header: four through-hole pads on the edge, facing the front of the drone. Hold the click on the one the ring points at, four times.",
+      "Le visualiseur ne contient que les maillages du drone : le STEP paramétrique vient des sources CAO Onshape. Le bouton ouvre opendrone.be pour la demande.": "The viewer only holds the drone's meshes: the parametric STEP comes from the Onshape CAD sources. The button opens opendrone.be to request it.",
+      "Lecture": "Play",
+      "Les deux pastilles d'alimentation font 6,8 mm de long : il faut y tenir le fer nettement plus longtemps que sur un plot moteur avant que l'étain mouille. Maintiens sur chacune.": "The two power pads are 6.8 mm long: you have to hold the iron on them far longer than on a motor pad before the solder wets. Hold on each of them.",
+      "Les deux pastilles d'alimentation sont étamées.": "Both power pads are tinned.",
+      "Les deux pattes du condensateur sont soudées.": "Both capacitor legs are soldered.",
+      "Les deux pattes se soudent sur les mêmes pastilles, à côté des fils de batterie. Un point, puis l'autre.": "Both legs are soldered onto the same pads, beside the battery wires. One point, then the other.",
+      "Les douze fils sont étamés, tu peux souder.": "All twelve wires are tinned, you can solder.",
+      "Les douze plots sont étamés. Au tour des fils.": "All twelve pads are tinned. Now the wires.",
+      "Les quatre fils CRSF rejoignent leur plot : 5V, GND, TX et RX, chacun sur le sien. Pose le bout et maintiens le clic dessus.": "The four CRSF wires reach their pad: 5V, GND, TX and RX, each on its own. Lay the end down and hold the click on it.",
+      "Les quatre fils CRSF sont soudés côté récepteur.": "The four CRSF wires are soldered on the receiver side.",
+      "Les quatre fils sont soudés sur TX1, RX1, GND et 5V, TX et RX croisés : le récepteur parle au contrôleur.": "The four wires are soldered to TX1, RX1, GND and 5V, TX and RX crossed: the receiver is talking to the controller.",
+      "Les quatre plats de l'UART sont étamés, fils compris.": "The four UART pads are tinned, wires included.",
+      "Les quatre plots du récepteur sont étamés.": "The receiver's four pads are tinned.",
+      "Liaison radio ultra-faible latence (< 2ms).": "Ultra-low-latency radio link (< 2 ms).",
+      "Maintenant seulement les fils rejoignent la carte. Attrape chaque bout, pose-le sur son plot étamé et maintiens le clic dessus : l'étain refond et la soudure se forme.": "Only now do the wires reach the board. Take each end, lay it on its tinned pad and hold the click on it: the solder reflows and the joint forms.",
+      "Maintenir pour souder": "Hold to solder",
+      "Maintiens un peu plus longtemps.": "Hold it a little longer.",
+      "Masquer l'encart": "Hide the card",
+      "Masquer la pièce": "Hide part",
+      "Masquer toutes les pièces": "Hide every part",
+      "Matériau": "Material",
+      "Mise à plat": "Flat lay",
+      "Mode Pièce par Pièce": "Part-by-part mode",
+      "Mode câblage": "Wiring mode",
+      "Mode câblage et soudures pas à pas": "Step-by-step wiring and soldering mode",
+      "Mode pièce par pièce séquentiel": "Sequential part-by-part mode",
+      "Modes de Montage & Plateau": "Assembly Modes & Tray",
+      "Module Vidéo O3": "O3 Video Module",
+      "Modèle 3\"": "3\" Model",
+      "Modèle 5\"": "5\" Model",
+      "Modèle en cours de chargement…": "Model loading…",
+      "Montage pas à pas": "Step-by-step build",
+      "Moteur Anodisé": "Anodised motor",
+      "Moteurs": "Motors",
+      "Moteurs & Hélices": "Motors & Propellers",
+      "Moteurs 5\" & Hélices": "5\" Motors & Propellers",
+      "Moteurs Anodisés": "Anodised Motors",
+      "Moteurs, hélices et silentblocs": "Motors, propellers and soft mounts",
+      "Même geste sur les bouts dénudés : maintiens le clic sur le cuivre nu, il se couvre d'étain à son tour. Les fils restent où ils sont, ils ne rejoignent leur plot qu'à la soudure.": "Same gesture on the stripped ends: hold the click on the bare copper and it takes its own coat of solder. The wires stay where they are, they only reach their pad at soldering time.",
+      "N'alimente jamais un VTX sans antenne : l'étage de puissance se détruit en quelques secondes.": "Never power a VTX without an antenna: the power stage destroys itself in seconds.",
+      "Nappe ESC → FC": "ESC → FC ribbon",
+      "Nappe FC → VTX": "FC → VTX ribbon",
+      "Nappe caméra": "Camera ribbon",
+      "On étame toujours à vide, plot par plot. C'est le seul moment où l'on apporte de l'étain : au montage, il n'y en aura plus à ajouter, donc plus de risque de pont entre deux plots voisins.": "You always tin dry, pad by pad. This is the only moment solder is added: at assembly there will be none left to add, so no risk of a bridge between two neighbouring pads.",
+      "OpenDrone 3\" & 5\" | Visualisation 3D Interactive & Configurateur": "OpenDrone 3\" & 5\" | Interactive 3D Viewer & Configurator",
+      "OpenDrone FPV": "OpenDrone FPV",
+      "OpenESC 4-en-1": "OpenESC 4-in-1",
+      "OpenFC, OpenESC, OpenRX, caméra et VTX": "OpenFC, OpenESC, OpenRX, camera and VTX",
+      "OpenFC-Lite (contrôleur de vol)": "OpenFC-Lite (flight controller)",
+      "OpenRX-Lite (récepteur ELRS)": "OpenRX-Lite (ELRS receiver)",
+      "Options d'Affichage": "Display Options",
+      "Origine": "Original",
+      "PCB {x} x {z} mm, ép. {y} — hors-tout {b}.": "PCB {x} x {z} mm, {y} thick — overall {b}.",
+      "Pads Dorés ENIG": "ENIG gold pads",
+      "Passe à l'autre bout des mêmes fils. Le bord gauche du contrôleur porte six plats nommés par sa sérigraphie — 3V3, TX1, RX1, GND, 5V, LED : quatre nous concernent. Étame-les, et avec eux les bouts de fil restants.": "Move to the other end of the same wires. The controller's left edge carries six pads named by its own silkscreen — 3V3, TX1, RX1, GND, 5V, LED: four concern us. Tin them, and the remaining wire ends with them.",
+      "Pattes du condensateur": "Capacitor legs",
+      "Personnalisation": "Customise",
+      "Phases M2 inversées": "M2 phases swapped",
+      "Phases moteur": "Motor phases",
+      "Pièce": "Part",
+      "Pièce {i} sur {n} posée sur l'assemblage.": "Part {i} of {n} placed on the assembly.",
+      "Pièces TPU": "TPU Parts",
+      "Pièces imprimées : bumper, protections, supports": "Printed parts: bumper, guards, mounts",
+      "Pièces suggérées": "Suggested parts",
+      "Plaque inférieure": "Bottom plate",
+      "Plaque supérieure": "Top plate",
+      "Plaques CNC haute rigidité.": "High-stiffness CNC plates.",
+      "Plaques, bras, croix, entretoises et visserie": "Plates, arms, cross, standoffs and screws",
+      "Plateau vide": "Empty tray",
+      "Platine médiane": "Mid plate",
+      "Plein écran": "Fullscreen",
+      "Plot ou fil pas encore étamé : reprends les deux étapes précédentes.": "Pad or wire not tinned yet: go back over the two previous steps.",
+      "Plot étamé": "Pad tinned",
+      "Pose toutes les pièces à plat sur le plateau z=0": "Lays every part flat on the z=0 tray",
+      "Props-in": "Props-in",
+      "Props-in est le défaut Betaflight. Props-out projette les débris vers l'extérieur et se pilote pareil : c'est surtout une habitude de pilote.": "Props-in is the Betaflight default. Props-out throws debris outwards and flies the same: it is mostly a pilot's habit.",
+      "Props-out": "Props-out",
+      "Propulsion": "Propulsion",
+      "Protections de bras": "Arm guards",
+      "Protocole 2.4GHz": "2.4 GHz protocol",
+      "Provoquer une erreur (démonstration)": "Trigger a fault (demo)",
+      "Queue de batterie": "Battery lead",
+      "Quitter le mode câblage": "Leave wiring mode",
+      "Recentrer": "Recentre",
+      "Recentrer et zoomer sur le drone": "Recentre and zoom on the drone",
+      "Relie la caméra à l'Air Unit par sa nappe.": "Connect the camera to the Air Unit with its ribbon.",
+      "Replier le sélecteur de vue": "Collapse the view selector",
+      "Reprends l'étape": "Redo the step",
+      "Rotation Auto": "Auto-rotate",
+      "Rouge et noir en place, chacun sur sa pastille.": "Red and black in place, each on its own pad.",
+      "Réafficher toutes les pièces": "Show every part again",
+      "Récepteur": "Receiver",
+      "Récepteur OpenRX": "OpenRX receiver",
+      "Récepteur Radio": "Radio receiver",
+      "Récepteur → contrôleur": "Receiver → controller",
+      "STEP — CAO paramétrique (sur demande)": "STEP — parametric CAD (on request)",
+      "STL binaire généré depuis le modèle affiché ({n} corps CAO), pièces à leur position d'origine.": "Binary STL generated from the displayed model ({n} CAD bodies), parts at their original position.",
+      "STL — maillage imprimable / visualisable": "STL — printable / viewable mesh",
+      "Sens des hélices": "Propeller direction",
+      "Signatures": "Signature looks",
+      "Silentblocs moteur": "Motor soft mounts",
+      "Sortie vidéo du contrôleur": "Controller video output",
+      "Soude les quatre fils sur l'UART du contrôleur. 5V sur 5V, GND sur GND — mais TX et RX se croisent : le TX du récepteur va sur RX1, et son RX sur TX1.": "Solder the four wires onto the controller's UART. 5V on 5V, GND on GND — but TX and RX cross over: the receiver's TX goes to RX1, and its RX to TX1.",
+      "Soudure froide : l'étain n'a pas mouillé le plot. Maintiens jusqu'au bout.": "Cold joint: the solder never wetted the pad. Hold it all the way.",
+      "Soudure froide : l'étain n'a pas refondu. Maintiens jusqu'au bout.": "Cold joint: the solder never reflowed. Hold it all the way.",
+      "Soudure propre, brillante et bien formée.": "Clean joint, shiny and well formed.",
+      "Soudé": "Soldered",
+      "Soudé ✓": "Soldered ✓",
+      "Standard": "Standard",
+      "Start/Stop": "Start/Stop",
+      "Steampunk Gold": "Steampunk Gold",
+      "Structure & Vidéo": "Structure & Video",
+      "Substrat FR4": "FR4 substrate",
+      "Suivant →": "Next →",
+      "Sunset FPV": "Sunset FPV",
+      "Support AirTag / antenne": "AirTag / antenna mount",
+      "Support antennes": "Antenna mount",
+      "Support caméra": "Camera mount",
+      "Sérigraphie PCB": "PCB silkscreen",
+      "Tout afficher": "Show all",
+      "Tout est bon : armement OK, les quatre moteurs tournent dans le bon sens.": "All good: arming OK, all four motors turn the right way.",
+      "Tout est câblé de part et d'autre : il ne reste qu'à relier les deux cartes par la nappe JST-SH 8 broches, avant de refermer le stack.": "Everything is wired on both sides: all that is left is to join the two boards with the 8-pin JST-SH ribbon, before closing the stack up.",
+      "Tout masquer": "Hide all",
+      "Trop bref : l'étain n'a pas mouillé. Maintiens jusqu'au bout.": "Too brief: the solder never wetted. Hold it all the way.",
+      "Télécharger": "Download",
+      "Télécharger le STL": "Download the STL",
+      "Un fil étamé ne s'effiloche plus et conduit la chaleur d'un bloc. Avec le plot déjà étamé, la soudure se fait ensuite par simple refusion, sans apport.": "A tinned wire no longer frays and carries heat as one block. With the pad already tinned, the joint is then made by simple reflow, with nothing added.",
+      "Une grande pastille dissipe la chaleur dans tout le plan de masse. Si on n'attend pas, l'étain fait une boule qui ne mouille pas : c'est la soudure froide classique sur une entrée batterie.": "A large pad drains heat into the whole ground plane. If you do not wait, the solder balls up without wetting: the classic cold joint on a battery input.",
+      "Valider le sens": "Confirm the direction",
+      "Vernis PCB (Soldermask)": "PCB soldermask",
+      "Vert / Violet": "Green / Purple",
+      "Veuillez d'abord sélectionner une pièce.": "Select a part first.",
+      "Vidéo": "Video",
+      "Vidéo & FPV": "Video & FPV",
+      "Visserie": "Screws",
+      "Visserie (Screws)": "Screws",
+      "Visserie Inox": "Stainless screws",
+      "Vue": "View",
+      "Vue d'ensemble": "Overview",
+      "Vue d'ensemble du drone open-source. Clic droit pour options et export STL.": "Overview of the open-source drone. Right-click for options and STL export.",
+      "Vue Éclatée": "Exploded view",
+      "Wireframe": "Wireframe",
+      "XT30 inversé": "XT30 reversed",
+      "Moteur": "Motor",
+      "arrière": "rear",
+      "arrière droit": "rear right",
+      "arrière gauche": "rear left",
+      "avant": "front",
+      "condensateur à l'envers": "capacitor backwards",
+      "corps CAO": "CAD bodies",
+      "droit": "right",
+      "droite": "right",
+      "gauche": "left",
+      "les quatre sens sont inversés d'un jeu à l'autre.": "all four directions flip from one set to the other.",
+      "pièces": "parts",
+      "soudure froide": "cold joint",
+      "tourne à l'envers. Interverstis deux de ses phases.": "is spinning backwards. Swap two of its phases.",
+      "x2": "x2",
+      "x4": "x4",
+      "Éclatement": "Explode",
+      "Électronique": "Electronics",
+      "Émetteur vidéo VTX": "VTX video transmitter",
+      "Étage de puissance à MOSFETs ultra-basse résistance.": "Power stage on ultra-low-resistance MOSFETs.",
+      "Étamage des douze fils": "Tinning the twelve wires",
+      "Étamage des douze plots": "Tinning the twelve pads",
+      "Étamage des plats du contrôleur": "Tinning the controller pads",
+      "Étamage des plots batterie": "Tinning the battery pads",
+      "Étamage des plots du récepteur": "Tinning the receiver pads",
+      "Étamage terminé.": "Tinning done.",
+      "Configuration": "Configuration",
+      "retenue": "selected",
+      "{m}. Encore {n} point(s).": "{m}. {n} point(s) to go.",
+      "Structure carbone": "Carbon structure",
+      "Visserie & connectique": "Screws & connectors",
+      "Divers": "Other",
+      "Souder": "Solder",
+      "{v} les {m} d'un coup": "{v} all {m} at once",
+      "deux": "two",
+      "quatre": "four",
+      "douze": "twelve",
+      "Étamer": "Tin",
+      "Étamé ✓": "Tinned ✓",
+      "Étape": "Step",
+      "Étape 0 / 0": "Step 0 / 0",
+      "Étape 1 / 10": "Step 1 / 10",
+      "Étape précédente": "Previous step",
+      "Étape suivante": "Next step",
+      "étape(s)": "step(s)",
+      "— 1404 à 1604, 3000-4500 KV en 4S": "— 1404 to 1604, 3000-4500 KV on 4S",
+      "— 4S 550-850 mAh, connecteur XT30": "— 4S 550-850 mAh, XT30 connector",
+      "— DJI O4 Air Unit Pro, nappe 6 broches": "— DJI O4 Air Unit Pro, 6-pin ribbon",
+      "— OpenESC 4-en-1 20×20, 2-6S, AM32": "— OpenESC 4-in-1 20×20, 2-6S, AM32",
+      "— OpenFC 20×20, Betaflight": "— OpenFC 20×20, Betaflight",
+      "— OpenRX ELRS 2.4 GHz, protocole CRSF": "— OpenRX ELRS 2.4 GHz, CRSF protocol",
+      "— low-ESR 470 µF / 35 V": "— low-ESR 470 µF / 35 V",
+      "— tri-pales 3 pouces, pas 2.0 à 3.0": "— 3-inch tri-blade, 2.0 to 3.0 pitch",
+      "← Précédent": "← Previous"
+    };
+
+    const LANG_ATTRS = ['title', 'placeholder', 'aria-label'];
+    const TITRE_FR = document.title;
+    let LANG = localStorage.getItem('od-lang')
+      || (/^fr/i.test(navigator.language || navigator.userLanguage || 'fr') ? 'fr' : 'en');
+    const t = (s) => (LANG === 'en' && TR[s]) || s;
+
+    // Texte d'origine des nœuds déjà traduits : c'est lui qui sert de clé, et
+    // c'est lui qu'on remet en revenant au français.
+    const _origine = new WeakMap();
+    const _attrOrig = new WeakMap();
+
+    function traduireTexte(n) {
+      const brut = _origine.has(n) ? _origine.get(n) : n.nodeValue;
+      const cle = brut.trim();
+      if (!cle) return;
+      const cible = LANG === 'en' && TR[cle] ? brut.replace(cle, TR[cle]) : brut;
+      if (!_origine.has(n)) _origine.set(n, brut);
+      if (n.nodeValue !== cible) n.nodeValue = cible;
+    }
+
+    function traduireAttrs(el) {
+      if (!el.getAttribute) return;
+      let m = _attrOrig.get(el);
+      LANG_ATTRS.forEach((a) => {
+        const v = el.getAttribute(a);
+        if (v === null) return;
+        if (!m) { m = {}; _attrOrig.set(el, m); }
+        if (m[a] === undefined) m[a] = v;
+        const cible = LANG === 'en' && TR[m[a]] ? TR[m[a]] : m[a];
+        if (v !== cible) el.setAttribute(a, cible);
+      });
+    }
+
+    const SANS_TRAD = /^(SCRIPT|STYLE|CANVAS|SVG|PATH|POLYGON)$/;
+    function traduireDOM(racine) {
+      if (!racine) return;
+      if (racine.nodeType === 3) { traduireTexte(racine); return; }
+      if (racine.nodeType !== 1 || SANS_TRAD.test(racine.tagName)) return;
+      traduireAttrs(racine);
+      const it = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+        acceptNode: (n) => (n.nodeType === 1 && SANS_TRAD.test(n.tagName))
+          ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+      });
+      let n;
+      while ((n = it.nextNode())) {
+        if (n.nodeType === 3) traduireTexte(n);
+        else traduireAttrs(n);
+      }
+    }
+
+    // Tout ce que le code écrit dans la page passe par là, y compris ce qui est
+    // fabriqué après coup — arbre d'assemblage, panneau de câblage, modale de
+    // commande. Le garde évite de retraiter nos propres écritures.
+    let _tradActive = true;
+    const _obsLang = new MutationObserver((muts) => {
+      if (!_tradActive || LANG === 'fr') return;
+      _tradActive = false;
+      muts.forEach((m) => {
+        if (m.type === 'characterData') traduireTexte(m.target);
+        else if (m.type === 'attributes') traduireAttrs(m.target);
+        else m.addedNodes.forEach((n) => traduireDOM(n));
+      });
+      _tradActive = true;
+    });
+
+    function appliquerLangue() {
+      document.documentElement.lang = LANG;
+      document.title = t(TITRE_FR);
+      _tradActive = false;
+      traduireDOM(document.body);
+      _tradActive = true;
+      document.querySelectorAll('.btn-lang').forEach((b) => {
+        b.classList.toggle('active', b.dataset.lang === LANG);
+      });
+    }
+
+    function setLangue(l) {
+      if (l === LANG) return;
+      LANG = l;
+      try { localStorage.setItem('od-lang', l); } catch (e) { /* navigation privée */ }
+      appliquerLangue();
+      // Ce qui est calculé se refait : les libellés viennent du code, pas du DOM.
+      rebuildLangUI();
+    }
+
+    // Les panneaux fabriqués en code se redessinent : l'observateur rattrape le
+    // texte, mais pas ce qui n'a pas été réécrit depuis le changement.
+    function rebuildLangUI() {
+      try {
+        if (typeof buildAssemblyTree === 'function' && assemblyGroups.length) {
+          buildAssemblyTree(treeSearchInput ? treeSearchInput.value : '');
+        }
+        if (typeof updateBeatUI === 'function' && assemblyGroups.length) updateBeatUI();
+        if (typeof updateStepHud === 'function') updateStepHud();
+        if (typeof renderWiringStep === 'function' && wiringActive) renderWiringStep();
+        // Le retour d'étape est un message d'instant : certains sont assemblés
+        // à la volée et ne se retraduisent pas une fois posés. On l'efface
+        // plutôt que de laisser une phrase à moitié dans l'autre langue.
+        if (typeof wiringSay === 'function' && wiringActive) wiringSay('', '');
+        if (typeof selectGroup === 'function' && selectedGroup) selectGroup(selectedGroup);
+        if (typeof renderKits === 'function') { renderKits(); renderKitDetail(); }
+      } catch (e) { /* rien de vital : l'observateur a déjà fait le gros */ }
+    }
+
+    _obsLang.observe(document.body, {
+      subtree: true, childList: true, characterData: true,
+      attributes: true, attributeFilter: LANG_ATTRS
+    });
+    appliquerLangue();
+    document.querySelectorAll('.btn-lang').forEach((b) => {
+      b.addEventListener('click', () => setLangue(b.dataset.lang));
+    });
 
     const container = document.getElementById('canvas-container');
     const loaderBar = document.getElementById('loader-bar');
@@ -1423,7 +1902,7 @@
       // liaison mobile, l'attente était la somme des six au lieu du plus long.
       // L'assemblage, lui, reste dans l'ordre d'origine — c'est lui qui fixe
       // l'ordre des groupes de l'arbre.
-      if (loaderStatus) loaderStatus.textContent = `Chargement ${modelKey.toUpperCase()}...`;
+      if (loaderStatus) loaderStatus.textContent = `${t('Chargement')} ${modelKey.toUpperCase()}...`;
       const recus = new Array(CHUNKS.length).fill(0);
       const majBarre = () => {
         if (!loaderBar) return;
@@ -1853,7 +2332,7 @@
         const rgt = d.dot(right) >= 0;
         return { fwd, rgt, order: (fwd ? 0 : 2) + (rgt ? 1 : 0) };
       };
-      const orientLabel = (o, fem) => `${o.fwd ? 'avant' : 'arrière'} ${o.rgt ? (fem ? 'droite' : 'droit') : 'gauche'}`;
+      const orientLabel = (o, fem) => `${t(o.fwd ? 'avant' : 'arrière')} ${t(o.rgt ? (fem ? 'droite' : 'droit') : 'gauche')}`;
 
       for (const node of tops) {
         const chunk = node.userData.chunkId || '';
@@ -1897,7 +2376,7 @@
       }
       clusters.forEach((cl, i) => {
         const o = orientOf(cl.centre);
-        const g = getGroup(`motor-${i}`, 'PROPULSION', `Moteur ${clusters.length === 4 ? orientLabel(o, false) : i + 1}`, 10 + (clusters.length === 4 ? o.order : i));
+        const g = getGroup(`motor-${i}`, 'PROPULSION', `${t('Moteur')} ${clusters.length === 4 ? orientLabel(o, false) : i + 1}`, 10 + (clusters.length === 4 ? o.order : i));
         cl.nodes.forEach(n => g.nodes.push(n));
       });
 
@@ -1905,7 +2384,7 @@
       propNodes.forEach((p, i) => {
         tmpBox.setFromObject(p).getCenter(tmpC);
         const o = orientOf(tmpC);
-        const g = getGroup(`prop-${i}`, 'PROPULSION', `Hélice ${propNodes.length === 4 ? orientLabel(o, true) : i + 1}`, 20 + (propNodes.length === 4 ? o.order : i));
+        const g = getGroup(`prop-${i}`, 'PROPULSION', `${t('Hélice')} ${propNodes.length === 4 ? orientLabel(o, true) : i + 1}`, 20 + (propNodes.length === 4 ? o.order : i));
         g.nodes.push(p);
       });
 
@@ -4666,13 +5145,13 @@
       const stageNote = document.getElementById('stage-note');
       const stageCaption = document.getElementById('stage-caption');
 
-      if (stageTag) stageTag.textContent = CATEGORY_LABEL[g.cat] || 'Pièce';
+      if (stageTag) stageTag.textContent = t(CATEGORY_LABEL[g.cat] || 'Pièce');
       if (stageTitle) stageTitle.textContent = g.label + (g.qty > 1 ? ` (x${g.qty})` : '');
-      if (stageNote) stageNote.textContent = `Matériau : ${clsLabel}`;
+      if (stageNote) stageNote.textContent = `${t('Matériau')} : ${t(clsLabel)}`;
       if (stageCaption) {
         const encombrement = `${mm(size.x)} x ${mm(size.y)} x ${mm(size.z)} mm`;
         stageCaption.textContent = pcb
-          ? `PCB ${mm(pcb.x)} x ${mm(pcb.z)} mm, ép. ${mm(pcb.y)} — hors-tout ${encombrement}.`
+          ? t('PCB {x} x {z} mm, ép. {y} — hors-tout {b}.').replace('{x}', mm(pcb.x)).replace('{z}', mm(pcb.z)).replace('{y}', mm(pcb.y)).replace('{b}', encombrement)
           : `${encombrement} — ${g.nodes.length} corps CAO.`;
       }
     }
@@ -4718,7 +5197,7 @@
         });
 
         const catSpan = document.createElement('span');
-        catSpan.textContent = CATEGORY_LABEL[catName] || catName;
+        catSpan.textContent = t(CATEGORY_LABEL[catName] || catName);
         catSpan.style.flex = '1';
 
         const catCount = document.createElement('span');
@@ -4903,7 +5382,7 @@
     function updateStepHud() {
       const n = assemblyGroups.length;
       const g = stepIndex > 0 ? assemblyGroups[stepIndex - 1] : null;
-      stepHudCount.textContent = `Étape ${stepIndex} / ${n}`;
+      stepHudCount.textContent = `${t('Étape')} ${stepIndex} / ${n}`;
       stepHudName.textContent = g ? g.label : 'Plateau vide';
       btnStepPrev.disabled = stepIndex <= 0;
       btnStepNext.disabled = stepIndex >= n;
@@ -4917,8 +5396,8 @@
         if (stageTag) stageTag.textContent = 'Montage pas à pas';
         if (stageIndexEl) stageIndexEl.textContent = `${stepIndex} / ${n}`;
         if (stageTitle) stageTitle.textContent = g.label;
-        if (stageNote) stageNote.textContent = CATEGORY_LABEL[g.cat] || g.cat;
-        if (stageCaption) stageCaption.textContent = `Pièce ${stepIndex} sur ${n} posée sur l'assemblage.`;
+        if (stageNote) stageNote.textContent = t(CATEGORY_LABEL[g.cat] || g.cat);
+        if (stageCaption) stageCaption.textContent = t("Pièce {i} sur {n} posée sur l'assemblage.").replace('{i}', stepIndex).replace('{n}', n);
       }
     }
 
@@ -5447,7 +5926,7 @@
         else updateWiringProgress();
       } else if (current) {
         pointTargetRing(stepTargetAnchor(WIRING_STEPS[wiringStep]));
-        wiringSay(`Contact établi. Encore ${left} fil(s) à poser.`, '');
+        wiringSay(t("Contact établi. Encore {n} fil(s) à poser.").replace('{n}', left), '');
       }
     }
 
@@ -5551,7 +6030,7 @@
 
     function renderWiringStep() {
       const s = WIRING_STEPS[wiringStep];
-      wiringCount.textContent = `Étape ${wiringStep + 1} / ${WIRING_STEPS.length}`;
+      wiringCount.textContent = `${t('Étape')} ${wiringStep + 1} / ${WIRING_STEPS.length}`;
       wiringTitle.textContent = s.title;
       wiringText.textContent = s.text;
       wiringHint.textContent = s.hint;
@@ -5570,7 +6049,8 @@
         const n = STEP_CABLES[s.id] ? STEP_CABLES[s.id].length : 0;
         const mot = { 2: 'deux', 4: 'quatre', 12: 'douze' }[n] || n;
         wiringAction.textContent = done ? fait
-          : (n ? `${verbe} les ${mot} d'un coup` : 'Maintenir pour souder');
+          : (n ? t("{v} les {m} d'un coup").replace('{v}', t(verbe)).replace('{m}', t(String(mot)))
+               : 'Maintenir pour souder');
       } else if (s.kind === 'test') {
         wiringAction.textContent = 'Brancher et tester';
       } else {
@@ -5751,7 +6231,7 @@
     function runFinalTest() {
       const missing = WIRING_STEPS.filter(s => s.kind !== 'test' && s.kind !== 'choice' && !wiringState.done[s.id]);
       if (missing.length) {
-        wiringSay(`Il reste ${missing.length} étape(s) : ${missing.map(m => m.title).join(', ')}.`, 'warn');
+        wiringSay(`${t('Il reste')} ${missing.length} ${t('étape(s)')} : ${missing.map(m => t(m.title)).join(', ')}.`, 'warn');
         return;
       }
       const faults = [...wiringState.faults];
@@ -5762,14 +6242,14 @@
         const f = faults[0];
         const anchor = wiringAnchors['esc-batt'] || wiringAnchors['esc-M1'];
         if (anchor) spawnSmoke(anchor.getWorldPosition(new THREE.Vector3()));
-        wiringSay(`Fumée ! ${f.why}. Reprends l'étape « ${(WIRING_STEPS.find(s => s.id === f.step) || {}).title || f.step} ».`, 'bad');
+        wiringSay(`${t('Fumée !')} ${t(f.why)}. ${t("Reprends l'étape")} « ${t((WIRING_STEPS.find(s => s.id === f.step) || {}).title || f.step)} ».`, 'bad');
         return;
       }
 
       const reversed = Object.entries(wiringState.phaseOrder).filter(([, v]) => v === 'reversed');
       if (reversed.length) {
         const [pad] = reversed[0];
-        wiringSay(`Le drone bascule au décollage : ${pad} (${MOTOR_CORNER[pad]}) tourne à l'envers. Interverstis deux de ses phases.`, 'bad');
+        wiringSay(`${t('Le drone bascule au décollage :')} ${pad} (${t(MOTOR_CORNER[pad])}) ${t("tourne à l'envers. Interverstis deux de ses phases.")}`, 'bad');
         return;
       }
 
@@ -5851,7 +6331,7 @@
       else if (s.kind === 'choice') {
         wiringState.done[s.id] = true;
         renderWiringStep();
-        wiringSay(`Configuration ${propConfig} retenue : M1 ${SPIN_TABLE[propConfig].M1}, M2 ${SPIN_TABLE[propConfig].M2}, M3 ${SPIN_TABLE[propConfig].M3}, M4 ${SPIN_TABLE[propConfig].M4}.`, 'good');
+        wiringSay(`${t('Configuration')} ${propConfig} ${t('retenue')} : M1 ${SPIN_TABLE[propConfig].M1}, M2 ${SPIN_TABLE[propConfig].M2}, M3 ${SPIN_TABLE[propConfig].M3}, M4 ${SPIN_TABLE[propConfig].M4}.`, 'good');
       }
     });
 
@@ -5861,7 +6341,7 @@
         document.querySelectorAll('[data-propcfg]').forEach(o => o.classList.toggle('active', o === btn));
         // Le sens d'animation des hélices suit la configuration choisie.
         propPivots.forEach(p => { p.userData.dir = Math.abs(p.userData.dir) * (propConfig === 'props-out' ? -1 : 1) * Math.sign(p.userData.dir || 1); });
-        wiringSay(`${propConfig} : les quatre sens sont inversés d'un jeu à l'autre.`, '');
+        wiringSay(`${propConfig} : ${t("les quatre sens sont inversés d'un jeu à l'autre.")}`, '');
       });
     });
 
@@ -6046,7 +6526,7 @@
         card.innerHTML = `<div class="kit-card-name"></div><div class="kit-card-desc"></div><span class="kit-card-count"></span>`;
         card.querySelector('.kit-card-name').textContent = kit.label;
         card.querySelector('.kit-card-desc').textContent = kit.desc;
-        card.querySelector('.kit-card-count').textContent = `${kitPieceCount(kit)} pièces`;
+        card.querySelector('.kit-card-count').textContent = `${kitPieceCount(kit)} ${t('pièces')}`;
         card.addEventListener('click', () => { activeKitId = kit.id; renderKits(); });
         kitGridEl.appendChild(card);
       });
@@ -6057,7 +6537,7 @@
       const kit = kitOf(activeKitId);
       const groups = groupsOfKit(kit);
       kitDetailEl.textContent = groups.length
-        ? groups.map(g => `• ${g.label}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('\n')
+        ? groups.map(g => `• ${t(g.label)}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('\n')
         : 'Modèle en cours de chargement…';
       kitDetailEl.style.whiteSpace = 'pre-line';
 
@@ -6065,7 +6545,7 @@
       btnKitDownload.textContent = isStep ? 'Demander le fichier STEP' : 'Télécharger le STL';
       kitNoteEl.textContent = isStep
         ? "Le visualiseur ne contient que les maillages du drone : le STEP paramétrique vient des sources CAO Onshape. Le bouton ouvre opendrone.be pour la demande."
-        : `STL binaire généré depuis le modèle affiché (${groups.reduce((s, g) => s + g.nodes.length, 0)} corps CAO), pièces à leur position d'origine.`;
+        : t("STL binaire généré depuis le modèle affiché ({n} corps CAO), pièces à leur position d'origine.").replace('{n}', groups.reduce((s, g) => s + g.nodes.length, 0));
     }
 
     function downloadKitSTL(kit) {
@@ -6683,7 +7163,7 @@
           : 'Étamage terminé.'), 'good');
       } else {
         pointTargetRing(stepTargetAnchor(s));
-        wiringSay(`${mot}. Encore ${left} point(s).`, '');
+        wiringSay(t('{m}. Encore {n} point(s).').replace('{m}', t(mot)).replace('{n}', left), '');
         updateWiringProgress();
       }
       return true;
